@@ -1,0 +1,9 @@
+{
+  "name": "gallery-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/frontend/gallery-e2e/src",
+  "implicitDependencies": ["gallery"],
+  "// targets": "to see all targets run: nx show project gallery-e2e --web",
+  "targets": {}
+}

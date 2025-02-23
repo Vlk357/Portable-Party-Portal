@@ -1,0 +1,9 @@
+{
+  "name": "video-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/frontend/video-e2e/src",
+  "implicitDependencies": ["video"],
+  "// targets": "to see all targets run: nx show project video-e2e --web",
+  "targets": {}
+}

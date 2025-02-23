@@ -1,6 +1,24 @@
-.vscode
+# Dependencies
+node_modules
+vendor
 
-# Config
+# Environment
 .env
 
-/misc
+# Build
+dist
+build
+
+# IDE
+.vscode
+.idea
+
+# Misc
+.DS_Store
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Folder with random files
+misc
