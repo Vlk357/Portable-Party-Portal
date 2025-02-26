@@ -1,0 +1,131 @@
+@startuml "Authentication and Authorization System"
+
+title "Authentication and Authorization System"
+
+!define table(x) class x << (T,#FFAAAA) >>
+!define enum(x) class x << (E,#A0FFA0) >>
+!define view(x) class x << (V,#A0A0FF) >>
+
+' Main tables
+table(users) {
+    id: INT <<PK>>
+    username: VARCHAR(100) <<UNIQUE>>
+    password_hash: CHAR(60)
+    status: user_status
+    created_at: TIMESTAMP
+}
+
+enum(user_status) {
+    ACTIVE
+    SUSPENDED
+    LOCKED
+    PENDING_ACTIVATION
+}
+
+table(login_log) {
+    id: INT <<PK>>
+    user_id: INT <<FK>>
+    ip_address: VARCHAR(45)
+    logged_at: TIMESTAMP
+    success: BOOLEAN
+    user_agent: TEXT
+}
+
+table(roles) {
+    id: INT <<PK>>
+    name: VARCHAR(100) <<UNIQUE>>
+    description: TEXT
+    created_at: TIMESTAMP
+}
+
+table(user_roles) {
+    user_id: INT <<PK, FK>>
+    role_id: INT <<PK, FK>>
+    expires_at: TIMESTAMP NULL
+}
+
+table(abilities) {
+    id: INT <<PK>>
+    module: module_enum
+    resource: VARCHAR(100)
+    resource_constraint: TEXT NULL
+    action: action_enum
+    description: TEXT
+    created_at: TIMESTAMP
+}
+
+enum(module_enum) {
+    AUTH
+    CHAT
+    VIDEO
+    GALLERY
+}
+
+enum(action_enum) {
+    CREATE
+    READ
+    UPDATE
+    DELETE
+    MANAGE
+}
+
+table(user_abilities) {
+    user_id: INT <<PK, FK>>
+    ability_id: INT <<PK, FK>>
+    resource_instance_id: INT NULL
+    expires_at: TIMESTAMP NULL
+}
+
+' Unified audit system
+enum(entity_type) {
+    USER
+    ROLE
+    ABILITY
+    USER_ROLE
+    USER_ABILITY
+    ROLE_ABILITY
+}
+
+enum(change_type) {
+    CREATED
+    UPDATED
+    DELETED
+    GRANTED
+    REVOKED
+    EXPIRED
+}
+
+table(audit_log) {
+    id: INT <<PK>>
+    entity_type: entity_type
+    entity_id: INT
+    related_entity_id: INT NULL
+    change_type: change_type
+    field_name: VARCHAR(50) NULL
+    old_value: TEXT NULL
+    new_value: TEXT NULL
+    changed_at: TIMESTAMP
+    changed_by: INT <<FK>>
+    ip_address: VARCHAR(45)
+}
+
+roles }o--o{ abilities
+
+' Main relationships
+users ||--o{ user_roles
+users ||--o{ user_abilities
+users ||--o{ login_log
+users }o--|| user_status
+
+roles ||--o{ user_roles
+
+abilities ||--o{ user_abilities
+abilities }o--|| action_enum
+abilities }o--|| module_enum
+
+' Audit relationships
+users ||--o{ audit_log : "changed_by"
+audit_log }o--|| entity_type
+audit_log }o--|| change_type
+
+@enduml
