@@ -25,11 +25,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-auth_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-auth_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./databases/auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
+      - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
+      - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
     ports:
       - "5433:5432"
     healthcheck:
