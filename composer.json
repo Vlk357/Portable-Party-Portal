@@ -1,0 +1,26 @@
+{
+    "name": "root/project",
+    "autoload": {
+        "psr-4": {
+            "App\\": "party-portal/apps/backend/auth-service/src/"
+        }
+    },
+    "require": {
+        "symfony/runtime": "^7.2",
+        "symfony/framework-bundle": "^7.2",
+        "symfony/security-bundle": "^7.2",
+        "symfony/yaml": "^7.2",
+        "lexik/jwt-authentication-bundle": "^3.1",
+        "doctrine/orm": "^3.3",
+        "doctrine/doctrine-bundle": "^2.11",
+        "doctrine/doctrine-migrations-bundle": "^3.3"
+    },
+    "config": {
+        "allow-plugins": {
+            "symfony/runtime": true
+        }
+    },
+    "require-dev": {
+        "symfony/maker-bundle": "^1.62"
+    }
+}
