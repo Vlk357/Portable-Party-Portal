@@ -23,4 +23,6 @@ docker-compose.override.yml
 # Folder with random files
 misc
 
+var/
+
 thoughts.txt

@@ -8,20 +8,25 @@ RUN apk add --no-cache \
     icu-dev \
     git \
     unzip \
-    # Additional dev tools
     vim \
     bash \
-    openssh
+    openssh \
+    libzip-dev
 
 # Install PHP extensions
 RUN docker-php-ext-install \
     pdo \
     pdo_pgsql \
-    intl
+    intl \
+    zip \
+    opcache
 
-# Install Xdebug for development
+# Configure Xdebug
 RUN pecl install xdebug && \
-    docker-php-ext-enable xdebug
+    docker-php-ext-enable xdebug && \
+    echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
 # Install Composer
 COPY --from=composer:2.8.5 /usr/bin/composer /usr/bin/composer
@@ -32,6 +37,25 @@ RUN adduser -D -u 1000 dev && \
     mkdir -p /home/dev/.composer && \
     chown -R dev:dev /home/dev
 
+# Set proper permissions
+RUN chown -R dev:www-data /var/www/html && \
+    chmod -R 775 /var/www/html
+
 WORKDIR /var/www/html
+
+# Copy composer files
+COPY --chown=dev:www-data party-portal/apps/backend/auth-service/composer.* ./
+
+# Install dependencies
+RUN composer require --no-scripts \
+    symfony/orm-pack \
+    symfony/maker-bundle --dev \
+    doctrine/doctrine-migrations-bundle \
+    doctrine/doctrine-fixtures-bundle --dev
+
+# Set development PHP configuration
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+USER dev
 
 CMD ["php-fpm"]
