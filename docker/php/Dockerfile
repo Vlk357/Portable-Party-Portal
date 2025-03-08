@@ -44,14 +44,22 @@ RUN chown -R dev:www-data /var/www/html && \
 WORKDIR /var/www/html
 
 # Copy composer files
-COPY --chown=dev:www-data party-portal/apps/backend/auth-service/composer.* ./
+COPY --chown=dev:www-data party-portal/apps/backend/auth-service/composer.json \
+    party-portal/apps/backend/auth-service/composer.lock \
+    ./
 
-# Install dependencies
-RUN composer require --no-scripts \
-    symfony/orm-pack \
-    symfony/maker-bundle --dev \
-    doctrine/doctrine-migrations-bundle \
-    doctrine/doctrine-fixtures-bundle --dev
+# Configure Composer to allow plugins
+RUN composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true && \
+    composer config --no-plugins allow-plugins.symfony/runtime true && \
+    composer config --no-plugins allow-plugins.symfony/flex true && \
+    composer config --no-plugins allow-plugins.php-http/discovery true
+
+# Install dependencies and dump autoload
+RUN composer install --no-scripts --no-interaction && \
+    composer dump-autoload
+
+# Copy the rest of the application
+COPY --chown=dev:www-data party-portal/apps/backend/auth-service .
 
 # Set development PHP configuration
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
