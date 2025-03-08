@@ -24,6 +24,7 @@ class Role
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
 
+    /** @var Collection<int, User> */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'roles')]
     #[ORM\JoinTable(name: 'user_roles')]
     private Collection $users;
@@ -33,8 +34,6 @@ class Role
         $this->createdAt = new \DateTimeImmutable();
         $this->users = new ArrayCollection();
     }
-
-    // Add getters and setters
 
     public function getId(): ?int
     {
@@ -84,6 +83,7 @@ class Role
         return $this;
     }
 
+    /** @return Collection<int, User> */
     public function getUsers(): Collection
     {
         return $this->users;
@@ -107,9 +107,10 @@ class Role
 
     public function __toString(): string
     {
-        return $this->name;
+        return $this->name ?? '';
     }
 
+    /** @return array{0: int|null, 1: string|null, 2: string|null, 3: \DateTimeImmutable} */
     public function __serialize(): array
     {
         return [
@@ -120,6 +121,7 @@ class Role
         ];
     }
 
+    /** @param array{0: int|null, 1: string|null, 2: string|null, 3: \DateTimeImmutable} $data */
     public function __unserialize(array $data): void
     {
         [

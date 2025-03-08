@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -27,6 +29,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
 
+    /** @var Collection<int, Role> */
     #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'users')]
     private Collection $roles;
 
@@ -38,12 +41,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getUserIdentifier(): string
     {
-        return $this->username;
+        return $this->username ?? '';
     }
 
+    /** @return array<string> */
     public function getRoles(): array
     {
-        return $this->roles->map(fn(Role $role) => $role->getName())->toArray();
+        return $this->roles
+            ->map(fn(Role $role): string => $role->getName() ?? '')
+            ->toArray();
     }
 
     public function getPassword(): ?string
