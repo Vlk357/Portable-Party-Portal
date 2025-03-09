@@ -2,8 +2,12 @@
 node_modules
 vendor
 
-# Environment
+# Environment files
 .env
+.env.local
+.env.*.local
+!.env.dist
+!.env.example
 
 # Build
 dist

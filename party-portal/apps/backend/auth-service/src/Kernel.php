@@ -13,7 +13,7 @@ class Kernel extends BaseKernel
     public function boot(): void
     {
         parent::boot();
-        
+
         PasswordService::initialize(
             $this->container->get('security.user_password_hasher')
         );

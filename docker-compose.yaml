@@ -19,8 +19,9 @@ services:
       - ./party-portal/apps/backend/auth-service:/var/www/apps/auth
     working_dir: /var/www/apps/auth
     environment:
-      - APP_ENV=dev
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?serverVersion=17
+      XDEBUG_MODE: 'off'
+      APP_ENV: dev
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?serverVersion=17
     depends_on:
       postgres:
         condition: service_healthy
