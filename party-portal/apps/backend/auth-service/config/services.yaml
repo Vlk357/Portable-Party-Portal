@@ -27,6 +27,10 @@ services:
             $projectDir: "%kernel.project_dir%"
         tags: ["console.command"]
 
+    App\Service\DatabaseService:
+        arguments:
+            $connection: "@doctrine.dbal.default_connection"
+
     security.user_password_hasher:
         class: Symfony\Component\PasswordHasher\Hasher\UserPasswordHasher
         public: true

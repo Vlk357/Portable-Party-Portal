@@ -10,7 +10,7 @@ final class PasswordService
     private static ?self $instance = null;
     private UserPasswordHasherInterface $hasher;
 
-    private function __construct(UserPasswordHasherInterface $hasher) 
+    private function __construct(UserPasswordHasherInterface $hasher)
     {
         $this->hasher = $hasher;
     }

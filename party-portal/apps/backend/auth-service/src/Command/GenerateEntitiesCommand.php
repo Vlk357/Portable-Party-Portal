@@ -30,26 +30,25 @@ class GenerateEntitiesCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        
+
         try {
             /** @var AbstractSchemaManager $schemaManager */
             $schemaManager = $this->entityManager->getConnection()->createSchemaManager();
-            
+
             $tables = $schemaManager->listTables();
-            
+
             foreach ($tables as $table) {
                 $className = $this->tableNameToClassName($table->getName());
                 $entityFile = sprintf('%s/src/Entity/%s.php', $this->projectDir, $className);
-                
+
                 if (!file_exists($entityFile)) {
                     $this->generateEntity($table, $className, $entityFile);
                     $io->info(sprintf('Generated entity for table "%s"', $table->getName()));
                 }
             }
-            
+
             $io->success('Entities generated successfully');
             return Command::SUCCESS;
-            
         } catch (\Exception $e) {
             $io->error('Failed to generate entities: ' . $e->getMessage());
             return Command::FAILURE;
@@ -76,9 +75,9 @@ class GenerateEntitiesCommand extends Command
         foreach ($columns as $column) {
             $propertyName = lcfirst($this->tableNameToClassName($column->getName()));
             $type = $this->mapColumnType($column);
-            
+
             $properties[] = sprintf('    private %s $%s;', $type, $propertyName);
-            
+
             // Generate getter
             $gettersSetters[] = sprintf(
                 '    public function get%s(): %s
