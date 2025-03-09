@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use App\Service\PasswordService;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
@@ -33,8 +34,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'users')]
     private Collection $roles;
 
-    public function __construct()
-    {
+    public function __construct(
+        ?string $username = null,
+        ?string $password = null,
+        UserStatus $status = UserStatus::PENDING_ACTIVATION
+    ) {
+        $this->username = $username;
+        $this->password = is_string($password) ? $this->setPassword($password) : null;
+        $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = new ArrayCollection();
     }
@@ -81,10 +88,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setPassword(string $password): self
     {
-        $this->password = $password;
+        $this->password = PasswordService::hashPassword($this, $password);
         return $this;
     }
-
     public function getStatus(): UserStatus
     {
         return $this->status;
