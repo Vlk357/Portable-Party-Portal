@@ -22,6 +22,9 @@ class DatabaseService
             ->findOneBy(['username' => $username]);
     }
 
+    /**
+     * @return array<string>
+     */
     public function getUserRoles(User $user): array
     {
         // Roles are already loaded by Doctrine if the fetch policy is EAGER
@@ -35,6 +38,9 @@ class DatabaseService
             ->findOneBy(['name' => $name]);
     }
 
+    /**
+     * @return array<User>
+     */
     public function getAllUsers(): array
     {
         return $this->entityManager->getRepository(User::class)
@@ -43,8 +49,13 @@ class DatabaseService
 
     public function saveUser(User $user): void
     {
+        $username = $user->getUsername();
+        if ($username === null) {
+            throw new \InvalidArgumentException('Username cannot be null');
+        }
+
         // Check uniqueness before persist
-        if ($this->findUserByUsername($user->getUsername())) {
+        if ($this->findUserByUsername($username)) {
             throw new \RuntimeException('Username already exists');
         }
 
