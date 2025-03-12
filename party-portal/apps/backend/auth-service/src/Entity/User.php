@@ -66,7 +66,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         $user->password = $userData['password_hash'];  // Already hashed from DB
         $user->status = UserStatus::from($userData['status']);
         $user->createdAt = new \DateTimeImmutable($userData['created_at']);
-        
+
         foreach ($roles as $roleData) {
             $role = new Role();
             $role->setName($roleData['name']);

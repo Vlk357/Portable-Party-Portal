@@ -9,7 +9,6 @@ use App\Entity\Role;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
-
 class DatabaseService
 {
     public function __construct(

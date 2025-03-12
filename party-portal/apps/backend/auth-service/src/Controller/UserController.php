@@ -19,7 +19,6 @@ class UserController extends AbstractController
     public function __construct(
         private readonly DatabaseService $db,
         private readonly ValidatorInterface $validator
-
     ) {
     }
 

@@ -10,12 +10,12 @@ class CreateUserDTO implements \JsonSerializable
         #[Assert\NotBlank]
         #[Assert\Length(min: 3)]
         public readonly string $username,
-
         #[Assert\NotBlank]
         #[Assert\Length(min: 8)]
         #[Assert\Callback([self::class, 'validatePassword'])]
         public readonly string $password,
-    ) {}
+    ) {
+    }
 
     public static function validatePassword($password, \Symfony\Component\Validator\Context\ExecutionContextInterface $context)
     {
@@ -45,7 +45,7 @@ class CreateUserDTO implements \JsonSerializable
         if (!$data || !isset($data['username'], $data['password'])) {
             return null;
         }
-        
+
         return new self(
             username: $data['username'],
             password: $data['password']
