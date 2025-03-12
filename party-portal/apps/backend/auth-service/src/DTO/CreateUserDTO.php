@@ -17,7 +17,7 @@ class CreateUserDTO implements \JsonSerializable
     ) {
     }
 
-    public static function validatePassword($password, \Symfony\Component\Validator\Context\ExecutionContextInterface $context)
+    public static function validatePassword(string $password, \Symfony\Component\Validator\Context\ExecutionContextInterface $context): void
     {
         $categories = 0;
         if (preg_match('/[a-z]/', $password)) {
@@ -41,22 +41,42 @@ class CreateUserDTO implements \JsonSerializable
 
     public static function fromJson(string $json): ?self
     {
-        $data = json_decode($json, true);
-        if (!$data || !isset($data['username'], $data['password'])) {
+        try {
+            /** @var mixed $data */
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+            if (!is_array($data)) {
+                return null;
+            }
+
+            // Type guard for array access
+            if (!isset($data['username'], $data['password'])) {
+                return null;
+            }
+
+            // Type guard for string values
+            if (!is_string($data['username']) || !is_string($data['password'])) {
+                return null;
+            }
+
+            return new self(
+                username: $data['username'],
+                password: $data['password']
+            );
+        } catch (\JsonException $e) {
             return null;
         }
-
-        return new self(
-            username: $data['username'],
-            password: $data['password']
-        );
     }
 
+    /**
+     * Returns data which should be serialized to JSON.
+     * 
+     * @return array{username: string}
+     */
     public function jsonSerialize(): array
     {
         return [
-            'username' => $this->username,
-            'password' => '***'  // Never expose password
+            'username' => $this->username
         ];
     }
 }
