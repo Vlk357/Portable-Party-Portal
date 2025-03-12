@@ -17,8 +17,10 @@ class CreateUserDTO implements \JsonSerializable
     ) {
     }
 
-    public static function validatePassword(string $password, \Symfony\Component\Validator\Context\ExecutionContextInterface $context): void
-    {
+    public static function validatePassword(
+        string $password,
+        \Symfony\Component\Validator\Context\ExecutionContextInterface $context
+    ): void {
         $categories = 0;
         if (preg_match('/[a-z]/', $password)) {
             $categories++;
@@ -34,7 +36,12 @@ class CreateUserDTO implements \JsonSerializable
         }
 
         if ($categories < 3) {
-            $context->buildViolation('Password must contain at least three of the following categories: lowercase letter, uppercase letter, number, and special character.')
+            $context
+                ->buildViolation('Password must contain at least three of the following categories:
+                lowercase letter, 
+                uppercase letter, 
+                number, 
+                special character.')
                 ->addViolation();
         }
     }
@@ -70,7 +77,7 @@ class CreateUserDTO implements \JsonSerializable
 
     /**
      * Returns data which should be serialized to JSON.
-     * 
+     *
      * @return array{username: string}
      */
     public function jsonSerialize(): array
