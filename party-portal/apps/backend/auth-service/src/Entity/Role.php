@@ -30,10 +30,13 @@ class Role implements \JsonSerializable
     #[ORM\JoinTable(name: 'user_roles')]
     private Collection $users;
 
+    /**
+     * @param array<User> $users
+     */
     public function __construct(
         ?string $name = null,
         ?string $description = null,
-        ?array $users = []
+        array $users = []
     ) {
         $this->name = $name;
         $this->description = $description;
