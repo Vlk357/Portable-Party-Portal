@@ -4,111 +4,53 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception;
+use App\Entity\Ability;
+use App\Entity\Role;
+use App\Entity\User;
+use Doctrine\ORM\EntityManagerInterface;
+
 
 class DatabaseService
 {
     public function __construct(
-        private readonly Connection $connection
+        private readonly EntityManagerInterface $entityManager
     ) {
     }
 
-    /**
-     * @throws Exception
-     */
-    public function findUserByUsername(string $username): ?array
+    public function findUserByUsername(string $username): ?User
     {
-        $queryBuilder = $this->connection->createQueryBuilder();
-
-        $result = $queryBuilder
-            ->select('*')
-            ->from('users')
-            ->where('username = :username')
-            ->setParameter('username', $username)
-            ->executeQuery();
-
-        return $result->fetchAssociative() ?: null;
+        return $this->entityManager->getRepository(User::class)
+            ->findOneBy(['username' => $username]);
     }
 
-    /**
-     * @throws Exception
-     */
-    public function createUser(string $username, string $password, string $status = 'PENDING_ACTIVATION'): int
+    public function getUserRoles(User $user): array
     {
-        $queryBuilder = $this->connection->createQueryBuilder();
-
-        $queryBuilder
-            ->insert('users')
-            ->values([
-                'username' => ':username',
-                'password' => ':password',
-                'status' => ':status',
-                'created_at' => ':created_at'
-            ])
-            ->setParameters([
-                'username' => $username,
-                'password' => $password,
-                'status' => $status,
-                'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s')
-            ])
-            ->executeQuery();
-
-        return (int) $this->connection->lastInsertId();
+        // Roles are already loaded by Doctrine if the fetch policy is EAGER
+        // If LAZY, they'll be loaded when accessed
+        return $user->getRoles();
     }
 
-    /**
-     * @throws Exception
-     */
-    public function getUserRoles(int $userId): array
+    public function findRoleByName(string $name): ?Role
     {
-        $queryBuilder = $this->connection->createQueryBuilder();
-
-        $result = $queryBuilder
-            ->select('r.*')
-            ->from('roles', 'r')
-            ->join('r', 'user_roles', 'ur', 'ur.role_id = r.id')
-            ->where('ur.user_id = :userId')
-            ->setParameter('userId', $userId)
-            ->executeQuery();
-
-        return $result->fetchAllAssociative();
+        return $this->entityManager->getRepository(Role::class)
+            ->findOneBy(['name' => $name]);
     }
 
-    /**
-     * @throws Exception
-     */
-    public function assignRole(int $userId, int $roleId): void
-    {
-        $queryBuilder = $this->connection->createQueryBuilder();
-
-        $queryBuilder
-            ->insert('user_roles')
-            ->values([
-                'user_id' => ':userId',
-                'role_id' => ':roleId',
-                'created_at' => ':created_at'
-            ])
-            ->setParameters([
-                'userId' => $userId,
-                'roleId' => $roleId,
-                'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s')
-            ])
-            ->executeQuery();
-    }
-
-    /**
-     * @throws Exception
-     */
     public function getAllUsers(): array
     {
-        $queryBuilder = $this->connection->createQueryBuilder();
+        return $this->entityManager->getRepository(User::class)
+            ->findAll();
+    }
 
-        $result = $queryBuilder
-            ->select('*')
-            ->from('users')
-            ->executeQuery();
+    public function saveUser(User $user): void
+    {
+        // Check uniqueness before persist
+        if ($this->findUserByUsername($user->getUsername())) {
+            throw new \RuntimeException('Username already exists');
+        }
 
-        return $result->fetchAllAssociative();
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+        // Entity is now managed by Doctrine, ID is automatically set
     }
 }

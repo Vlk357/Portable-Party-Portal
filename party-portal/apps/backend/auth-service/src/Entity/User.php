@@ -9,10 +9,11 @@ use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use App\Service\PasswordService;
 use App\Enum\UserStatus;
+use App\DTO\CreateUserDTO;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
-class User implements UserInterface, PasswordAuthenticatedUserInterface
+class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
@@ -32,7 +33,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, Role> */
-    #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'users')]
+    #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'users', fetch: 'EAGER')]
     private Collection $roles;
 
     public function __construct(
@@ -45,6 +46,35 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = new ArrayCollection();
+    }
+
+    public static function create(CreateUserDTO $dto): self
+    {
+        $user = new self();
+        $user->setUsername($dto->username);
+        $user->setPassword($dto->password);
+        $user->status = UserStatus::PENDING_ACTIVATION;
+        $user->createdAt = new \DateTimeImmutable();
+        return $user;
+    }
+
+    public static function fromDatabase(array $userData, array $roles = []): self
+    {
+        $user = new self();
+        $user->id = $userData['id'];
+        $user->username = $userData['username'];
+        $user->password = $userData['password_hash'];  // Already hashed from DB
+        $user->status = UserStatus::from($userData['status']);
+        $user->createdAt = new \DateTimeImmutable($userData['created_at']);
+        
+        foreach ($roles as $roleData) {
+            $role = new Role();
+            $role->setName($roleData['name']);
+            $role->setDescription($roleData['description']);
+            $user->addRole($role);
+        }
+
+        return $user;
     }
 
     public function getUserIdentifier(): string
@@ -83,6 +113,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setUsername(string $username): self
     {
+        if (strlen($username) < 3) {
+            throw new \InvalidArgumentException('Username must be at least 3 characters long');
+        }
         $this->username = $username;
         return $this;
     }
@@ -132,5 +165,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         }
 
         return $this;
+    }
+
+    public function jsonSerialize(): mixed
+    {
+        return [
+            'id' => $this->getId(),
+            'username' => $this->getUsername(),
+            'status' => $this->getStatus()->value, // Convert enum to string
+            'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
+            'roles' => array_map(fn(Role $role) => $role->jsonSerialize(), $this->getRoles())
+        ];
     }
 }

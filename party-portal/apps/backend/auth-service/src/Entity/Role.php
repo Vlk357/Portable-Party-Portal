@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'roles')]
-class Role
+class Role implements \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
@@ -26,14 +26,19 @@ class Role
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, User> */
-    #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'roles')]
+    #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'roles', fetch: 'LAZY')]
     #[ORM\JoinTable(name: 'user_roles')]
     private Collection $users;
 
-    public function __construct()
-    {
+    public function __construct(
+        ?string $name = null,
+        ?string $description = null,
+        ?array $users = []
+    ) {
+        $this->name = $name;
+        $this->description = $description;
         $this->createdAt = new \DateTimeImmutable();
-        $this->users = new ArrayCollection();
+        $this->users = new ArrayCollection($users);
     }
 
     public function getId(): ?int
@@ -131,5 +136,14 @@ class Role
             $this->description,
             $this->createdAt,
         ] = $data;
+    }
+
+    public function jsonSerialize(): mixed
+    {
+        return [
+            'id' => $this->getId(),
+            'name' => $this->getName(),
+            'description' => $this->getDescription()
+        ];
     }
 }
