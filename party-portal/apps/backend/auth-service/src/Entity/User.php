@@ -42,7 +42,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         UserStatus $status = UserStatus::PENDING_ACTIVATION
     ) {
         $this->username = $username;
-        $this->password = is_string($password) ? $this->setPassword($password) : null;
+        if (is_string($password)) {
+            $this->setPassword($password);
+        }
         $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = new ArrayCollection();
@@ -58,12 +60,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $user;
     }
 
+    /**
+     * @param array{
+     *     id: int,
+     *     username: string,
+     *     password_hash: string,
+     *     status: string,
+     *     created_at: string
+     * } $userData
+     * @param array<array{name: string, description: ?string}> $roles
+     */
     public static function fromDatabase(array $userData, array $roles = []): self
     {
         $user = new self();
-        $user->id = $userData['id'];
+        $user->id = (int) $userData['id'];
         $user->username = $userData['username'];
-        $user->password = $userData['password_hash'];  // Already hashed from DB
+        $user->password = $userData['password_hash'];
         $user->status = UserStatus::from($userData['status']);
         $user->createdAt = new \DateTimeImmutable($userData['created_at']);
 
@@ -79,14 +91,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function getUserIdentifier(): string
     {
-        return $this->username ?? '';
+        return $this->username ?: throw new \RuntimeException('Username cannot be empty');
     }
 
-    /** @return array<string> */
+    /**
+     * @return array<string>
+     */
     public function getRoles(): array
     {
         return $this->roles
-            ->map(fn(Role $role): string => $role->getName() ?? '')
+            ->map(fn(Role $role): string => $role->getName() ?: '')
             ->toArray();
     }
 
@@ -167,14 +181,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this;
     }
 
-    public function jsonSerialize(): mixed
+    /**
+     * @return array{
+     *     id: int|null,
+     *     username: string|null,
+     *     status: string,
+     *     created_at: string,
+     *     roles: array<array{name: string, description: string|null}>
+     * }
+     */
+    public function jsonSerialize(): array
     {
         return [
             'id' => $this->getId(),
             'username' => $this->getUsername(),
-            'status' => $this->getStatus()->value, // Convert enum to string
+            'status' => $this->getStatus()->value,
             'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
-            'roles' => array_map(fn(Role $role) => $role->jsonSerialize(), $this->getRoles())
+            'roles' => array_map(
+                fn(Role $role): array => [
+                    'name' => $role->getName() ?? '',
+                    'description' => $role->getDescription()
+                ],
+                $this->roles->toArray()
+            )
         ];
     }
 }
