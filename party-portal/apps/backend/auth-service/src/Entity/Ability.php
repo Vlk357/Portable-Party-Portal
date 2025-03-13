@@ -9,7 +9,7 @@ use Doctrine\DBAL\Types\Types;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'abilities')]
-class Ability
+class Ability implements \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
@@ -102,5 +102,18 @@ class Ability
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'module' => $this->module->value,
+            'resource' => $this->resource,
+            'resource_constraint' => $this->resourceConstraint,
+            'action' => $this->action->value,
+            'description' => $this->description,
+            'created_at' => $this->createdAt->format(\DateTime::ATOM),
+        ];
     }
 }

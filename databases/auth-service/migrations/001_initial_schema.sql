@@ -95,6 +95,13 @@ CREATE TABLE user_abilities (
     PRIMARY KEY (user_id, ability_id)
 );
 
+CREATE TABLE role_abilities (
+    role_id INT REFERENCES roles(id),
+    ability_id INT REFERENCES abilities(id),
+    expires_at TIMESTAMP,
+    PRIMARY KEY (role_id, ability_id)
+);
+
 CREATE TABLE audit_log (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     entity_type entity_type NOT NULL,

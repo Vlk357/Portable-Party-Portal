@@ -33,8 +33,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, Role> */
-    #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'users', fetch: 'EAGER')]
+    #[ORM\ManyToMany(targetEntity: Role::class, inversedBy: 'users')]
+    #[ORM\JoinTable(name: 'user_roles')]
     private Collection $roles;
+
+    /** @var Collection<int, Ability> */
+    #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'users')]
+    #[ORM\JoinTable(name: 'user_abilities')]
+    private Collection $abilities;
 
     public function __construct(
         ?string $username = null,
@@ -48,6 +54,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = new ArrayCollection();
+        $this->abilities = new ArrayCollection();
     }
 
     public static function create(CreateUserDTO $dto): self
@@ -102,6 +109,58 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this->roles
             ->map(fn(Role $role): string => $role->getName() ?: '')
             ->toArray();
+    }
+
+    /**
+     * @return array<Ability>
+     */
+    public function getAbilities(): array
+    {
+        $allAbilities = [];
+
+        // Get abilities from roles
+        foreach ($this->roles as $role) {
+            foreach ($role->getAbilities() as $ability) {
+                $allAbilities[] = $ability;
+            }
+        }
+
+        // Add direct abilities
+        foreach ($this->abilities as $ability) {
+            $allAbilities[] = $ability;
+        }
+
+        return array_unique($allAbilities, SORT_REGULAR);
+    }
+
+    public function hasAbility(string $module, string $resource, string $action, ?string $constraint = null): bool
+    {
+        foreach ($this->getAbilities() as $ability) {
+            if (
+                $ability->getModule()->value === $module
+                && $ability->getResource() === $resource
+                && $ability->getAction()->value === $action
+                && (!$constraint || $ability->getResourceConstraint() === $constraint)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function addAbility(Ability $ability): self
+    {
+        if (!$this->abilities->contains($ability)) {
+            $this->abilities->add($ability);
+        }
+        return $this;
+    }
+
+    public function removeAbility(Ability $ability): self
+    {
+        $this->abilities->removeElement($ability);
+        return $this;
     }
 
     public function getPassword(): ?string

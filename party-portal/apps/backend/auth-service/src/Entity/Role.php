@@ -30,18 +30,25 @@ class Role implements \JsonSerializable
     #[ORM\JoinTable(name: 'user_roles')]
     private Collection $users;
 
+    /** @var Collection<int, Ability> */
+    #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'roles')]
+    #[ORM\JoinTable(name: 'role_abilities')]
+    private Collection $abilities;
+
     /**
      * @param array<User> $users
      */
     public function __construct(
         ?string $name = null,
         ?string $description = null,
-        array $users = []
+        array $users = [],
+        array $abilities = []
     ) {
         $this->name = $name;
         $this->description = $description;
         $this->createdAt = new \DateTimeImmutable();
         $this->users = new ArrayCollection($users);
+        $this->abilities = new ArrayCollection($abilities);
     }
 
     public function getId(): ?int
@@ -112,6 +119,26 @@ class Role implements \JsonSerializable
         $this->users->removeElement($user);
 
         return $this;
+    }
+
+    public function addAbility(Ability $ability): self
+    {
+        if (!$this->abilities->contains($ability)) {
+            $this->abilities->add($ability);
+        }
+        return $this;
+    }
+
+    public function removeAbility(Ability $ability): self
+    {
+        $this->abilities->removeElement($ability);
+        return $this;
+    }
+
+    /** @return Collection<int, Ability> */
+    public function getAbilities(): Collection
+    {
+        return $this->abilities;
     }
 
     public function __toString(): string

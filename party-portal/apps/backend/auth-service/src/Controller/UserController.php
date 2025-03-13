@@ -45,6 +45,12 @@ class UserController extends AbstractController
             return $this->json(['error' => 'User not found'], 404);
         }
 
+        // Check if user can read any user or only themselves
+        if (!$this->isGranted('AUTH:USER:READ') && 
+            !$this->isGranted('AUTH:USER:READ:OWN', $user)) {
+            throw $this->createAccessDeniedException();
+        }
+
         return $this->json($user);
     }
 
@@ -103,7 +109,7 @@ class UserController extends AbstractController
             ]);
 
         } catch (\Exception $e) {
-            return $this->json(['error' => 'Internal server error'], 500);
+            return $this->json(['error' => 'Internal server error', 'exception' => $e->getMessage()], 500);
         }
     }
 }
