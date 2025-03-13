@@ -22,6 +22,12 @@ class DatabaseService
             ->findOneBy(['username' => $username]);
     }
 
+    public function findUserById(int $id): ?User
+    {
+        return $this->entityManager->getRepository(User::class)
+            ->find($id);
+    }
+
     /**
      * @return array<string>
      */

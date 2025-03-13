@@ -37,15 +37,14 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/api/user/{username}', methods: ['GET'])]
-    public function getUserByUsername(string $username): JsonResponse
+    #[Route('/api/user/{id}', methods: ['GET'])]
+    public function getUserById(int $id): JsonResponse
     {
-        $user = $this->db->findUserByUsername($username);
+        $user = $this->db->findUserById($id);
         if (!$user) {
             return $this->json(['error' => 'User not found'], 404);
         }
 
-        // Roles are already managed by Doctrine
         return $this->json($user);
     }
 
