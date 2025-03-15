@@ -29,13 +29,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     #[ORM\Column(type: 'string', enumType: UserStatus::class)]
     private UserStatus $status = UserStatus::PENDING_ACTIVATION;
 
-    #[ORM\Column(name: 'created_at')]
+    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
     private \DateTimeImmutable $createdAt;
 
-    /** @var Collection<int, Role> */
-    #[ORM\ManyToMany(targetEntity: Role::class, inversedBy: 'users')]
-    #[ORM\JoinTable(name: 'user_roles')]
-    private Collection $roles;
+    /** @var Collection<int, UserRole> */
+    #[ORM\OneToMany(targetEntity: UserRole::class, mappedBy: 'user', cascade: ['persist', 'remove'])]
+    private Collection $userRoles;
 
     /** @var Collection<int, Ability> */
     #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'users')]
@@ -52,8 +51,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
             $this->setPassword($password);
         }
         $this->status = $status;
-        $this->createdAt = new \DateTimeImmutable();
-        $this->roles = new ArrayCollection();
+        $this->userRoles = new ArrayCollection();
         $this->abilities = new ArrayCollection();
     }
 
@@ -63,7 +61,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         $user->setUsername($dto->username);
         $user->setPassword($dto->password);
         $user->status = UserStatus::PENDING_ACTIVATION;
-        $user->createdAt = new \DateTimeImmutable();
         return $user;
     }
 
@@ -102,12 +99,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     }
 
     /**
-     * @return array<string>
+     * @return array<Role>
      */
     public function getRoles(): array
     {
-        return $this->roles
-            ->map(fn(Role $role): string => $role->getName() ?: '')
+        return $this->userRoles->map(fn(UserRole $userRole): Role => $userRole->getRole())
             ->toArray();
     }
 
@@ -118,8 +114,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     {
         $allAbilities = [];
 
-        // Get abilities from roles
-        foreach ($this->roles as $role) {
+        // Add abilities from roles
+        foreach ($this->getRoles() as $role) {
             foreach ($role->getAbilities() as $ability) {
                 $allAbilities[] = $ability;
             }
@@ -223,9 +219,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function addRole(Role $role): static
     {
-        if (!$this->roles->contains($role)) {
-            $this->roles->add($role);
-            $role->addUser($this);
+        if (!$this->hasRole($role)) {
+            $userRole = new UserRole($this, $role);
+            $this->userRoles->add($userRole);
         }
 
         return $this;
@@ -233,8 +229,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function removeRole(Role $role): static
     {
-        if ($this->roles->removeElement($role)) {
-            $role->removeUser($this);
+        if ($this->hasRole($role)) {
+            $userRole = $this->userRoles->filter(fn(UserRole $userRole): bool => $userRole->getRole() === $role)->first();
+            $this->userRoles->removeElement($userRole);
         }
 
         return $this;
@@ -242,7 +239,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function hasRole(Role $role): bool
     {
-        return $this->roles->contains($role);
+        return $this->userRoles->map(fn(UserRole $userRole): Role => $userRole->getRole())
+            ->contains($role);
     }
 
     /**
@@ -263,10 +261,20 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
             'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
             'roles' => array_map(
                 fn(Role $role): array => [
-                    'name' => $role->getName() ?? '',
+                    'name' => $role->getName(),
                     'description' => $role->getDescription()
                 ],
-                $this->roles->toArray()
+                $this->getRoles()
+            ),
+            'abilities' => array_map(
+                fn(Ability $ability): array => [
+                    'module' => $ability->getModule()->value,
+                    'resource' => $ability->getResource(),
+                    'action' => $ability->getAction()->value,
+                    'resource_constraint' => $ability->getResourceConstraint(),
+                    'description' => $ability->getDescription()
+                ],
+                $this->abilities->toArray()
             )
         ];
     }

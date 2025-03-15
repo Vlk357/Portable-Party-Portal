@@ -31,7 +31,7 @@ class Ability implements \JsonSerializable
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(name: 'created_at')]
+    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
     private \DateTimeImmutable $createdAt;
 
     public function __construct(
@@ -46,7 +46,6 @@ class Ability implements \JsonSerializable
         $this->action = $action;
         $this->resourceConstraint = $resourceConstraint;
         $this->description = $description;
-        $this->createdAt = new \DateTimeImmutable();
     }
 
     public function getId(): ?int

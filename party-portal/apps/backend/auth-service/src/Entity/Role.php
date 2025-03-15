@@ -22,13 +22,12 @@ class Role implements \JsonSerializable
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(name: 'created_at')]
+    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
     private \DateTimeImmutable $createdAt;
 
-    /** @var Collection<int, User> */
-    #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'roles', fetch: 'LAZY')]
-    #[ORM\JoinTable(name: 'user_roles')]
-    private Collection $users;
+    /** @var Collection<int, UserRole> */
+    #[ORM\OneToMany(targetEntity: UserRole::class, mappedBy: 'role', cascade: ['persist', 'remove'])]
+    private Collection $userRoles;
 
     /** @var Collection<int, Ability> */
     #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'roles')]
@@ -37,6 +36,7 @@ class Role implements \JsonSerializable
 
     /**
      * @param array<User> $users
+     * @param array<Ability> $abilities
      */
     public function __construct(
         ?string $name = null,
@@ -46,9 +46,14 @@ class Role implements \JsonSerializable
     ) {
         $this->name = $name;
         $this->description = $description;
-        $this->createdAt = new \DateTimeImmutable();
-        $this->users = new ArrayCollection($users);
-        $this->abilities = new ArrayCollection($abilities);
+        $this->users = new ArrayCollection();
+        foreach ($users as $user) {
+            $this->addUser($user);
+        }
+        $this->abilities = new ArrayCollection();
+        foreach ($abilities as $ability) {
+            $this->addAbility($ability);
+        }
     }
 
     public function getId(): ?int
@@ -99,26 +104,33 @@ class Role implements \JsonSerializable
         return $this;
     }
 
-    /** @return Collection<int, User> */
-    public function getUsers(): Collection
+    /** @return array<User> */
+    public function getUsers(): array
     {
-        return $this->users;
+        return $this->userRoles->map(fn (UserRole $userRole) => $userRole->getUser())->toArray();
     }
 
     public function addUser(User $user): self
     {
-        if (!$this->users->contains($user)) {
-            $this->users[] = $user;
+        if (!$this->hasUser($user)) {
+            $userRole = new UserRole($user, $this);
+            $this->userRoles->add($userRole);
         }
-
         return $this;
     }
 
     public function removeUser(User $user): self
     {
-        $this->users->removeElement($user);
-
+        if ($this->hasUser($user)) {
+            $userRole = $this->userRoles->filter(fn(UserRole $userRole) => $userRole->getUser() === $user)->first();
+            $this->userRoles->removeElement($userRole);
+        }
         return $this;
+    }
+
+    public function hasUser(User $user): bool
+    {
+        return $this->userRoles->exists(fn(int $key, UserRole $userRole) => $userRole->getUser() === $user);
     }
 
     public function addAbility(Ability $ability): self
@@ -135,10 +147,10 @@ class Role implements \JsonSerializable
         return $this;
     }
 
-    /** @return Collection<int, Ability> */
-    public function getAbilities(): Collection
+    /** @return array<Ability> */
+    public function getAbilities(): array
     {
-        return $this->abilities;
+        return $this->abilities->toArray();
     }
 
     public function hasAbility(Ability $ability): bool
@@ -178,7 +190,10 @@ class Role implements \JsonSerializable
         return [
             'id' => $this->getId(),
             'name' => $this->getName(),
-            'description' => $this->getDescription()
+            'description' => $this->getDescription(),
+            'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
+            'users' => $this->getUsers(),
+            'abilities' => $this->abilities->toArray()
         ];
     }
 }
