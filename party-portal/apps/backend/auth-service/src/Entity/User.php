@@ -240,6 +240,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this;
     }
 
+    public function hasRole(Role $role): bool
+    {
+        return $this->roles->contains($role);
+    }
+
     /**
      * @return array{
      *     id: int|null,

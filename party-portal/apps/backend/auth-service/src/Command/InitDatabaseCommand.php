@@ -35,58 +35,70 @@ class InitDatabaseCommand extends Command
 
         $adminUsername = $_ENV['ADMIN_USERNAME'] ?? null;
         $adminPassword = $_ENV['ADMIN_PASSWORD'] ?? null;
-    
+
         if (!$adminUsername || !$adminPassword) {
             $io->error('ADMIN_USERNAME and ADMIN_PASSWORD must be set in .env file');
             return Command::FAILURE;
         }
-        
+
         $this->em->getConnection()->beginTransaction();
         try {
-            // Create admin user
-            $admin = new User();
-            $admin->setUsername($adminUsername);
-            $admin->setPassword(
-                $this->passwordHasher->hashPassword($admin, $adminPassword)
-            );
-            $admin->setStatus(UserStatus::ACTIVE);
-            
-            $this->em->persist($admin);
-            
-            // Create admin role
-            $adminRole = new Role();
-            $adminRole->setName('admin');
-            $adminRole->setDescription('System administrator');
-            
-            $this->em->persist($adminRole);
-            
+            $adminRole = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+            if (!$adminRole) {
+                $adminRole = new Role();
+                $adminRole->setName('admin');
+                $adminRole->setDescription('System administrator');
+
+                $this->em->persist($adminRole);
+            }
+
+            $admin = $this->em->getRepository(User::class)->findOneBy(['username' => $adminUsername]);
+            if (!$admin) {
+                $admin = new User();
+                $admin->setUsername($adminUsername);
+                $admin->setPassword($this->passwordHasher->
+                    hashPassword($admin, $adminPassword));
+                $admin->setStatus(UserStatus::ACTIVE);
+
+                $this->em->persist($admin);
+            }
+
             // Create abilities
             $abilities = [];
             foreach (['user', 'role', 'ability', 'user_role', 'user_ability', 'role_ability'] as $resource) {
                 foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
-                    $ability = new Ability(
-                        ModuleEnum::AUTH,
-                        $resource,
-                        $action,
-                        null,
-                        "Can {$action->value} {$resource}s"
-                    );
-                    $this->em->persist($ability);
+                    $ability = $this->em->getRepository(Ability::class)->findOneBy([
+                        'module' => ModuleEnum::AUTH,
+                        'resource' => $resource,
+                        'action' => $action
+                    ]);
+                    if (!$ability) {
+                        $ability = new Ability(
+                            ModuleEnum::AUTH,
+                            $resource,
+                            $action,
+                            null,
+                            "Can {$action->value} {$resource}s"
+                        );
+                        $this->em->persist($ability);
+                    }
                     $abilities[] = $ability;
                 }
             }
-            
-            // Assign all abilities to admin role
+
             foreach ($abilities as $ability) {
-                $adminRole->addAbility($ability);
+                if (!$adminRole->hasAbility($ability)) {
+                    $adminRole->addAbility($ability);
+                }
             }
-            
-            // Assign admin role to admin user
-            $admin->addRole($adminRole);
-            
+
+            if (!$admin->hasRole($adminRole)) {
+                $admin->addRole($adminRole);
+            }
+
             $this->em->flush();
             $this->em->getConnection()->commit();
-            
+
             $io->success('Database initialized successfully');
             return Command::SUCCESS;
         } catch (\Exception $e) {

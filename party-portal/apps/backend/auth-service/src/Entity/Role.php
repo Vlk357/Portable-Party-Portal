@@ -141,6 +141,11 @@ class Role implements \JsonSerializable
         return $this->abilities;
     }
 
+    public function hasAbility(Ability $ability): bool
+    {
+        return $this->abilities->contains($ability);
+    }
+
     public function __toString(): string
     {
         return $this->name ?? '';
