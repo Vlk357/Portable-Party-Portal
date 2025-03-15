@@ -34,8 +34,18 @@ class Ability implements \JsonSerializable
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct()
-    {
+    public function __construct(
+        ModuleEnum $module,
+        string $resource,
+        ActionEnum $action,
+        ?string $resourceConstraint = null,
+        ?string $description = null
+    ) {
+        $this->module = $module;
+        $this->resource = $resource;
+        $this->action = $action;
+        $this->resourceConstraint = $resourceConstraint;
+        $this->description = $description;
         $this->createdAt = new \DateTimeImmutable();
     }
 

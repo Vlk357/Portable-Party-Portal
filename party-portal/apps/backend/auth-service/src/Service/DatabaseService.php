@@ -69,4 +69,49 @@ class DatabaseService
         $this->entityManager->flush();
         // Entity is now managed by Doctrine, ID is automatically set
     }
+
+    public function getAllAbilities(): array
+    {
+        return $this->entityManager->getRepository(Ability::class)->findAll();
+    }
+    
+    public function findAbilityById(int $id): ?Ability
+    {
+        return $this->entityManager->getRepository(Ability::class)->find($id);
+    }
+    
+    public function saveAbility(Ability $ability): Ability
+    {
+        $this->entityManager->persist($ability);
+        $this->entityManager->flush();
+        return $ability;
+    }
+    
+    public function deleteAbility(Ability $ability): void
+    {
+        $this->entityManager->remove($ability);
+        $this->entityManager->flush();
+    }
+    
+    public function findAbilitiesByFilters(?string $module = null, ?string $resource = null, ?string $action = null): array
+    {
+        $qb = $this->entityManager->createQueryBuilder();
+        $qb->select('a')
+           ->from(Ability::class, 'a');
+    
+        if ($module) {
+            $qb->andWhere('a.module = :module')
+               ->setParameter('module', $module);
+        }
+        if ($resource) {
+            $qb->andWhere('a.resource = :resource')
+               ->setParameter('resource', $resource);
+        }
+        if ($action) {
+            $qb->andWhere('a.action = :action')
+               ->setParameter('action', $action);
+        }
+    
+        return $qb->getQuery()->getResult();
+    }
 }
