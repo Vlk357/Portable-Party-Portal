@@ -59,7 +59,7 @@ class AbilityController extends AbstractController
                 $abilityDTO->description
             );
 
-            $this->db->saveAbility($ability);
+            $this->db->createAbility($ability);
             return $this->json($ability, 201);
         } catch (\JsonException $e) {
             return $this->json(['error' => $e->getMessage()], 400);
@@ -127,7 +127,7 @@ class AbilityController extends AbstractController
                 $ability->setDescription($abilityDTO->description);
             }
 
-            $this->db->saveAbility($ability);
+            $this->db->updateAbility($ability);
             return $this->json($ability);
         } catch (\JsonException $e) {
             return $this->json(['error' => $e->getMessage()], 400);

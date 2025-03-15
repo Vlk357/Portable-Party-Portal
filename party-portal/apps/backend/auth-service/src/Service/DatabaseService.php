@@ -74,44 +74,62 @@ class DatabaseService
     {
         return $this->entityManager->getRepository(Ability::class)->findAll();
     }
-    
+
     public function findAbilityById(int $id): ?Ability
     {
         return $this->entityManager->getRepository(Ability::class)->find($id);
     }
-    
-    public function saveAbility(Ability $ability): Ability
+
+    public function createAbility(Ability $ability): Ability
     {
+        if ($ability->getId() !== null) {
+            throw new \InvalidArgumentException('Cannot create ability with existing ID');
+        }
+
         $this->entityManager->persist($ability);
         $this->entityManager->flush();
         return $ability;
     }
-    
+
+    public function updateAbility(Ability $ability): Ability
+    {
+        if ($ability->getId() === null) {
+            throw new \InvalidArgumentException('Cannot update ability without ID');
+        }
+
+        // Check if entity exists and is managed
+        if (!$this->entityManager->contains($ability)) {
+            throw new \InvalidArgumentException('Cannot update non-managed ability');
+        }
+
+        $this->entityManager->flush();
+        return $ability;
+    }
     public function deleteAbility(Ability $ability): void
     {
         $this->entityManager->remove($ability);
         $this->entityManager->flush();
     }
-    
+
     public function findAbilitiesByFilters(?string $module = null, ?string $resource = null, ?string $action = null): array
     {
         $qb = $this->entityManager->createQueryBuilder();
         $qb->select('a')
-           ->from(Ability::class, 'a');
-    
+            ->from(Ability::class, 'a');
+
         if ($module) {
             $qb->andWhere('a.module = :module')
-               ->setParameter('module', $module);
+                ->setParameter('module', $module);
         }
         if ($resource) {
             $qb->andWhere('a.resource = :resource')
-               ->setParameter('resource', $resource);
+                ->setParameter('resource', $resource);
         }
         if ($action) {
             $qb->andWhere('a.action = :action')
-               ->setParameter('action', $action);
+                ->setParameter('action', $action);
         }
-    
+
         return $qb->getQuery()->getResult();
     }
 }
