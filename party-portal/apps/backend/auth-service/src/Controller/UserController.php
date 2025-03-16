@@ -69,7 +69,10 @@ class UserController extends AbstractController
                 return $this->json(['errors' => $violations], 400);
             }
 
-            $user = User::create($dto);
+            $user = new User(
+                $dto->username,
+                $dto->password,
+            );
             $this->db->saveUser($user);
 
             return $this->json($user, 201);

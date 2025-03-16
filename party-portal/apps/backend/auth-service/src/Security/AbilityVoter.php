@@ -41,6 +41,6 @@ class AbilityVoter extends Voter
             return false;
         }
 
-        return $user->hasAbility($module, $resource, $action, $constraint);
+        return $user->hasAbilityByAttributes($module, $resource, $action, $constraint);
     }
 }

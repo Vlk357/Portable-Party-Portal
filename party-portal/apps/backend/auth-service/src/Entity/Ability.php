@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Enum\ModuleEnum;
 use App\Enum\ActionEnum;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\DBAL\Types\Types;
 
@@ -34,6 +36,10 @@ class Ability implements \JsonSerializable
     #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
     private \DateTimeImmutable $createdAt;
 
+    /** @var Collection<int, UserAbility> */
+    #[ORM\OneToMany(targetEntity: UserAbility::class, mappedBy: 'ability', cascade: ['persist', 'remove'])]
+    private Collection $userAbilities;
+
     public function __construct(
         ModuleEnum $module,
         string $resource,
@@ -46,6 +52,7 @@ class Ability implements \JsonSerializable
         $this->action = $action;
         $this->resourceConstraint = $resourceConstraint;
         $this->description = $description;
+        $this->userAbilities = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -113,6 +120,14 @@ class Ability implements \JsonSerializable
         return $this->createdAt;
     }
 
+    /** @return array<User> */
+    public function getUsers(): array
+    {
+        return $this->userAbilities->map(
+                fn(UserAbility $userAbility) => $userAbility->getUser()
+            )->toArray();
+    }
+
     public function jsonSerialize(): array
     {
         return [
@@ -123,6 +138,13 @@ class Ability implements \JsonSerializable
             'action' => $this->action->value,
             'description' => $this->description,
             'created_at' => $this->createdAt->format(\DateTime::ATOM),
+            'users' => array_map(
+                fn(User $user): array => [
+                    'id' => $user->getId(),
+                    'username' => $user->getUsername()
+                ],
+                $this->getUsers()
+            )
         ];
     }
 }

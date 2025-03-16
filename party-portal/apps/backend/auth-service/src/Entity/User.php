@@ -36,10 +36,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     #[ORM\OneToMany(targetEntity: UserRole::class, mappedBy: 'user', cascade: ['persist', 'remove'])]
     private Collection $userRoles;
 
-    /** @var Collection<int, Ability> */
-    #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'users')]
-    #[ORM\JoinTable(name: 'user_abilities')]
-    private Collection $abilities;
+    /** @var Collection<int, UserAbility> */
+    #[ORM\OneToMany(targetEntity: UserAbility::class, mappedBy: 'user', cascade: ['persist', 'remove'])]
+    private Collection $userAbilities;
 
     public function __construct(
         ?string $username = null,
@@ -52,45 +51,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         }
         $this->status = $status;
         $this->userRoles = new ArrayCollection();
-        $this->abilities = new ArrayCollection();
-    }
-
-    public static function create(CreateUserDTO $dto): self
-    {
-        $user = new self();
-        $user->setUsername($dto->username);
-        $user->setPassword($dto->password);
-        $user->status = UserStatus::PENDING_ACTIVATION;
-        return $user;
-    }
-
-    /**
-     * @param array{
-     *     id: int,
-     *     username: string,
-     *     password_hash: string,
-     *     status: string,
-     *     created_at: string
-     * } $userData
-     * @param array<array{name: string, description: ?string}> $roles
-     */
-    public static function fromDatabase(array $userData, array $roles = []): self
-    {
-        $user = new self();
-        $user->id = (int) $userData['id'];
-        $user->username = $userData['username'];
-        $user->password = $userData['password_hash'];
-        $user->status = UserStatus::from($userData['status']);
-        $user->createdAt = new \DateTimeImmutable($userData['created_at']);
-
-        foreach ($roles as $roleData) {
-            $role = new Role();
-            $role->setName($roleData['name']);
-            $role->setDescription($roleData['description']);
-            $user->addRole($role);
-        }
-
-        return $user;
+        $this->userAbilities = new ArrayCollection();
     }
 
     public function getUserIdentifier(): string
@@ -108,30 +69,68 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     }
 
     /**
+     * Gets only directly assigned abilities (not from roles)
      * @return array<Ability>
      */
-    public function getAbilities(): array
+    public function getDirectAbilities(): array
     {
-        $allAbilities = [];
+        return $this->userAbilities->map(
+            fn(UserAbility $userAbility) => $userAbility->getAbility()
+        )->toArray();
+    }
 
-        // Add abilities from roles
+    /**
+     * Gets all abilities (direct + from roles)
+     * @return array<Ability>
+     */
+    public function getAllAbilities(): array
+    {
+        $roleAbilities = [];
+        // Get role abilities
         foreach ($this->getRoles() as $role) {
-            foreach ($role->getAbilities() as $ability) {
-                $allAbilities[] = $ability;
+            $roleAbilities = array_merge($roleAbilities, $role->getAbilities());
+        }
+
+        // Get direct abilities
+        $directAbilities = $this->userAbilities
+            ->map(fn(UserAbility $userAbility) => $userAbility->getAbility())
+            ->toArray();
+
+        return array_unique(
+            array_merge($roleAbilities, $directAbilities),
+            SORT_REGULAR
+        );
+    }
+
+    /**
+     * Check if user has specific ability (direct or via role)
+     */
+    public function hasAbility(Ability $ability): bool
+    {
+        // Check direct abilities
+        $hasDirectAbility = $this->userAbilities
+            ->exists(fn(UserAbility $userAbility) => $userAbility->getAbility() === $ability);
+
+        if ($hasDirectAbility) {
+            return true;
+        }
+
+        // Check role abilities
+        foreach ($this->getRoles() as $role) {
+            if ($role->hasAbility($ability)) {
+                return true;
             }
         }
 
-        // Add direct abilities
-        foreach ($this->abilities as $ability) {
-            $allAbilities[] = $ability;
-        }
-
-        return array_unique($allAbilities, SORT_REGULAR);
+        return false;
     }
 
-    public function hasAbility(string $module, string $resource, string $action, ?string $constraint = null): bool
+    /**
+     * For voter/authorization checks
+     */
+    public function hasAbilityByAttributes(string $module, string $resource, string $action, ?string $constraint = null): bool
     {
-        foreach ($this->getAbilities() as $ability) {
+        foreach ($this->getAllAbilities() as $ability) {
             if (
                 $ability->getModule()->value === $module
                 && $ability->getResource() === $resource
@@ -141,21 +140,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
                 return true;
             }
         }
-
         return false;
     }
 
     public function addAbility(Ability $ability): self
     {
-        if (!$this->abilities->contains($ability)) {
-            $this->abilities->add($ability);
+        if (!$this->hasAbility($ability)) {
+            $userAbility = new UserAbility($this, $ability);
+            $this->userAbilities->add($userAbility);
         }
         return $this;
     }
 
     public function removeAbility(Ability $ability): self
     {
-        $this->abilities->removeElement($ability);
+        $this->userAbilities->removeElement(
+            $this->userAbilities->filter(
+                fn(UserAbility $userAbility) => $userAbility->getAbility() === $ability
+            )->first() ?: null
+        );
         return $this;
     }
 
@@ -274,7 +277,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
                     'resource_constraint' => $ability->getResourceConstraint(),
                     'description' => $ability->getDescription()
                 ],
-                $this->abilities->toArray()
+                $this->getDirectAbilities()
             )
         ];
     }
