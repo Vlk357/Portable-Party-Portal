@@ -46,7 +46,6 @@ class InitDatabaseCommand extends Command
         $this->em->getConnection()->beginTransaction();
         try {
 
-            $this->dumpUserRoles($io);
             $adminRole = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
             if (!$adminRole) {
                 $io->note('Creating admin role...');
@@ -79,7 +78,7 @@ class InitDatabaseCommand extends Command
 
             // Create abilities
             $newAbilities = [];
-            foreach (['user', 'role', 'ability', 'user_role', 'user_ability', 'role_ability'] as $resource) {
+            foreach (['USER', 'ROLE', 'ABILITY', 'USER_ROLE', 'USER_ABILITY', 'ROLE_ABILITY'] as $resource) {
                 foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
                     $key = sprintf('%s:%s:%s', ModuleEnum::AUTH->value, $resource, $action->value);
                     if (!isset($existingAbilityMap[$key])) {
@@ -132,7 +131,6 @@ class InitDatabaseCommand extends Command
             // $io->note(json_encode($adminRole->jsonSerialize()));
 
             $this->em->persist($admin);
-            $this->dumpUserRoles($io);
             $this->em->flush();
 
             $this->em->getConnection()->commit();

@@ -9,4 +9,4 @@ CREATE DATABASE auth_db;
 \i /docker-entrypoint-initdb.d/functions/audit_triggers.sql
 
 -- Load seed data
-\i /docker-entrypoint-initdb.d/seeds/001_default_roles.sql
+-- \i /docker-entrypoint-initdb.d/seeds/001_default_roles.sql
