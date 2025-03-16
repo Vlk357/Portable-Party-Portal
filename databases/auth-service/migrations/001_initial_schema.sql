@@ -60,6 +60,7 @@ CREATE TABLE login_log (
     ip_address VARCHAR(45) NOT NULL,
     logged_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     success BOOLEAN NOT NULL,
+    failure_reason TEXT,
     user_agent TEXT
 );
 
