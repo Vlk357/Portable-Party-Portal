@@ -29,10 +29,9 @@ class Role implements \JsonSerializable
     #[ORM\OneToMany(targetEntity: UserRole::class, mappedBy: 'role', cascade: ['persist', 'remove'])]
     private Collection $userRoles;
 
-    /** @var Collection<int, Ability> */
-    #[ORM\ManyToMany(targetEntity: Ability::class, inversedBy: 'roles')]
-    #[ORM\JoinTable(name: 'role_abilities')]
-    private Collection $abilities;
+    /** @var Collection<int, RoleAbility> */
+    #[ORM\OneToMany(targetEntity: RoleAbility::class, mappedBy: 'role', cascade: ['persist', 'remove'])]
+    private Collection $roleAbilities;
 
     /**
      * @param array<User> $users
@@ -46,11 +45,11 @@ class Role implements \JsonSerializable
     ) {
         $this->name = $name;
         $this->description = $description;
-        $this->users = new ArrayCollection();
+        $this->userRoles = new ArrayCollection();
         foreach ($users as $user) {
             $this->addUser($user);
         }
-        $this->abilities = new ArrayCollection();
+        $this->roleAbilities = new ArrayCollection();
         foreach ($abilities as $ability) {
             $this->addAbility($ability);
         }
@@ -107,7 +106,7 @@ class Role implements \JsonSerializable
     /** @return array<User> */
     public function getUsers(): array
     {
-        return $this->userRoles->map(fn (UserRole $userRole) => $userRole->getUser())->toArray();
+        return $this->userRoles->map(fn(UserRole $userRole) => $userRole->getUser())->toArray();
     }
 
     public function addUser(User $user): self
@@ -135,27 +134,33 @@ class Role implements \JsonSerializable
 
     public function addAbility(Ability $ability): self
     {
-        if (!$this->abilities->contains($ability)) {
-            $this->abilities->add($ability);
+        if (!$this->hasAbility($ability)) {
+            $roleAbility = new RoleAbility($this, $ability);
+            $this->roleAbilities->add($roleAbility);
         }
         return $this;
     }
 
     public function removeAbility(Ability $ability): self
     {
-        $this->abilities->removeElement($ability);
+        $this->roleAbilities->removeElement(
+            $this->roleAbilities->filter(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability)->first()
+        );
         return $this;
     }
 
     /** @return array<Ability> */
     public function getAbilities(): array
     {
-        return $this->abilities->toArray();
+        return $this->roleAbilities
+            ->map(fn(RoleAbility $roleAbility) => $roleAbility->getAbility())
+            ->toArray();
     }
 
     public function hasAbility(Ability $ability): bool
     {
-        return $this->abilities->contains($ability);
+        return $this->roleAbilities
+            ->exists(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability);
     }
 
     public function __toString(): string

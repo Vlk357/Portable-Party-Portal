@@ -40,12 +40,18 @@ class Ability implements \JsonSerializable
     #[ORM\OneToMany(targetEntity: UserAbility::class, mappedBy: 'ability', cascade: ['persist', 'remove'])]
     private Collection $userAbilities;
 
+    /** @var Collection<int, RoleAbility> */
+    #[ORM\OneToMany(targetEntity: RoleAbility::class, mappedBy: 'ability', cascade: ['persist', 'remove'])]
+    private Collection $roleAbilities;
+
     public function __construct(
         ModuleEnum $module,
         string $resource,
         ActionEnum $action,
         ?string $resourceConstraint = null,
-        ?string $description = null
+        ?string $description = null,
+        array $users = [],
+        array $roles = []
     ) {
         $this->module = $module;
         $this->resource = $resource;
@@ -53,6 +59,13 @@ class Ability implements \JsonSerializable
         $this->resourceConstraint = $resourceConstraint;
         $this->description = $description;
         $this->userAbilities = new ArrayCollection();
+        foreach ($users as $user) {
+            $this->addUser($user);
+        }
+        $this->roleAbilities = new ArrayCollection();
+        foreach ($roles as $role) {
+            $this->addRole($role);
+        }
     }
 
     public function getId(): ?int
@@ -126,6 +139,66 @@ class Ability implements \JsonSerializable
         return $this->userAbilities->map(
                 fn(UserAbility $userAbility) => $userAbility->getUser()
             )->toArray();
+    }
+
+    public function addUser(User $user): self
+    {
+        if (!$this->hasUser($user)) {
+            $userAbility = new UserAbility($user, $this);
+            $this->userAbilities->add($userAbility);
+        }
+        return $this;
+    }
+
+    public function removeUser(User $user): self
+    {
+        $this->userAbilities->removeElement(
+            $this->userAbilities->filter(
+                fn(UserAbility $userAbility) => $userAbility->getUser() === $user
+            )->first()
+        );
+        return $this;
+    }
+
+    public function hasUser(User $user): bool
+    {
+        return $this->userAbilities->exists(
+            fn(UserAbility $userAbility) => $userAbility->getUser() === $user
+        );
+    }
+
+    /** @return array<Role> */
+    public function getRoles(): array
+    {
+        return $this->roleAbilities->map(
+                fn(RoleAbility $roleAbility) => $roleAbility->getRole()
+            )->toArray();
+    }
+
+    public function addRole(Role $role): self
+    {
+        if (!$this->hasRole($role)) {
+            $roleAbility = new RoleAbility($role, $this);
+            $this->roleAbilities->add($roleAbility);
+        }
+        return $this;
+    }
+
+    public function removeRole(Role $role): self
+    {
+        $this->roleAbilities->removeElement(
+            $this->roleAbilities->filter(
+                fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
+            )->first()
+        );
+        return $this;
+    }
+
+    public function hasRole(Role $role): bool
+    {
+        return $this->roleAbilities->exists(
+            fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
+        );
     }
 
     public function jsonSerialize(): array

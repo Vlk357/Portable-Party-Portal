@@ -19,10 +19,10 @@ class UserAbility
     private Ability $ability;
 
     #[ORM\Column(name: 'resource_instance_id', type: 'integer', nullable: true)]
-    private ?int $resourceInstanceId = null;
+    private ?int $resourceInstanceId;
 
     #[ORM\Column(name: 'expires_at', type: 'datetime', nullable: true)]
-    private ?\DateTimeInterface $expiresAt = null;
+    private ?\DateTimeInterface $expiresAt;
 
     public function __construct(
         User $user,
