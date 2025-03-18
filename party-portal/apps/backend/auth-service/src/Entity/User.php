@@ -43,7 +43,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     public function __construct(
         ?string $username = null,
         ?string $password = null,
-        UserStatus $status = UserStatus::PENDING_ACTIVATION
+        UserStatus $status = UserStatus::PENDING_ACTIVATION,
+        $roles = [],
+        $abilities = []
     ) {
         $this->username = $username;
         if (is_string($password)) {
@@ -51,7 +53,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         }
         $this->status = $status;
         $this->userRoles = new ArrayCollection();
+        foreach ($roles as $role) {
+            $this->addRole($role);
+        }
         $this->userAbilities = new ArrayCollection();
+        foreach ($abilities as $ability) {
+            $this->addAbility($ability);
+        }
     }
 
     public function getUserIdentifier(): string
