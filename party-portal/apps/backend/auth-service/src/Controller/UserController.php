@@ -3,6 +3,8 @@
 // Example usage in a controller
 namespace App\Controller;
 
+use App\Exception\DTOValidationException;
+use App\Exception\ValidationException;
 use App\Service\DatabaseService;
 use App\Entity\Role;
 use App\Entity\User;
@@ -61,22 +63,24 @@ class UserController extends AbstractController
     {
         try {
             $dto = CreateUserDTO::fromJson($request->getContent());
-            if (!$dto) {
-                return $this->json(['error' => 'Invalid input'], 400);
-            }
-
-            // Validate DTO
-            $violations = $this->validator->validate($dto);
-            if (count($violations) > 0) {
-                return $this->json(['errors' => $violations], 400);
-            }
-
-            $user = $this->userService->createUser($dto);
-            $this->db->saveUser($user);
-
+            
+            $user = $this->userService->createUser(
+                username: $dto->username,
+                password: $dto->password,
+                status: $dto->status,
+                roles: $dto->roles,
+                abilities: $dto->abilities
+            );
+    
             return $this->json($user, 201);
-        } catch (\RuntimeException $e) {
-            return $this->json(['error' => $e->getMessage()], 409);
+    
+        } catch (DTOValidationException $e) {
+            return $this->json(['error' => $e->getMessage()], 400);
+        } catch (ValidationException $e) {
+            return $this->json([
+                'error' => 'Validation failed',
+                'violations' => $e->getFormattedViolations()
+            ], 400);
         } catch (\Exception $e) {
             return $this->json(['error' => 'Internal server error'], 500);
         }

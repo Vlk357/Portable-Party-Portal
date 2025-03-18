@@ -6,6 +6,8 @@ use App\Entity\User;
 use App\Enum\UserStatus;
 use App\Exception\ValidationException;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Validator\ConstraintViolation;
+use Symfony\Component\Validator\ConstraintViolationList;
 
 class UserService
 {
@@ -27,9 +29,19 @@ class UserService
             ->getRepository(User::class)
             ->findOneBy(['username' => $username]);
             
-        if ($existingUser) {
-            throw new ValidationException('Username is already taken');
-        }
+            if ($existingUser) {
+                $violations = new ConstraintViolationList([
+                    new ConstraintViolation(
+                        'Username is already taken',
+                        'Username is already taken',
+                        [],
+                        null,
+                        'username',
+                        $username
+                    )
+                ]);
+                throw new ValidationException($violations);
+            }
     
         $user = new User($username, $password, $status, $roles, $abilities);
         $this->validator->validateUser($user, ['Default', 'password_validation']);
