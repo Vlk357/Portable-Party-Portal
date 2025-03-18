@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Enum\UserStatus;
 use App\DTO\CreateUserDTO;
 use App\DTO\LoginDTO;
+use App\Service\UserService;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,7 +24,8 @@ class UserController extends AbstractController
         private readonly DatabaseService $db,
         private readonly ValidatorInterface $validator,
         private readonly UserPasswordHasherInterface $passwordHasher,
-        private readonly JWTTokenManagerInterface $jwtManager
+        private readonly JWTTokenManagerInterface $jwtManager,
+        private readonly UserService $userService
     ) {}
 
     #[Route('/api/users', methods: ['GET'])]
@@ -69,10 +71,7 @@ class UserController extends AbstractController
                 return $this->json(['errors' => $violations], 400);
             }
 
-            $user = new User(
-                $dto->username,
-                $dto->password,
-            );
+            $user = $this->userService->createUser($dto);
             $this->db->saveUser($user);
 
             return $this->json($user, 201);

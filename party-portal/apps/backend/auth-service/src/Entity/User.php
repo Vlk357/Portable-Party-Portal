@@ -7,9 +7,13 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Validator\Constraints as Assert;
 use App\Service\PasswordService;
 use App\Enum\UserStatus;
-use App\DTO\CreateUserDTO;
+use App\Exception\ValidationException;
+use App\Validator\Constraints\ComplexPassword;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
@@ -21,10 +25,26 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     private ?int $id = null;
 
     #[ORM\Column(length: 100, unique: true)]
-    private ?string $username = null;
+    #[Assert\NotBlank(message: 'Username cannot be empty')]
+    #[Assert\Length(
+        min: 1,
+        max: 100,
+        minMessage: 'Username must be at least {{ limit }} characters long',
+        maxMessage: 'Username cannot be longer than {{ limit }} characters'
+    )]
+    private string $username = null;
 
     #[ORM\Column(name: 'password_hash', length: 60)]
-    private ?string $password = null;
+    #[Assert\NotBlank(groups: ['password_validation'])]
+    #[Assert\Length(
+        min: 8,
+        max: 72, // BCrypt maximum
+        minMessage: 'Password must be at least {{ limit }} characters long',
+        maxMessage: 'Password cannot be longer than {{ limit }} characters',
+        groups: ['password_validation']
+    )]
+    #[Assert\Callback([self::class, 'validatePasswordComplexity'], groups: ['password_validation'])]
+    private string $password = null;
 
     #[ORM\Column(type: 'string', enumType: UserStatus::class)]
     private UserStatus $status = UserStatus::PENDING_ACTIVATION;
@@ -41,17 +61,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     private Collection $userAbilities;
 
     public function __construct(
-        ?string $username = null,
-        ?string $password = null,
+        string $username = null,
+        string $password = null,
         UserStatus $status = UserStatus::PENDING_ACTIVATION,
         $roles = [],
         $abilities = []
     ) {
-        $this->username = $username;
-        if (is_string($password)) {
-            $this->setPassword($password);
-        }
-        $this->status = $status;
+        $this->setUsername($username);
+        $this->setPassword($password);
+        $this->setStatus($status);
         $this->userRoles = new ArrayCollection();
         foreach ($roles as $role) {
             $this->addRole($role);
@@ -193,9 +211,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function setUsername(string $username): self
     {
-        if (strlen($username) < 3) {
-            throw new \InvalidArgumentException('Username must be at least 3 characters long');
-        }
         $this->username = $username;
         return $this;
     }
