@@ -7,7 +7,7 @@ use App\Exception\PersistenceException;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * @template T of object
+ * @template T of \App\Entity\EntityInterface
  * @implements RepositoryInterface<T>
  */
 abstract class AbstractRepository implements RepositoryInterface

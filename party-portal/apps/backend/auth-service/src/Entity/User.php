@@ -19,7 +19,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
-class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSerializable
+class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSerializable, EntityInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]

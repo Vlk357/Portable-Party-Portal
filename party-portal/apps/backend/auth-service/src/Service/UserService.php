@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\User;
 use App\Enum\UserStatus;
 use App\Exception\ValidationException;
+use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
@@ -13,7 +14,7 @@ class UserService
 {
     public function __construct(
         private readonly UserValidationService $validator,
-        private readonly EntityManagerInterface $entityManager
+        private readonly UserRepository $userRepository
     ) {
     }
 
@@ -37,12 +38,8 @@ class UserService
         array $abilities = []
     ): User {
         // Check username uniqueness before creating user
-        $existingUser = $this->entityManager
-            ->getRepository(User::class)
-            ->findOneBy(['username' => $username]);
-
-        if ($existingUser) {
-            $violations = new ConstraintViolationList([
+        if ($this->userRepository->findByUsername($username)) {
+            throw new ValidationException(new ConstraintViolationList([
                 new ConstraintViolation(
                     'Username is already taken',
                     'Username is already taken',
@@ -51,24 +48,25 @@ class UserService
                     'username',
                     $username
                 )
-            ]);
-            throw new ValidationException($violations);
+            ]));
         }
 
         $user = new User($username, $password, $status, $roles, $abilities);
         $this->validator->validateUser($user, ['Default', 'password_validation']);
 
-        $this->entityManager->persist($user);
-        $this->entityManager->flush();
-
-        return $user;
+        return $this->userRepository->save($user);
     }
 
-    public function updateUsername(User $user, string $username): void
+    /**
+     * @param \App\Entity\User $user
+     * @param string $username
+     * @return User
+     */
+    public function updateUsername(User $user, string $username): User
     {
         $user->setUsername($username);
         $this->validator->validateProperty($user, 'username');
 
-        $this->entityManager->flush();
+        return $this->userRepository->update($user);
     }
 }

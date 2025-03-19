@@ -27,6 +27,7 @@ class UserValidationService
 
     /**
      * @param array<string|GroupSequence>|string|GroupSequence|null $groups
+     * @throws ValidationException
      */
     public function validateProperty(
         User $user,

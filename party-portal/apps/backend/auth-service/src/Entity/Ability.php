@@ -11,7 +11,7 @@ use Doctrine\DBAL\Types\Types;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'abilities')]
-class Ability implements \JsonSerializable
+class Ability implements \JsonSerializable, EntityInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
