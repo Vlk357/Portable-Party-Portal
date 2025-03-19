@@ -6,7 +6,7 @@ services:
     volumes:
       - ./party-portal/apps/backend:/var/www/apps
     environment:
-      - APP_ENV=dev
+      APP_ENV: dev
     networks:
       - backend
     extra_hosts:

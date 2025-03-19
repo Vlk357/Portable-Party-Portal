@@ -81,6 +81,9 @@ CREATE TABLE abilities (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE UNIQUE INDEX idx_abilities_unique 
+ON abilities (module, resource, action) NULLS NOT DISTINCT;
+
 CREATE TABLE user_roles (
     user_id INT REFERENCES users(id),
     role_id INT REFERENCES roles(id),

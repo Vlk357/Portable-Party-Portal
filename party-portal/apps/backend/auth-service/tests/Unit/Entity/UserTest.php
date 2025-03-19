@@ -90,7 +90,7 @@ class UserTest extends TestCase
     public function constructor_sets_basic_properties(): void
     {
         $this->assertEquals('testuser', $this->user->getUsername());
-        $this->assertNotNull($this->user->getPassword() && strlen($this->user->getPassword()) == 60);
+        $this->assertTrue($this->user->getPassword() && strlen($this->user->getPassword()) == 60);
         $this->assertEquals(UserStatus::PENDING_ACTIVATION, $this->user->getStatus());
     }
 

@@ -41,6 +41,9 @@ RUN adduser -D -u 1000 dev && \
 RUN chown -R dev:www-data /var/www/html && \
     chmod -R 775 /var/www/html
 
+# Set PHP memory limit
+RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/memory-limit.ini
+
 WORKDIR /var/www/html
 
 # Copy composer files
