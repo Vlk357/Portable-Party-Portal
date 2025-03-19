@@ -87,7 +87,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function constructor_sets_basic_properties(): void
+    public function constructorSetsBasicProperties(): void
     {
         $this->assertEquals('testuser', $this->user->getUsername());
         $this->assertTrue($this->user->getPassword() && strlen($this->user->getPassword()) == 60);
@@ -99,7 +99,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function constructor_initializes_collections(): void
+    public function constructorInitializesCollections(): void
     {
         $this->assertEmpty($this->user->getRoles());
         $this->assertEmpty($this->user->getDirectAbilities());
@@ -110,7 +110,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function user_identifier_returns_username(): void
+    public function userIdentifierReturnsUsername(): void
     {
         $this->assertEquals('testuser', $this->user->getUserIdentifier());
     }
@@ -120,7 +120,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function user_identifier_throws_exception_when_username_is_null(): void
+    public function userIdentifierThrowsExceptionWhenUsernameIsNull(): void
     {
         $this->expectException(\TypeError::class);
         $user = new User(null, null);
@@ -132,7 +132,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function can_add_and_remove_roles(): void
+    public function canAddAndRemoveRoles(): void
     {
         $this->user->addRole($this->role1);
         $this->assertTrue($this->user->hasRole($this->role1));
@@ -146,7 +146,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function can_add_and_remove_abilities(): void
+    public function canAddAndRemoveAbilities(): void
     {
         $this->user->addAbility($this->ability1);
         $this->assertTrue($this->user->hasAbility($this->ability1));
@@ -160,7 +160,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function gets_abilities_from_roles(): void
+    public function getsAbilitiesFromRoles(): void
     {
         $this->user->addRole($this->role1);
         $this->assertTrue($this->user->hasAbility($this->ability1));
@@ -172,7 +172,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function converts_abilities_to_permission_strings(): void
+    public function convertsAbilitiesToPermissionStrings(): void
     {
         $this->user->addRole($this->role1);
         $this->user->addAbility($this->ability3);
@@ -189,7 +189,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function checks_ability_by_attributes(): void
+    public function checksAbilityByAttributes(): void
     {
         $this->user->addRole($this->role1);
 
@@ -212,7 +212,7 @@ class UserTest extends TestCase
      * @group unit
      * @group entity
      */
-    public function serializes_to_json_correctly(): void
+    public function serializesToJsonCorrectly(): void
     {
         $this->user->addRole($this->role1);
         $this->user->addAbility($this->ability3);
