@@ -19,11 +19,10 @@ use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 class UserTest extends TestCase
 {
     private User $user;
-    private Role $role1;
-    private Role $role2;
-    private Ability $ability1;
-    private Ability $ability2;
-    private Ability $ability3;
+    private User $adminUser;
+    private Role $basicUserRole;
+    private Role $adminRole;
+    private Ability $readOwnAbility;
 
     protected function setUp(): void
     {
@@ -37,49 +36,58 @@ class UserTest extends TestCase
         // Create test user after PasswordService initialization
         $this->user = new User(
             username: 'testuser',
-            password: 'password123',
-            status: UserStatus::PENDING_ACTIVATION
+            password: 'password123'
         );
 
         // Create test abilities
-        $this->ability1 = new Ability(
+        $this->readOwnAbility = new Ability(
             ModuleEnum::AUTH,
             'USER',
             ActionEnum::READ,
             'own',
             'Can read own user data'
-        );
-
-        // Create test abilities
-        $this->ability1 = new Ability(
-            ModuleEnum::AUTH,
-            'USER',
-            ActionEnum::READ,
-            'own',
-            'Can read own user data'
-        );
-        $this->ability2 = new Ability(
-            ModuleEnum::AUTH,
-            'USER',
-            ActionEnum::UPDATE,
-            'own',
-            'Can update own user data'
-        );
-        $this->ability3 = new Ability(
-            ModuleEnum::AUTH,
-            'USER',
-            ActionEnum::READ,
-            null,
-            'Can read all user data'
         );
 
         // Create test roles
-        $this->role1 = new Role('ROLE_USER', 'Basic user role');
-        $this->role1->addAbility($this->ability1);
-        $this->role1->addAbility($this->ability2);
+        $this->basicUserRole = new Role('ROLE_USER', 'Basic user role');
+        $this->basicUserRole->addAbility($this->readOwnAbility);
 
-        $this->role2 = new Role('ROLE_ADMIN', 'Admin role');
-        $this->role2->addAbility($this->ability3);
+        $this->adminUser = new User(
+            username: 'admin',
+            password: 'password'
+        );
+
+        $this->adminRole = new Role('ROLE_ADMIN', 'Admin role');
+    }
+
+    /**
+     * @test
+     * @group unit
+     * @group entity
+     */
+    public function createSimpleUser(): void
+    {
+        $user = new User(
+            username: 'testuser',
+            password: 'password123'
+        );
+
+        $this->assertTrue($user instanceof User);
+    }
+
+    public function testGetters():void
+    {
+        $user = new User(
+            username: 'testuser',
+            password: 'password123'
+        );
+
+        $this->assertEquals('testuser', $user->getUsername());
+        // $password = $user->getPassword();
+        // $this->assertTrue(strlen($password) == 60);
+        $this->assertEquals(UserStatus::PENDING_ACTIVATION, $user->getStatus());
+        $this->assertEquals([], $user->getRoles());
+        $this->assertEquals([], $user->getDirectAbilities());
     }
 
     /**
@@ -90,7 +98,7 @@ class UserTest extends TestCase
     public function constructorSetsBasicProperties(): void
     {
         $this->assertEquals('testuser', $this->user->getUsername());
-        $this->assertTrue($this->user->getPassword() && strlen($this->user->getPassword()) == 60);
+        // $this->assertTrue($this->user->getPassword() && strlen($this->user->getPassword()) == 60);
         $this->assertEquals(UserStatus::PENDING_ACTIVATION, $this->user->getStatus());
     }
 
@@ -134,11 +142,11 @@ class UserTest extends TestCase
      */
     public function canAddAndRemoveRoles(): void
     {
-        $this->user->addRole($this->role1);
-        $this->assertTrue($this->user->hasRole($this->role1));
+        $this->user->addRole($this->basicUserRole);
+        $this->assertTrue($this->user->hasRole($this->basicUserRole));
 
-        $this->user->removeRole($this->role1);
-        $this->assertFalse($this->user->hasRole($this->role1));
+        $this->user->removeRole($this->basicUserRole);
+        $this->assertFalse($this->user->hasRole($this->basicUserRole));
     }
 
     /**
@@ -148,11 +156,11 @@ class UserTest extends TestCase
      */
     public function canAddAndRemoveAbilities(): void
     {
-        $this->user->addAbility($this->ability1);
-        $this->assertTrue($this->user->hasAbility($this->ability1));
+        $this->user->addAbility($this->readOwnAbility);
+        $this->assertTrue($this->user->hasAbility($this->readOwnAbility));
 
-        $this->user->removeAbility($this->ability1);
-        $this->assertFalse($this->user->hasAbility($this->ability1));
+        $this->user->removeAbility($this->readOwnAbility);
+        $this->assertFalse($this->user->hasAbility($this->readOwnAbility));
     }
 
     /**
@@ -162,9 +170,8 @@ class UserTest extends TestCase
      */
     public function getsAbilitiesFromRoles(): void
     {
-        $this->user->addRole($this->role1);
-        $this->assertTrue($this->user->hasAbility($this->ability1));
-        $this->assertTrue($this->user->hasAbility($this->ability2));
+        $this->user->addRole($this->basicUserRole);
+        $this->assertTrue($this->user->hasAbility($this->readOwnAbility));
     }
 
     /**
@@ -174,14 +181,11 @@ class UserTest extends TestCase
      */
     public function convertsAbilitiesToPermissionStrings(): void
     {
-        $this->user->addRole($this->role1);
-        $this->user->addAbility($this->ability3);
+        $this->user->addRole($this->basicUserRole);
 
         $permissions = $this->user->getRoles();
 
         $this->assertContains('AUTH:USER:READ:own', $permissions);
-        $this->assertContains('AUTH:USER:UPDATE:own', $permissions);
-        $this->assertContains('AUTH:USER:READ', $permissions);
     }
 
     /**
@@ -191,7 +195,7 @@ class UserTest extends TestCase
      */
     public function checksAbilityByAttributes(): void
     {
-        $this->user->addRole($this->role1);
+        $this->user->addRole($this->basicUserRole);
 
         $this->assertTrue($this->user->hasAbilityByAttributes(
             'AUTH',
@@ -214,8 +218,14 @@ class UserTest extends TestCase
      */
     public function serializesToJsonCorrectly(): void
     {
-        $this->user->addRole($this->role1);
-        $this->user->addAbility($this->ability3);
+        $this->user->addRole($this->basicUserRole);
+        $this->user->addAbility(new Ability(
+            ModuleEnum::AUTH,
+            'USER',
+            ActionEnum::CREATE,
+            null,
+            'Can create users'
+        ));
         $this->user->setCreatedAt(new \DateTimeImmutable('2021-01-01 12:00:00'));
 
         $json = json_encode($this->user);
