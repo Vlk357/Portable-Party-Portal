@@ -26,7 +26,8 @@ class UserController extends AbstractController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly JWTTokenManagerInterface $jwtManager,
         private readonly UserService $userService
-    ) {}
+    ) {
+    }
 
     #[Route('/api/users', methods: ['GET'])]
     public function getAllUsers(): JsonResponse
@@ -48,8 +49,10 @@ class UserController extends AbstractController
         }
 
         // Check if user can read any user or only themselves
-        if (!$this->isGranted('AUTH:USER:READ') &&
-            !$this->isGranted('AUTH:USER:READ:OWN', $user)) {
+        if (
+            !$this->isGranted('AUTH:USER:READ') &&
+            !$this->isGranted('AUTH:USER:READ:OWN', $user)
+        ) {
             throw $this->createAccessDeniedException();
         }
 
@@ -71,7 +74,6 @@ class UserController extends AbstractController
             );
 
             return $this->json($user, 201);
-
         } catch (DTOValidationException $e) {
             return $this->json(['error' => $e->getMessage()], 400);
         } catch (ValidationException $e) {
@@ -111,7 +113,6 @@ class UserController extends AbstractController
                 'token' => $token,
                 'user' => $user
             ]);
-
         } catch (\Exception $e) {
             return $this->json(['error' => 'Internal server error', 'exception' => $e->getMessage()], 500);
         }

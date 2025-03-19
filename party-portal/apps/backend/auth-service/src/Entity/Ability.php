@@ -33,7 +33,13 @@ class Ability implements \JsonSerializable
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
+    #[ORM\Column(
+        name: 'created_at',
+        type: 'datetime_immutable',
+        insertable: false,
+        updatable: false,
+        options: ['default' => 'CURRENT_TIMESTAMP']
+    )]
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, UserAbility> */
@@ -164,8 +170,9 @@ class Ability implements \JsonSerializable
         $user = $this->userAbilities->filter(
             fn(UserAbility $userAbility) => $userAbility->getUser() === $user
         )->first();
-        if ($user)
+        if ($user) {
             $this->userAbilities->removeElement($user);
+        }
         return $this;
     }
 
@@ -198,8 +205,9 @@ class Ability implements \JsonSerializable
         $role = $this->roleAbilities->filter(
             fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
         )->first();
-        if ($role)
+        if ($role) {
             $this->roleAbilities->removeElement($role);
+        }
         return $this;
     }
 

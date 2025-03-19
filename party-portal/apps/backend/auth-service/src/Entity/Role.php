@@ -22,7 +22,13 @@ class Role implements \JsonSerializable
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
+    #[ORM\Column(
+        name: 'created_at',
+        type: 'datetime_immutable',
+        insertable: false,
+        updatable: false,
+        options: ['default' => 'CURRENT_TIMESTAMP']
+    )]
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, UserRole> */
@@ -122,8 +128,9 @@ class Role implements \JsonSerializable
     {
         if ($this->hasUser($user)) {
             $userRole = $this->userRoles->filter(fn(UserRole $userRole) => $userRole->getUser() === $user)->first();
-            if ($userRole)
+            if ($userRole) {
                 $this->userRoles->removeElement($userRole);
+            }
         }
         return $this;
     }
@@ -144,9 +151,12 @@ class Role implements \JsonSerializable
 
     public function removeAbility(Ability $ability): self
     {
-        $roleAbility = $this->roleAbilities->filter(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability)->first();
-        if ($roleAbility)
+        $roleAbility = $this->roleAbilities->filter(
+            fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability
+        )->first();
+        if ($roleAbility) {
             $this->roleAbilities->removeElement($roleAbility);
+        }
         return $this;
     }
 
@@ -199,15 +209,16 @@ class Role implements \JsonSerializable
             'description' => $this->getDescription(),
             'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
             'users' => $this->getUsers(),
-            'abilities' => array_map(fn(Ability $ability) => [
-                'id' => $ability->getId(),
-                'module' => $ability->getModule()->value,
-                'resource' => $ability->getResource(),
-                'resource_constraint' => $ability->getResourceConstraint(),
-                'action' => $ability->getAction()->value,
-                'description' => $ability->getDescription(),
-                'created_at' => $ability->getCreatedAt()->format(\DateTime::ATOM),
-            ],
+            'abilities' => array_map(
+                fn(Ability $ability) => [
+                    'id' => $ability->getId(),
+                    'module' => $ability->getModule()->value,
+                    'resource' => $ability->getResource(),
+                    'resource_constraint' => $ability->getResourceConstraint(),
+                    'action' => $ability->getAction()->value,
+                    'description' => $ability->getDescription(),
+                    'created_at' => $ability->getCreatedAt()->format(\DateTime::ATOM),
+                ],
                 $this->getAbilities()
             )
         ];

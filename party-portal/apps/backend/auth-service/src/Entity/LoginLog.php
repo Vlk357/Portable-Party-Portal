@@ -20,7 +20,13 @@ class LoginLog
     #[ORM\Column(name: 'ip_address', length: 45)]
     private string $ipAddress;
 
-    #[ORM\Column(name: 'logged_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
+    #[ORM\Column(
+        name: 'logged_at',
+        type: 'datetime_immutable',
+        insertable: false,
+        updatable: false,
+        options: ['default' => 'CURRENT_TIMESTAMP']
+    )]
     private \DateTimeImmutable $loggedAt;
 
     #[ORM\Column(type: 'boolean')]

@@ -51,7 +51,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     #[ORM\Column(type: 'string', enumType: UserStatus::class)]
     private UserStatus $status = UserStatus::PENDING_ACTIVATION;
 
-    #[ORM\Column(name: 'created_at', type: 'datetime_immutable', insertable: false, updatable: false, options: ['default' => 'CURRENT_TIMESTAMP'])]
+    #[ORM\Column(
+        name: 'created_at',
+        type: 'datetime_immutable',
+        insertable: false,
+        updatable: false,
+        options: ['default' => 'CURRENT_TIMESTAMP']
+    )]
     private \DateTimeImmutable $createdAt;
 
     /** @var Collection<int, UserRole> */
@@ -177,8 +183,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     /**
      * For voter/authorization checks
      */
-    public function hasAbilityByAttributes(string $module, string $resource, string $action, ?string $constraint = null): bool
-    {
+    public function hasAbilityByAttributes(
+        string $module,
+        string $resource,
+        string $action,
+        ?string $constraint = null
+    ): bool {
         foreach ($this->getAllAbilities() as $ability) {
             if (
                 $ability->getModule()->value === $module
@@ -206,8 +216,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         $userAbility = $this->userAbilities->filter(
             fn(UserAbility $userAbility, int $index) => $userAbility->getAbility() === $ability
         )->first();
-        if ($userAbility)
+        if ($userAbility) {
             $this->userAbilities->removeElement($userAbility);
+        }
         return $this;
     }
 
@@ -279,9 +290,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     public function removeRole(Role $role): static
     {
         if ($this->hasRole($role)) {
-            $userRole = $this->userRoles->filter(fn(UserRole $userRole, int $index): bool => $userRole->getRole() === $role)->first();
-            if ($userRole)
+            $userRole = $this->userRoles->filter(
+                fn(UserRole $userRole, int $index): bool => $userRole->getRole() === $role
+            )->first();
+            if ($userRole) {
                 $this->userRoles->removeElement($userRole);
+            }
         }
 
         return $this;

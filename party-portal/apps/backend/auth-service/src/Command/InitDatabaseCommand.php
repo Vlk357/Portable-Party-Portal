@@ -45,7 +45,6 @@ class InitDatabaseCommand extends Command
         $this->em->clear();
         $this->em->getConnection()->beginTransaction();
         try {
-
             $adminRole = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
             if (!$adminRole) {
                 $io->note('Creating admin role...');
@@ -72,7 +71,12 @@ class InitDatabaseCommand extends Command
             $existingAbilities = $this->em->getRepository(Ability::class)->findAll();
             $existingAbilityMap = [];
             foreach ($existingAbilities as $ability) {
-                $key = sprintf('%s:%s:%s', $ability->getModule()->value, $ability->getResource(), $ability->getAction()->value);
+                $key = sprintf(
+                    '%s:%s:%s',
+                    $ability->getModule()->value,
+                    $ability->getResource(),
+                    $ability->getAction()->value
+                );
                 $existingAbilityMap[$key] = $ability;
             }
 

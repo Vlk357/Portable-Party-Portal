@@ -45,7 +45,7 @@ class DatabaseService
 
     /**
      * Returns all abilities from database
-     * 
+     *
      * @return Ability[]
      */
     public function getAllAbilities(): array
@@ -95,11 +95,15 @@ class DatabaseService
      * @param ?string $resource
      * @param ?string $action
      * @param ?string $constraint
-     * 
+     *
      * @return array<Ability>
      */
-    public function findAbilitiesByFilters(?string $module = null, ?string $resource = null, ?string $action = null, ?string $constraint = null): array
-    {
+    public function findAbilitiesByFilters(
+        ?string $module = null,
+        ?string $resource = null,
+        ?string $action = null,
+        ?string $constraint = null
+    ): array {
         $qb = $this->entityManager->createQueryBuilder();
         $qb->select('a')
             ->from(Ability::class, 'a');

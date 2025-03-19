@@ -13,7 +13,8 @@ class UpdateAbilityDTO
         public readonly ?ActionEnum $action = null,
         public readonly ?string $resourceConstraint = null,
         public readonly ?string $description = null
-    ) {}
+    ) {
+    }
 
     /**
      * @param array{

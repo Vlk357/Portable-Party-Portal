@@ -11,7 +11,8 @@ class UserValidationService
 {
     public function __construct(
         private readonly ValidatorInterface $validator
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string|GroupSequence>|string|GroupSequence|null $groups
@@ -27,8 +28,11 @@ class UserValidationService
     /**
      * @param array<string|GroupSequence>|string|GroupSequence|null $groups
      */
-    public function validateProperty(User $user, string $propertyName, string|array|GroupSequence|null $groups = null): void
-    {
+    public function validateProperty(
+        User $user,
+        string $propertyName,
+        string|array|GroupSequence|null $groups = null
+    ): void {
         $violations = $this->validator->validateProperty($user, $propertyName, $groups);
         if (count($violations) > 0) {
             throw new ValidationException($violations);

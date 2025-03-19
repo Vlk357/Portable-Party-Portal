@@ -22,7 +22,7 @@ class ValidationException extends \RuntimeException
 
     /**
      * Returns an array of formatted violations
-     * 
+     *
      * @return list<array{property: string, message: string|\Stringable}>
      */
     public function getFormattedViolations(): array

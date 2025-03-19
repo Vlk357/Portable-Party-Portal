@@ -25,7 +25,7 @@ class AbilityVoter extends Voter
         }
 
         [$module, $resource, $action] = explode(':', $attribute) + [null, null, null];
-        
+
         return isset($module, $resource, $action) &&
             ModuleEnum::tryFrom($module) !== null &&
             ActionEnum::tryFrom($action) !== null;

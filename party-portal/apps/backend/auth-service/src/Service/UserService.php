@@ -24,9 +24,9 @@ class UserService
      * @param \App\Enum\UserStatus $status
      * @param array<\App\Entity\Role> $roles
      * @param array<\App\Entity\Ability> $abilities
-     * 
+     *
      * @throws \App\Exception\ValidationException
-     * 
+     *
      * @return User
      */
     public function createUser(
@@ -40,27 +40,27 @@ class UserService
         $existingUser = $this->entityManager
             ->getRepository(User::class)
             ->findOneBy(['username' => $username]);
-            
-            if ($existingUser) {
-                $violations = new ConstraintViolationList([
-                    new ConstraintViolation(
-                        'Username is already taken',
-                        'Username is already taken',
-                        [],
-                        null,
-                        'username',
-                        $username
-                    )
-                ]);
-                throw new ValidationException($violations);
-            }
-    
+
+        if ($existingUser) {
+            $violations = new ConstraintViolationList([
+                new ConstraintViolation(
+                    'Username is already taken',
+                    'Username is already taken',
+                    [],
+                    null,
+                    'username',
+                    $username
+                )
+            ]);
+            throw new ValidationException($violations);
+        }
+
         $user = new User($username, $password, $status, $roles, $abilities);
         $this->validator->validateUser($user, ['Default', 'password_validation']);
-        
+
         $this->entityManager->persist($user);
         $this->entityManager->flush();
-        
+
         return $user;
     }
 

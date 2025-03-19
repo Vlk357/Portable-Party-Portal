@@ -13,7 +13,8 @@ class CreateAbilityDTO
         public readonly ActionEnum $action,
         public readonly ?string $resourceConstraint = null,
         public readonly ?string $description = null
-    ) {}
+    ) {
+    }
 
     /**
      * @param array{
