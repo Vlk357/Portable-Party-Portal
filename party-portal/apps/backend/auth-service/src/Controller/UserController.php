@@ -16,7 +16,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 
@@ -24,7 +23,6 @@ class UserController extends AbstractController
 {
     public function __construct(
         private readonly DatabaseService $db,
-        private readonly ValidatorInterface $validator,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly JWTTokenManagerInterface $jwtManager,
         private readonly UserService $userService
@@ -50,7 +48,7 @@ class UserController extends AbstractController
         }
 
         // Check if user can read any user or only themselves
-        if (!$this->isGranted('AUTH:USER:READ') && 
+        if (!$this->isGranted('AUTH:USER:READ') &&
             !$this->isGranted('AUTH:USER:READ:OWN', $user)) {
             throw $this->createAccessDeniedException();
         }
@@ -63,7 +61,7 @@ class UserController extends AbstractController
     {
         try {
             $dto = CreateUserDTO::fromJson($request->getContent());
-            
+
             $user = $this->userService->createUser(
                 username: $dto->username,
                 password: $dto->password,
@@ -71,9 +69,9 @@ class UserController extends AbstractController
                 roles: $dto->roles,
                 abilities: $dto->abilities
             );
-    
+
             return $this->json($user, 201);
-    
+
         } catch (DTOValidationException $e) {
             return $this->json(['error' => $e->getMessage()], 400);
         } catch (ValidationException $e) {

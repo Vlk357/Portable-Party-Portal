@@ -20,6 +20,11 @@ class ValidationException extends \RuntimeException
         return $this->violations;
     }
 
+    /**
+     * Returns an array of formatted violations
+     * 
+     * @return list<array{property: string, message: string|\Stringable}>
+     */
     public function getFormattedViolations(): array
     {
         $formattedViolations = [];

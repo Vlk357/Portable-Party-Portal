@@ -17,6 +17,18 @@ class UserService
     ) {
     }
 
+    /**
+     * Creates a new user and validates it
+     * @param string $username
+     * @param string $password
+     * @param \App\Enum\UserStatus $status
+     * @param array<\App\Entity\Role> $roles
+     * @param array<\App\Entity\Ability> $abilities
+     * 
+     * @throws \App\Exception\ValidationException
+     * 
+     * @return User
+     */
     public function createUser(
         string $username,
         string $password,

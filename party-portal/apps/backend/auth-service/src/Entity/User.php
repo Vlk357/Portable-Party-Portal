@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Enum\ActionEnum;
+use App\Enum\ModuleEnum;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -32,7 +34,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         minMessage: 'Username must be at least {{ limit }} characters long',
         maxMessage: 'Username cannot be longer than {{ limit }} characters'
     )]
-    private string $username = null;
+    private string $username;
 
     #[ORM\Column(name: 'password_hash', length: 60)]
     #[Assert\NotBlank(groups: ['password_validation'])]
@@ -44,7 +46,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         groups: ['password_validation']
     )]
     #[Assert\Callback([self::class, 'validatePasswordComplexity'], groups: ['password_validation'])]
-    private string $password = null;
+    private string $password;
 
     #[ORM\Column(type: 'string', enumType: UserStatus::class)]
     private UserStatus $status = UserStatus::PENDING_ACTIVATION;
@@ -60,9 +62,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     #[ORM\OneToMany(targetEntity: UserAbility::class, mappedBy: 'user', cascade: ['persist', 'remove'])]
     private Collection $userAbilities;
 
+    /**
+     * @param string $username
+     * @param string $password
+     * @param \App\Enum\UserStatus $status
+     * @param array<Role> $roles
+     * @param array<Ability> $abilities
+     */
     public function __construct(
-        string $username = null,
-        string $password = null,
+        string $username,
+        string $password,
         UserStatus $status = UserStatus::PENDING_ACTIVATION,
         $roles = [],
         $abilities = []
@@ -86,12 +95,26 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     }
 
     /**
-     * @return array<Role>
+     * Returns all user's abilities as permission strings for Symfony security
+     * @return array<string>
      */
     public function getRoles(): array
     {
-        return $this->userRoles->map(fn(UserRole $userRole): Role => $userRole->getRole())
-            ->toArray();
+        return array_map(
+            fn(Ability $ability): string => $ability->toPermissionString(),
+            $this->getAllAbilities()
+        );
+    }
+
+    /**
+     * Returns actual Role entities assigned to user
+     * @return array<Role>
+     */
+    public function getEntityRoles(): array
+    {
+        return $this->userRoles->map(
+            fn(UserRole $userRole): Role => $userRole->getRole()
+        )->toArray();
     }
 
     /**
@@ -113,7 +136,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     {
         $roleAbilities = [];
         // Get role abilities
-        foreach ($this->getRoles() as $role) {
+        foreach ($this->getEntityRoles() as $role) {
             $roleAbilities = array_merge($roleAbilities, $role->getAbilities());
         }
 
@@ -135,14 +158,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     {
         // Check direct abilities
         $hasDirectAbility = $this->userAbilities
-            ->exists(fn(UserAbility $userAbility) => $userAbility->getAbility() === $ability);
+            ->exists(fn(int $index, UserAbility $userAbility): bool => $userAbility->getAbility() === $ability);
 
         if ($hasDirectAbility) {
             return true;
         }
 
         // Check role abilities
-        foreach ($this->getRoles() as $role) {
+        foreach ($this->getEntityRoles() as $role) {
             if ($role->hasAbility($ability)) {
                 return true;
             }
@@ -180,11 +203,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function removeAbility(Ability $ability): self
     {
-        $this->userAbilities->removeElement(
-            $this->userAbilities->filter(
-                fn(UserAbility $userAbility) => $userAbility->getAbility() === $ability
-            )->first() ?: null
-        );
+        $userAbility = $this->userAbilities->filter(
+            fn(UserAbility $userAbility, int $index) => $userAbility->getAbility() === $ability
+        )->first();
+        if ($userAbility)
+            $this->userAbilities->removeElement($userAbility);
         return $this;
     }
 
@@ -204,7 +227,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this->id;
     }
 
-    public function getUsername(): ?string
+    public function getUsername(): string
     {
         return $this->username;
     }
@@ -256,8 +279,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     public function removeRole(Role $role): static
     {
         if ($this->hasRole($role)) {
-            $userRole = $this->userRoles->filter(fn(UserRole $userRole): bool => $userRole->getRole() === $role)->first();
-            $this->userRoles->removeElement($userRole);
+            $userRole = $this->userRoles->filter(fn(UserRole $userRole, int $index): bool => $userRole->getRole() === $role)->first();
+            if ($userRole)
+                $this->userRoles->removeElement($userRole);
         }
 
         return $this;
@@ -272,10 +296,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     /**
      * @return array{
      *     id: int|null,
-     *     username: string|null,
-     *     status: string,
-     *     created_at: string,
-     *     roles: array<array{name: string, description: string|null}>
+     *     username: string,
+     *     status: 'ACTIVE'|'LOCKED'|'PENDING_ACTIVATION'|'SUSPENDED',
+     *     created_at: non-falsy-string,
+     *     roles: array<array{name: string, description: string|null}>,
+     *     abilities: array<array{
+     *         module: 'AUTH'|'CHAT'|'GALLERY'|'VIDEO',
+     *         resource: string,
+     *         action: 'CREATE'|'DELETE'|'MANAGE'|'READ'|'UPDATE',
+     *         resource_constraint: string|null,
+     *         description: string|null
+     *     }>
      * }
      */
     public function jsonSerialize(): array
@@ -290,7 +321,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
                     'name' => $role->getName(),
                     'description' => $role->getDescription()
                 ],
-                $this->getRoles()
+                $this->getEntityRoles()
             ),
             'abilities' => array_map(
                 fn(Ability $ability): array => [
@@ -303,5 +334,47 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
                 $this->getDirectAbilities()
             )
         ];
+    }
+
+    /**
+     * @param array{
+     *   id: int|null,
+     *  username: string,
+     * password: string,
+     * status: 'ACTIVE'|'LOCKED'|'PENDING_ACTIVATION'|'SUSPENDED',
+     * created_at: non-falsy-string,
+     * roles: array<array{name: string, description: string|null}>,
+     * abilities: array<array{
+     *     module: 'AUTH'|'CHAT'|'GALLERY'|'VIDEO',
+     *     resource: string,
+     *     action: 'CREATE'|'DELETE'|'MANAGE'|'READ'|'UPDATE',
+     *     resource_constraint: string|null,
+     *     description: string|null
+     * }> } $data
+     * @return void
+     */
+    public function __unserialize(array $data): void
+    {
+        $this->id = $data['id'];
+        $this->username = $data['username'];
+        $this->password = $data['password'];
+        $this->status = UserStatus::from($data['status']);
+        $this->createdAt = new \DateTimeImmutable($data['created_at']);
+        $this->userRoles = new ArrayCollection();
+        foreach ($data['roles'] as $roleData) {
+            $role = new Role($roleData['name'], $roleData['description']);
+            $this->addRole($role);
+        }
+        $this->userAbilities = new ArrayCollection();
+        foreach ($data['abilities'] as $abilityData) {
+            $ability = new Ability(
+                ModuleEnum::from($abilityData['module']),
+                $abilityData['resource'],
+                ActionEnum::from($abilityData['action']),
+                $abilityData['resource_constraint'],
+                $abilityData['description']
+            );
+            $this->addAbility($ability);
+        }
     }
 }

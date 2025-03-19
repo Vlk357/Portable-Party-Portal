@@ -28,16 +28,6 @@ class DatabaseService
             ->find($id);
     }
 
-    /**
-     * @return array<string>
-     */
-    public function getUserRoles(User $user): array
-    {
-        // Roles are already loaded by Doctrine if the fetch policy is EAGER
-        // If LAZY, they'll be loaded when accessed
-        return $user->getRoles();
-    }
-
     public function findRoleByName(string $name): ?Role
     {
         return $this->entityManager->getRepository(Role::class)
@@ -53,23 +43,11 @@ class DatabaseService
             ->findAll();
     }
 
-    public function saveUser(User $user): void
-    {
-        $username = $user->getUsername();
-        if ($username === null) {
-            throw new \InvalidArgumentException('Username cannot be null');
-        }
-
-        // Check uniqueness before persist
-        if ($this->findUserByUsername($username)) {
-            throw new \RuntimeException('Username already exists');
-        }
-
-        $this->entityManager->persist($user);
-        $this->entityManager->flush();
-        // Entity is now managed by Doctrine, ID is automatically set
-    }
-
+    /**
+     * Returns all abilities from database
+     * 
+     * @return Ability[]
+     */
     public function getAllAbilities(): array
     {
         return $this->entityManager->getRepository(Ability::class)->findAll();
@@ -111,7 +89,16 @@ class DatabaseService
         $this->entityManager->flush();
     }
 
-    public function findAbilitiesByFilters(?string $module = null, ?string $resource = null, ?string $action = null): array
+    /**
+     * Returns all abilities with given filters from database
+     * @param ?string $module
+     * @param ?string $resource
+     * @param ?string $action
+     * @param ?string $constraint
+     * 
+     * @return array<Ability>
+     */
+    public function findAbilitiesByFilters(?string $module = null, ?string $resource = null, ?string $action = null, ?string $constraint = null): array
     {
         $qb = $this->entityManager->createQueryBuilder();
         $qb->select('a')
@@ -130,6 +117,13 @@ class DatabaseService
                 ->setParameter('action', $action);
         }
 
-        return $qb->getQuery()->getResult();
+        if ($constraint) {
+            $qb->andWhere('a.constraint = :constraint')
+                ->setParameter('constraint', $constraint);
+        }
+
+        /** @var array<Ability> $result */
+        $result = $qb->getQuery()->getResult();
+        return $result;
     }
 }

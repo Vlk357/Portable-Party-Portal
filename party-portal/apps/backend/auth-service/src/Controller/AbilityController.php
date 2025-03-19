@@ -43,14 +43,34 @@ class AbilityController extends AbstractController
                 throw $this->createAccessDeniedException();
             }
 
-            $abilityDTO = CreateAbilityDTO::fromArray(
-                json_decode(
-                    $request->getContent(),
-                    true,
-                    512,
-                    JSON_THROW_ON_ERROR
-                )
+            $data = json_decode(
+                $request->getContent(),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
             );
+
+
+            if (!is_array($data)) {
+                throw new \InvalidArgumentException('Invalid JSON format');
+            }
+
+            /**
+             * @var array{
+             *   module?: string,
+             *  resource?: string,
+             * action?: string,
+             * resourceConstraint?: string,
+             * description?: string
+             * } $validatedData
+             */
+            $validatedData = array_filter(
+                $data,
+                fn($key) => in_array($key, ['module', 'resource', 'action', 'resourceConstraint', 'description'], true),
+                ARRAY_FILTER_USE_KEY
+            );
+
+            $abilityDTO = CreateAbilityDTO::fromArray($validatedData);
             $ability = new Ability(
                 $abilityDTO->module,
                 $abilityDTO->resource,
@@ -102,14 +122,33 @@ class AbilityController extends AbstractController
                 return $this->json(['error' => 'Ability not found'], 404);
             }
 
-            $abilityDTO = UpdateAbilityDTO::fromArray(
-                json_decode(
-                    $request->getContent(),
-                    true,
-                    512,
-                    JSON_THROW_ON_ERROR
-                )
+            $data = json_decode(
+                $request->getContent(),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
             );
+
+
+            if (!is_array($data)) {
+                throw new \InvalidArgumentException('Invalid JSON format');
+            }
+
+            /** @var array{
+             *     module?: 'AUTH'|'CHAT'|'GALLERY'|'VIDEO',
+             *     resource?: string,
+             *     action?: 'CREATE'|'DELETE'|'MANAGE'|'READ'|'UPDATE',
+             *     resourceConstraint?: string,
+             *     description?: string
+             * } $validatedData
+             */
+            $validatedData = array_filter(
+                $data,
+                fn($key) => in_array($key, ['module', 'resource', 'action', 'resourceConstraint', 'description'], true),
+                ARRAY_FILTER_USE_KEY
+            );
+
+            $abilityDTO = UpdateAbilityDTO::fromArray($validatedData);
 
             if ($abilityDTO->module) {
                 $ability->setModule($abilityDTO->module);
@@ -170,7 +209,11 @@ class AbilityController extends AbstractController
             $resource = $request->query->get('resource');
             $action = $request->query->get('action');
 
-            $abilities = $this->db->findAbilitiesByFilters($module, $resource, $action);
+            $abilities = $this->db->findAbilitiesByFilters(
+                is_string($module) ? $module : null,
+                is_string($resource) ? $resource : null,
+                is_string($action) ? $action : null
+            );
             return $this->json($abilities);
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], 500);

@@ -17,7 +17,7 @@ class Role implements \JsonSerializable
     private ?int $id = null;
 
     #[ORM\Column(length: 100, unique: true)]
-    private ?string $name = null;
+    private string $name;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
@@ -38,7 +38,7 @@ class Role implements \JsonSerializable
      * @param array<Ability> $abilities
      */
     public function __construct(
-        ?string $name = null,
+        string $name,
         ?string $description = null,
         array $users = [],
         array $abilities = []
@@ -67,7 +67,7 @@ class Role implements \JsonSerializable
         return $this;
     }
 
-    public function getName(): ?string
+    public function getName(): string
     {
         return $this->name;
     }
@@ -122,7 +122,8 @@ class Role implements \JsonSerializable
     {
         if ($this->hasUser($user)) {
             $userRole = $this->userRoles->filter(fn(UserRole $userRole) => $userRole->getUser() === $user)->first();
-            $this->userRoles->removeElement($userRole);
+            if ($userRole)
+                $this->userRoles->removeElement($userRole);
         }
         return $this;
     }
@@ -143,9 +144,9 @@ class Role implements \JsonSerializable
 
     public function removeAbility(Ability $ability): self
     {
-        $this->roleAbilities->removeElement(
-            $this->roleAbilities->filter(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability)->first()
-        );
+        $roleAbility = $this->roleAbilities->filter(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability)->first();
+        if ($roleAbility)
+            $this->roleAbilities->removeElement($roleAbility);
         return $this;
     }
 
@@ -160,7 +161,7 @@ class Role implements \JsonSerializable
     public function hasAbility(Ability $ability): bool
     {
         return $this->roleAbilities
-            ->exists(fn(RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability);
+            ->exists(fn(int $index, RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability);
     }
 
     public function __toString(): string
@@ -179,7 +180,7 @@ class Role implements \JsonSerializable
         ];
     }
 
-    /** @param array{0: int|null, 1: string|null, 2: string|null, 3: \DateTimeImmutable} $data */
+    /** @param array{0: int|null, 1: string, 2: string|null, 3: \DateTimeImmutable} $data */
     public function __unserialize(array $data): void
     {
         [
@@ -198,7 +199,17 @@ class Role implements \JsonSerializable
             'description' => $this->getDescription(),
             'created_at' => $this->getCreatedAt()->format(\DateTime::ATOM),
             'users' => $this->getUsers(),
-            'abilities' => $this->abilities->toArray()
+            'abilities' => array_map(fn(Ability $ability) => [
+                'id' => $ability->getId(),
+                'module' => $ability->getModule()->value,
+                'resource' => $ability->getResource(),
+                'resource_constraint' => $ability->getResourceConstraint(),
+                'action' => $ability->getAction()->value,
+                'description' => $ability->getDescription(),
+                'created_at' => $ability->getCreatedAt()->format(\DateTime::ATOM),
+            ],
+                $this->getAbilities()
+            )
         ];
     }
 }

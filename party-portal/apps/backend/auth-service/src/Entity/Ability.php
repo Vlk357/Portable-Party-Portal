@@ -44,6 +44,15 @@ class Ability implements \JsonSerializable
     #[ORM\OneToMany(targetEntity: RoleAbility::class, mappedBy: 'ability', cascade: ['persist', 'remove'])]
     private Collection $roleAbilities;
 
+    /**
+     * @param \App\Enum\ModuleEnum $module
+     * @param string $resource
+     * @param \App\Enum\ActionEnum $action
+     * @param string|null $resourceConstraint
+     * @param string|null $description
+     * @param array<User> $users
+     * @param array<Role> $roles
+     */
     public function __construct(
         ModuleEnum $module,
         string $resource,
@@ -137,8 +146,8 @@ class Ability implements \JsonSerializable
     public function getUsers(): array
     {
         return $this->userAbilities->map(
-                fn(UserAbility $userAbility) => $userAbility->getUser()
-            )->toArray();
+            fn(UserAbility $userAbility) => $userAbility->getUser()
+        )->toArray();
     }
 
     public function addUser(User $user): self
@@ -152,18 +161,18 @@ class Ability implements \JsonSerializable
 
     public function removeUser(User $user): self
     {
-        $this->userAbilities->removeElement(
-            $this->userAbilities->filter(
-                fn(UserAbility $userAbility) => $userAbility->getUser() === $user
-            )->first()
-        );
+        $user = $this->userAbilities->filter(
+            fn(UserAbility $userAbility) => $userAbility->getUser() === $user
+        )->first();
+        if ($user)
+            $this->userAbilities->removeElement($user);
         return $this;
     }
 
     public function hasUser(User $user): bool
     {
         return $this->userAbilities->exists(
-            fn(UserAbility $userAbility) => $userAbility->getUser() === $user
+            fn(int $index, UserAbility $userAbility) => $userAbility->getUser() === $user
         );
     }
 
@@ -171,8 +180,8 @@ class Ability implements \JsonSerializable
     public function getRoles(): array
     {
         return $this->roleAbilities->map(
-                fn(RoleAbility $roleAbility) => $roleAbility->getRole()
-            )->toArray();
+            fn(RoleAbility $roleAbility) => $roleAbility->getRole()
+        )->toArray();
     }
 
     public function addRole(Role $role): self
@@ -186,21 +195,36 @@ class Ability implements \JsonSerializable
 
     public function removeRole(Role $role): self
     {
-        $this->roleAbilities->removeElement(
-            $this->roleAbilities->filter(
-                fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
-            )->first()
-        );
+        $role = $this->roleAbilities->filter(
+            fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
+        )->first();
+        if ($role)
+            $this->roleAbilities->removeElement($role);
         return $this;
     }
 
     public function hasRole(Role $role): bool
     {
         return $this->roleAbilities->exists(
-            fn(RoleAbility $roleAbility) => $roleAbility->getRole() === $role
+            fn(int $index, RoleAbility $roleAbility) => $roleAbility->getRole() === $role
         );
     }
 
+    /**
+     * @return array{
+     *  action: 'CREATE'|'DELETE'|'MANAGE'|'READ'|'UPDATE',
+     *  created_at: non-falsy-string,
+     *  description: string|null,
+     *  id: int|null,
+     *  module: 'AUTH'|'CHAT'|'GALLERY'|'VIDEO',
+     *  resource: string,
+     *  resource_constraint: string|null,
+     *  users: array<array{
+     *    id: int|null,
+     *   username: string
+     * }>
+     * }
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -219,5 +243,45 @@ class Ability implements \JsonSerializable
                 $this->getUsers()
             )
         ];
+    }
+
+    public function toPermissionString(): string
+    {
+        return sprintf(
+            '%s:%s:%s%s',
+            $this->module->value,
+            $this->resource,
+            $this->action->value,
+            $this->resourceConstraint ? ':' . $this->resourceConstraint : ''
+        );
+    }
+
+    // Keep toString for debug/logging purposes
+    public function __toString(): string
+    {
+        return $this->toPermissionString();
+    }
+
+    /**
+     * @param array{
+     *  id: int,
+     * module: string,
+     * resource: string,
+     * resource_constraint: ?string,
+     * action: string,
+     * description: ?string,
+     * created_at: string
+     * } $data
+     * @return void
+     */
+    public function __unserialize(array $data)
+    {
+        $this->id = $data['id'];
+        $this->module = ModuleEnum::from($data['module']);
+        $this->resource = $data['resource'];
+        $this->resourceConstraint = $data['resource_constraint'];
+        $this->action = ActionEnum::from($data['action']);
+        $this->description = $data['description'];
+        $this->createdAt = new \DateTimeImmutable($data['created_at']);
     }
 }

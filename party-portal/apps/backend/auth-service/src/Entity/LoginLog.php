@@ -80,4 +80,27 @@ class LoginLog
     {
         return $this->userAgent;
     }
+
+    /**
+     * @param array{
+     *   id: int,
+     *  user: User,
+     * ipAddress: string,
+     * loggedAt: \DateTimeImmutable,
+     * success: bool,
+     * failureReason: ?string,
+     * userAgent: ?string
+     * } $data
+     * @return void
+     */
+    public function __unserialize(array $data)
+    {
+        $this->id = $data['id'];
+        $this->user = $data['user'];
+        $this->ipAddress = $data['ipAddress'];
+        $this->loggedAt = $data['loggedAt'];
+        $this->success = $data['success'];
+        $this->failureReason = $data['failureReason'];
+        $this->userAgent = $data['userAgent'];
+    }
 }

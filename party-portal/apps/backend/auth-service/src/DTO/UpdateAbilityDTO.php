@@ -15,6 +15,16 @@ class UpdateAbilityDTO
         public readonly ?string $description = null
     ) {}
 
+    /**
+     * @param array{
+     *  module?: 'AUTH'|'CHAT'|'GALLERY'|'VIDEO',
+     *  resource?: string,
+     *  action?: 'CREATE'|'DELETE'|'MANAGE'|'READ'|'UPDATE',
+     *  resourceConstraint?: string,
+     *  description?: string
+     * } $data
+     * @return UpdateAbilityDTO
+     */
     public static function fromArray(?array $data): self
     {
         if (!$data) {

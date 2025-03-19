@@ -15,6 +15,17 @@ class CreateAbilityDTO
         public readonly ?string $description = null
     ) {}
 
+    /**
+     * @param array{
+     *   module?: string,
+     *  resource?: string,
+     * action?: string,
+     * resourceConstraint?: string,
+     * description?: string
+     * } $data
+     * @throws \InvalidArgumentException
+     * @return CreateAbilityDTO
+     */
     public static function fromArray(?array $data): self
     {
         if (!$data) {
