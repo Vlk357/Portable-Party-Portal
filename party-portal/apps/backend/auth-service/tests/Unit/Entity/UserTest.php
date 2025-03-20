@@ -75,7 +75,7 @@ class UserTest extends TestCase
         $this->assertTrue($user instanceof User);
     }
 
-    public function testGetters():void
+    public function testGetters(): void
     {
         $user = new User(
             username: 'testuser',
@@ -236,5 +236,30 @@ class UserTest extends TestCase
         $this->assertArrayHasKey('abilities', $data);
         $this->assertCount(1, $data['roles']);
         $this->assertCount(1, $data['abilities']);
+    }
+
+    /**
+     * @test
+     */
+    public function userInheritsAbilitiesFromMultipleRoles(): void
+    {
+        // Given
+        $readAbility = new Ability(ModuleEnum::AUTH, 'USER', ActionEnum::READ);
+        $writeAbility = new Ability(ModuleEnum::AUTH, 'USER', ActionEnum::CREATE);
+
+        $role1 = new Role('ROLE_1');
+        $role1->addAbility($readAbility);
+
+        $role2 = new Role('ROLE_2');
+        $role2->addAbility($writeAbility);
+
+        // When
+        $user = new User('testuser', 'password');
+        $user->addRole($role1);
+        $user->addRole($role2);
+
+        // Then
+        $this->assertTrue($user->hasAbility($readAbility));
+        $this->assertTrue($user->hasAbility($writeAbility));
     }
 }
