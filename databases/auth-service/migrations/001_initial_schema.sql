@@ -82,7 +82,7 @@ CREATE TABLE abilities (
 );
 
 CREATE UNIQUE INDEX idx_abilities_unique 
-ON abilities (module, resource, action) NULLS NOT DISTINCT;
+ON abilities (module, resource, action, resource_constraint) NULLS NOT DISTINCT;
 
 CREATE TABLE user_roles (
     user_id INT REFERENCES users(id),
