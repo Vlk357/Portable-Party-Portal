@@ -40,7 +40,7 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/api/user/{id}', methods: ['GET'])]
+    #[Route('/api/user/{id<\d+>}', methods: ['GET'])]
     public function getUserById(int $id): JsonResponse
     {
         $user = $this->db->findUserById($id);
@@ -54,6 +54,19 @@ class UserController extends AbstractController
             !$this->isGranted('AUTH:USER:READ:OWN', $user)
         ) {
             throw $this->createAccessDeniedException();
+        }
+
+        return $this->json($user);
+    }
+
+    #[Route('/api/user/self', name: 'api_user_self', methods: ['GET'])]
+    public function getUserSelf(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            throw $this->createAccessDeniedException('No authenticated user found');
         }
 
         return $this->json($user);
@@ -89,7 +102,12 @@ class UserController extends AbstractController
     #[Route('/api/login', methods: ['POST'])]
     public function login(Request $request): JsonResponse
     {
-        try {
+
+        // This method will never be called because Symfony's security system
+        // intercepts the request before it reaches the controller
+        throw new \LogicException('This code should never be reached! - Login method in UserController');
+
+        /* try {
             $dto = LoginDTO::fromJson($request->getContent());
             if (!$dto) {
                 return $this->json(['error' => 'Invalid input'], 400);
@@ -110,11 +128,11 @@ class UserController extends AbstractController
             $token = $this->jwtManager->create($user);
 
             return $this->json([
-                'token' => $token,
                 'user' => $user
+                // 'token' => $token
             ]);
         } catch (\Exception $e) {
             return $this->json(['error' => 'Internal server error', 'exception' => $e->getMessage()], 500);
-        }
+        } */
     }
 }
