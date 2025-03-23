@@ -48,9 +48,7 @@ class InitDatabaseCommand extends Command
             $adminRole = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
             if (!$adminRole) {
                 $io->note('Creating admin role...');
-                $adminRole = new Role();
-                $adminRole->setName('admin');
-                $adminRole->setDescription('System administrator - has all abilities in the system');
+                $adminRole = new Role('admin', 'System administrator - has all abilities in the system');
 
                 $this->em->persist($adminRole);
                 $this->em->flush();
@@ -59,8 +57,7 @@ class InitDatabaseCommand extends Command
             $admin = $this->em->getRepository(User::class)->findOneBy(['username' => $adminUsername]);
             if (!$admin) {
                 $io->note('Creating admin user...');
-                $admin = new User();
-                $admin->setUsername($adminUsername);
+                $admin = new User($adminUsername, $adminPassword);
                 $admin->setStatus(UserStatus::ACTIVE);
 
                 $this->em->persist($admin);
@@ -85,24 +82,27 @@ class InitDatabaseCommand extends Command
             foreach (['USER', 'ROLE', 'ABILITY', 'USER_ROLE', 'USER_ABILITY', 'ROLE_ABILITY'] as $resource) {
                 foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
                     $key = sprintf('%s:%s:%s', ModuleEnum::AUTH->value, $resource, $action->value);
-                    if (!isset($existingAbilityMap[$key])) {
-                        $io->note("Creating ability $key");
-                        $ability = $this->em->getRepository(Ability::class)->findOneBy([
-                            'module' => ModuleEnum::AUTH,
-                            'resource' => $resource,
-                            'action' => $action
-                        ]);
-                        $ability = new Ability(
-                            ModuleEnum::AUTH,
-                            $resource,
-                            $action,
-                            null,
-                            "Can {$action->value} {$resource}s"
-                        );
-                        $this->em->persist($ability);
-                        $newAbilities[] = $ability;
-                    } else {
-                        $newAbilities[] = $existingAbilityMap[$key];
+                    for ($i = 0; $i < 2; $i++) {
+                        
+                        if (!isset($existingAbilityMap[$key])) {
+                            $io->note("Creating ability $key");
+                            // $ability = $this->em->getRepository(Ability::class)->findOneBy([
+                            //     'module' => ModuleEnum::AUTH,
+                            //     'resource' => $resource,
+                            //     'action' => $action
+                            // ]);
+                            $ability = new Ability(
+                                ModuleEnum::AUTH,
+                                $resource,
+                                $action,
+                                $i === 1 ? "OWN": null,
+                                "Can {$action->value} {$resource}s"
+                            );
+                            $this->em->persist($ability);
+                            $newAbilities[] = $ability;
+                        } else {
+                            $newAbilities[] = $existingAbilityMap[$key];
+                        }
                     }
                 }
             }
