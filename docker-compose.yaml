@@ -43,6 +43,20 @@ services:
       - VITE_API_URL=/auth/api
 
 
+  chat:
+    build:
+      context: ./party-portal/apps/backend/chat-service
+      dockerfile: ../../../../docker/node/chat.Dockerfile
+    volumes:
+      - ./party-portal/apps/backend/chat-service:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    networks:
+      - backend
+
+
   nginx:
     image: nginx:stable-alpine
     ports:
