@@ -30,6 +30,18 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  frontend-auth:
+    build:
+      context: ./party-portal/apps/frontend/auth
+      dockerfile: ../../../../docker/node/Dockerfile
+    volumes:
+      - ./party-portal/apps/frontend/auth:/app
+      - /app/node_modules
+    networks:
+      - backend
+    environment:
+      - VITE_API_URL=/auth/api
+
 
   nginx:
     image: nginx:stable-alpine
@@ -40,6 +52,7 @@ services:
       - ./docker/nginx/conf.d:/etc/nginx/conf.d
     depends_on:
       - auth
+      - frontend-auth
     networks:
       - backend
 
