@@ -7,6 +7,8 @@ import { ChatRoomUserHistory } from './entities/chat-room-user-history.entity';
 import { Message } from './entities/message.entity';
 import { MessageVersion } from './entities/message-version.entity';
 import { MessageReply } from './entities/message-reply.entity';
+import { ChatRoomRepository } from './repositories/chat-room.repository';
+import { ChatRoomService } from './services/chat-room.service';
 
 
 @Module({
@@ -27,8 +29,10 @@ import { MessageReply } from './entities/message-reply.entity';
       ],
       synchronize: process.env.NODE_ENV === 'development',
     }),
+    TypeOrmModule.forFeature([ChatRoom]),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ChatRoomRepository, ChatRoomService],
+  exports: [ChatRoomService],
 })
 export class AppModule {}
