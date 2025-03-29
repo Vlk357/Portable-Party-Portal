@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { Message } from '../entities/message.entity';
 import { MessageRepository } from '../repositories/message.repository';
 import { MessageVersionRepository } from '../repositories/message-version.repository';
+import { MessageReplyRepository } from '../repositories/message-reply.repository';
 import { MessageDeliveryStatusRepository } from '../repositories/message-delivery-status.repository';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class MessageService {
   constructor(
     private readonly messageRepository: MessageRepository,
     private readonly messageVersionRepository: MessageVersionRepository,
+    private readonly messageReplyRepository: MessageReplyRepository,
     private readonly deliveryStatusRepository: MessageDeliveryStatusRepository,
   ) {}
 
@@ -22,6 +24,7 @@ export class MessageService {
     isPriority?: boolean;
     requiresReadReceipt?: boolean;
     threadParentId?: number;
+    replyToMessageIds?: number[];  // Add reference to messages being replied to
   }): Promise<Message> {
     try {
       const message = await this.messageRepository.create({
@@ -39,6 +42,18 @@ export class MessageService {
         content: data.content,
         created_at: data.createdAt
       });
+
+      // Create replies if any
+      if (data.replyToMessageIds?.length) {
+        await Promise.all(
+          data.replyToMessageIds.map(referencedId => 
+            this.messageReplyRepository.create({
+              replying_message_id: message.id,
+              referenced_message_id: referencedId
+            })
+          )
+        );
+      }
 
       return message;
     } catch (error) {

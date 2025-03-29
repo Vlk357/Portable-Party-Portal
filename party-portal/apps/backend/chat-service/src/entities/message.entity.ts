@@ -52,10 +52,10 @@ export class Message {
   versions: MessageVersion[];
 
   @OneToMany(() => MessageReply, reply => reply.replying_message)
-  sent_replies: MessageReply[];
+  replies_sent: MessageReply[];
 
   @OneToMany(() => MessageReply, reply => reply.referenced_message)
-  received_replies: MessageReply[];
+  replies_received: MessageReply[];
 
   @OneToMany(() => MessageDeliveryStatus, status => status.message)
   delivery_status: MessageDeliveryStatus[];
