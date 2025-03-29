@@ -7,7 +7,7 @@ import { MessageVersion } from '../entities/message-version.entity';
 export class MessageVersionRepository {
   constructor(
     @InjectRepository(MessageVersion)
-    private repository: Repository<MessageVersion>
+    private repository: Repository<MessageVersion>,
   ) {}
 
   async findLatestVersion(messageId: number): Promise<MessageVersion | null> {
@@ -26,7 +26,12 @@ export class MessageVersionRepository {
       .getMany();
   }
 
-  async create(data: Pick<MessageVersion, 'message_id' | 'version' | 'content' | 'created_at'>): Promise<MessageVersion> {
+  async create(
+    data: Pick<
+      MessageVersion,
+      'message_id' | 'version' | 'content' | 'created_at'
+    >,
+  ): Promise<MessageVersion> {
     const version = this.repository.create(data);
     return this.repository.save(version);
   }

@@ -19,7 +19,7 @@ export class MessageDeliveryStatus {
   @Column({ nullable: true, type: 'timestamp' })
   read_receipt_at: Date | null;
 
-  @ManyToOne(() => Message, message => message.delivery_status)
+  @ManyToOne(() => Message, (message) => message.delivery_status)
   @JoinColumn({ name: 'message_id' })
   message: Message;
 

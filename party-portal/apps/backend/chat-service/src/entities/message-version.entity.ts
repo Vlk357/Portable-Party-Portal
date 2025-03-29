@@ -1,4 +1,11 @@
-import { Entity, Column, ManyToOne, CreateDateColumn, PrimaryColumn, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  PrimaryColumn,
+  JoinColumn,
+} from 'typeorm';
 import { Message } from './message.entity';
 
 @Entity()
@@ -14,7 +21,7 @@ export class MessageVersion {
 
   @Column({ type: 'timestamp' })
   created_at: Date;
-  
+
   @CreateDateColumn()
   server_received: Date;
 

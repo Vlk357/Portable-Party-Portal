@@ -27,6 +27,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.0.12",
     "@nestjs/platform-socket.io": "^11.0.12",
+    "@nestjs/axios": "^4.0.0",
     "socket.io": "^4.8.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"

@@ -1,4 +1,9 @@
-import { Repository, ObjectLiteral, FindOptionsWhere, DeepPartial } from 'typeorm';
+import {
+  Repository,
+  ObjectLiteral,
+  FindOptionsWhere,
+  DeepPartial,
+} from 'typeorm';
 
 export abstract class CompositeKeyRepository<T extends ObjectLiteral> {
   constructor(protected readonly repository: Repository<T>) {}
@@ -14,7 +19,10 @@ export abstract class CompositeKeyRepository<T extends ObjectLiteral> {
     return this.repository.save(newEntity);
   }
 
-  async update(condition: FindOptionsWhere<T>, entity: DeepPartial<T>): Promise<void> {
+  async update(
+    condition: FindOptionsWhere<T>,
+    entity: DeepPartial<T>,
+  ): Promise<void> {
     await this.repository.update(condition, entity as any);
   }
 }

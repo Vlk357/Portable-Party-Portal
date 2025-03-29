@@ -7,10 +7,12 @@ import { MessageReply } from '../entities/message-reply.entity';
 export class MessageReplyRepository {
   constructor(
     @InjectRepository(MessageReply)
-    private repository: Repository<MessageReply>
+    private repository: Repository<MessageReply>,
   ) {}
 
-  async create(data: Pick<MessageReply, 'replying_message_id' | 'referenced_message_id'>): Promise<MessageReply> {
+  async create(
+    data: Pick<MessageReply, 'replying_message_id' | 'referenced_message_id'>,
+  ): Promise<MessageReply> {
     const reply = this.repository.create(data);
     return this.repository.save(reply);
   }

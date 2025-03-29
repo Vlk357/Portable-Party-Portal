@@ -16,6 +16,7 @@ import { MessageVersionRepository } from './repositories/message-version.reposit
 import { MessageReplyRepository } from './repositories/message-reply.repository';
 import { MessageService } from './services/message.service';
 import { MessageDeliveryStatusRepository } from './repositories/message-delivery-status.repository';
+import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-history.repository';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { MessageDeliveryStatusRepository } from './repositories/message-delivery
     MessageVersionRepository,
     MessageReplyRepository,
     MessageDeliveryStatusRepository,
+    ChatRoomUserHistoryRepository,
     // Services
     ChatRoomService,
     MessageService,

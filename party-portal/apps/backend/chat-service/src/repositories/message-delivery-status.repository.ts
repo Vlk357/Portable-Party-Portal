@@ -7,10 +7,12 @@ import { MessageDeliveryStatus } from '../entities/message-delivery-status.entit
 export class MessageDeliveryStatusRepository {
   constructor(
     @InjectRepository(MessageDeliveryStatus)
-    private repository: Repository<MessageDeliveryStatus>
+    private repository: Repository<MessageDeliveryStatus>,
   ) {}
 
-  async create(data: Pick<MessageDeliveryStatus, 'message_id' | 'chat_room_user_id'>): Promise<MessageDeliveryStatus> {
+  async create(
+    data: Pick<MessageDeliveryStatus, 'message_id' | 'chat_room_user_id'>,
+  ): Promise<MessageDeliveryStatus> {
     const status = this.repository.create(data);
     return this.repository.save(status);
   }
@@ -18,7 +20,12 @@ export class MessageDeliveryStatusRepository {
   async updateDeliveryStatus(
     messageId: number,
     chatRoomUserId: number,
-    status: Partial<Pick<MessageDeliveryStatus, 'delivered_to_device_at' | 'seen_at' | 'read_receipt_at'>>
+    status: Partial<
+      Pick<
+        MessageDeliveryStatus,
+        'delivered_to_device_at' | 'seen_at' | 'read_receipt_at'
+      >
+    >,
   ): Promise<void> {
     await this.repository
       .createQueryBuilder()
@@ -27,11 +34,11 @@ export class MessageDeliveryStatusRepository {
       .values({
         message_id: messageId,
         chat_room_user_id: chatRoomUserId,
-        ...status
+        ...status,
       })
       .orUpdate(
         ['delivered_to_device_at', 'seen_at', 'read_receipt_at'],
-        ['message_id', 'chat_room_user_id']
+        ['message_id', 'chat_room_user_id'],
       )
       .execute();
   }
@@ -44,7 +51,9 @@ export class MessageDeliveryStatusRepository {
       .getMany();
   }
 
-  async findUndeliveredMessages(chatRoomUserId: number): Promise<MessageDeliveryStatus[]> {
+  async findUndeliveredMessages(
+    chatRoomUserId: number,
+  ): Promise<MessageDeliveryStatus[]> {
     return this.repository
       .createQueryBuilder('status')
       .where('status.chat_room_user_id = :chatRoomUserId', { chatRoomUserId })
@@ -54,7 +63,9 @@ export class MessageDeliveryStatusRepository {
       .getMany();
   }
 
-  async findUnseenMessages(chatRoomUserId: number): Promise<MessageDeliveryStatus[]> {
+  async findUnseenMessages(
+    chatRoomUserId: number,
+  ): Promise<MessageDeliveryStatus[]> {
     return this.repository
       .createQueryBuilder('status')
       .where('status.chat_room_user_id = :chatRoomUserId', { chatRoomUserId })
@@ -64,12 +75,19 @@ export class MessageDeliveryStatusRepository {
       .getMany();
   }
 
-  async findPendingReadReceipts(chatRoomUserId: number): Promise<MessageDeliveryStatus[]> {
+  async findPendingReadReceipts(
+    chatRoomUserId: number,
+  ): Promise<MessageDeliveryStatus[]> {
     return this.repository
       .createQueryBuilder('status')
       .where('status.chat_room_user_id = :chatRoomUserId', { chatRoomUserId })
       .andWhere('status.read_receipt_at IS NULL')
-      .innerJoin('status.message', 'message', 'message.requires_read_receipt = :required', { required: true })
+      .innerJoin(
+        'status.message',
+        'message',
+        'message.requires_read_receipt = :required',
+        { required: true },
+      )
       .leftJoinAndSelect('message.versions', 'version')
       .getMany();
   }

@@ -1,9 +1,15 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Message } from '../entities/message.entity';
 import { MessageRepository } from '../repositories/message.repository';
 import { MessageVersionRepository } from '../repositories/message-version.repository';
 import { MessageReplyRepository } from '../repositories/message-reply.repository';
 import { MessageDeliveryStatusRepository } from '../repositories/message-delivery-status.repository';
+import { ChatError } from 'src/errors/chat.error';
 
 @Injectable()
 export class MessageService {
@@ -16,6 +22,18 @@ export class MessageService {
     private readonly deliveryStatusRepository: MessageDeliveryStatusRepository,
   ) {}
 
+  private handleError(error: unknown, message: string): never {
+    if (error instanceof ChatError) {
+      throw error;
+    }
+    const chatError = new ChatError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
+    this.logger.error(chatError.message, chatError.stack);
+    throw chatError;
+  }
+
   async createMessage(data: {
     chatRoomId: number;
     userId: number;
@@ -24,7 +42,7 @@ export class MessageService {
     isPriority?: boolean;
     requiresReadReceipt?: boolean;
     threadParentId?: number;
-    replyToMessageIds?: number[];  // Add reference to messages being replied to
+    replyToMessageIds?: number[]; // Add reference to messages being replied to
   }): Promise<Message> {
     try {
       const message = await this.messageRepository.create({
@@ -40,25 +58,24 @@ export class MessageService {
         message_id: message.id,
         version: 1,
         content: data.content,
-        created_at: data.createdAt
+        created_at: data.createdAt,
       });
 
       // Create replies if any
       if (data.replyToMessageIds?.length) {
         await Promise.all(
-          data.replyToMessageIds.map(referencedId => 
+          data.replyToMessageIds.map((referencedId) =>
             this.messageReplyRepository.create({
               replying_message_id: message.id,
-              referenced_message_id: referencedId
-            })
-          )
+              referenced_message_id: referencedId,
+            }),
+          ),
         );
       }
 
       return message;
-    } catch (error) {
-      this.logger.error(`Failed to create message: ${error.message}`, error.stack);
-      throw error;
+    } catch (error: unknown) {
+      this.handleError(error, 'Failed to create message');
     }
   }
 
@@ -73,26 +90,31 @@ export class MessageService {
         throw new NotFoundException(`Message ${messageId} not found`);
       }
 
-      const latestVersion = await this.messageVersionRepository.findLatestVersion(messageId);
+      const latestVersion =
+        await this.messageVersionRepository.findLatestVersion(messageId);
       if (!latestVersion) {
-        throw new BadRequestException(`No version found for message ${messageId}`);
+        throw new BadRequestException(
+          `No version found for message ${messageId}`,
+        );
       }
 
       await this.messageVersionRepository.create({
         message_id: messageId,
         version: latestVersion.version + 1,
         content,
-        created_at: createdAt
+        created_at: createdAt,
       });
 
       this.logger.log(`Edited message ${messageId}`);
       return message;
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      this.logger.error(`Failed to edit message: ${error.message}`, error.stack);
-      throw error;
+      this.handleError(error, 'Failed to edit message');
     }
   }
 
@@ -108,11 +130,7 @@ export class MessageService {
         before,
       );
     } catch (error) {
-      this.logger.error(
-        `Failed to fetch room messages: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError(error, `Failed to fetch messages for room ${roomId}`);
     }
   }
 
@@ -120,11 +138,7 @@ export class MessageService {
     try {
       return await this.messageRepository.findMessagesInThread(parentId);
     } catch (error) {
-      this.logger.error(
-        `Failed to fetch thread messages: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError(error, `Failed to fetch messages in thread ${parentId}`);
     }
   }
 }

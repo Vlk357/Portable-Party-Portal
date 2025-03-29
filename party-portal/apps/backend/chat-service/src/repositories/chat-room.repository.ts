@@ -3,8 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { ChatRoom } from '../entities/chat-room.entity';
 import { SoftDeleteRepository } from './soft-delete.repository';
-import { BaseRepository } from './base.repository';
-
 @Injectable()
 export class ChatRoomRepository extends SoftDeleteRepository<ChatRoom> {
   constructor(
@@ -21,5 +19,15 @@ export class ChatRoomRepository extends SoftDeleteRepository<ChatRoom> {
       },
       relations: ['user_history'],
     });
+  }
+
+  async findRoomsForUser(userId: number): Promise<ChatRoom[]> {
+    return this.repository
+      .createQueryBuilder('room')
+      .innerJoin('room.user_history', 'history')
+      .where('history.user_id = :userId', { userId })
+      .andWhere('history.left_at IS NULL')
+      .andWhere('room.deleted_at IS NULL')
+      .getMany();
   }
 }

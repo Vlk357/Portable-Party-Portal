@@ -1,25 +1,65 @@
-import { Repository, FindOptionsWhere, ObjectLiteral, DeepPartial } from 'typeorm';
+import {
+  Repository,
+  ObjectLiteral,
+  FindOptionsWhere,
+  DeepPartial,
+} from 'typeorm';
+import { RepositoryError } from '../errors/repository.error';
+import { HasId } from '../interfaces/has-id.interface';
 
-export abstract class BaseRepository<T extends ObjectLiteral> {
+export abstract class BaseRepository<T extends ObjectLiteral & HasId> {
   constructor(protected readonly repository: Repository<T>) {}
 
+  protected async findOneByOrFail(where: FindOptionsWhere<T>): Promise<T> {
+    try {
+      const result = await this.repository.findOneBy(where);
+      if (!result) {
+        throw new RepositoryError('find', this.repository.metadata.name);
+      }
+      return result;
+    } catch (error) {
+      throw new RepositoryError(
+        'find',
+        this.repository.metadata.name,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  async create(data: DeepPartial<T>): Promise<T> {
+    try {
+      const entity = this.repository.create(data);
+      return await this.repository.save(entity);
+    } catch (error) {
+      throw new RepositoryError(
+        'create',
+        this.repository.metadata.name,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  async update(id: number, data: DeepPartial<T>): Promise<void> {
+    try {
+      await this.repository.update(id, data);
+    } catch (error) {
+      throw new RepositoryError(
+        'update',
+        this.repository.metadata.name,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
   async findById(id: number): Promise<T | null> {
-    return this.repository.findOneBy({ 
-      id: id as any 
-    } as FindOptionsWhere<T>);
-  }
-
-  async findAll(): Promise<T[]> {
-    return this.repository.find();
-  }
-
-  async create(entity: DeepPartial<T>): Promise<T> {
-    const newEntity = this.repository.create(entity);
-    return this.repository.save(newEntity);
-  }
-
-  async update(id: number, entity: DeepPartial<T>): Promise<T | null> {
-    await this.repository.update(id, entity as any);
-    return this.findById(id);
+    try {
+      return await this.repository.findOneBy({ id } as FindOptionsWhere<T>);
+    } catch (error) {
+      throw new RepositoryError(
+        'find by id',
+        this.repository.metadata.name,
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 }

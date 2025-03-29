@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, Check } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  CreateDateColumn,
+  Check,
+} from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
 import { ChatRoomUserHistory } from './chat-room-user-history.entity';
 import { MessageVersion } from './message-version.entity';
@@ -48,15 +56,15 @@ export class Message {
   @ManyToOne(() => ChatRoomUserHistory)
   chat_room_user: ChatRoomUserHistory;
 
-  @OneToMany(() => MessageVersion, version => version.message)
+  @OneToMany(() => MessageVersion, (version) => version.message)
   versions: MessageVersion[];
 
-  @OneToMany(() => MessageReply, reply => reply.replying_message)
+  @OneToMany(() => MessageReply, (reply) => reply.replying_message)
   replies_sent: MessageReply[];
 
-  @OneToMany(() => MessageReply, reply => reply.referenced_message)
+  @OneToMany(() => MessageReply, (reply) => reply.referenced_message)
   replies_received: MessageReply[];
 
-  @OneToMany(() => MessageDeliveryStatus, status => status.message)
+  @OneToMany(() => MessageDeliveryStatus, (status) => status.message)
   delivery_status: MessageDeliveryStatus[];
 }

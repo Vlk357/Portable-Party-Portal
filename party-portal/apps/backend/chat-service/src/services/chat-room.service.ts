@@ -3,6 +3,7 @@ import { ChatRoomRepository } from '../repositories/chat-room.repository';
 import { ChatRoom } from '../entities/chat-room.entity';
 import { ChatRoomUserHistory } from 'src/entities/chat-room-user-history.entity';
 import { ChatRoomUserHistoryRepository } from '../repositories/chat-room-user-history.repository';
+import { ServiceError } from 'src/errors/service.error';
 
 @Injectable()
 export class ChatRoomService {
@@ -13,17 +14,22 @@ export class ChatRoomService {
     private readonly userHistoryRepository: ChatRoomUserHistoryRepository,
   ) {}
 
+  private handleError(operation: string, error: unknown): never {
+    const serviceError =
+      error instanceof Error
+        ? new ServiceError(`Failed to ${operation}`, operation, error)
+        : new ServiceError(`Failed to ${operation}: Unknown error`, operation);
+
+    this.logger.error(serviceError.message, serviceError.cause?.stack);
+    throw serviceError;
+  }
   async createRoom(name: string): Promise<ChatRoom> {
     try {
       const room = await this.chatRoomRepository.create({ name });
       this.logger.log(`Created new chat room: ${room.id} - ${name}`);
       return room;
     } catch (error) {
-      this.logger.error(
-        `Failed to create chat room: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError('create chat room', error);
     }
   }
 
@@ -31,8 +37,7 @@ export class ChatRoomService {
     try {
       return await this.chatRoomRepository.findActiveRooms();
     } catch (error) {
-      this.logger.error('Failed to fetch active rooms', error.stack);
-      throw error;
+      this.handleError('get active rooms', error);
     }
   }
 
@@ -40,6 +45,9 @@ export class ChatRoomService {
     try {
       const room = await this.chatRoomRepository.findById(id);
 
+      if (!room || room.deleted_at) {
+        throw new NotFoundException(`Chat room ${id} not found`);
+      }
       await this.chatRoomRepository.update(id, {
         deleted_at: new Date(),
         deleted_by_user_id: userId,
@@ -47,11 +55,7 @@ export class ChatRoomService {
 
       this.logger.log(`Chat room ${id} deleted by user ${userId}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to delete chat room ${id}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError('delete chat room', error);
     }
   }
 
@@ -91,11 +95,7 @@ export class ChatRoomService {
       this.logger.log(`User ${userId} joined room ${roomId}`);
       return history;
     } catch (error) {
-      this.logger.error(
-        `Failed to join room ${roomId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError('join chat room', error);
     }
   }
 
@@ -113,11 +113,7 @@ export class ChatRoomService {
 
       this.logger.log(`User ${userId} left room ${roomId}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to leave room ${roomId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError('leave chat room', error);
     }
   }
 
@@ -125,11 +121,15 @@ export class ChatRoomService {
     try {
       return await this.userHistoryRepository.findActiveUsersInRoom(roomId);
     } catch (error) {
-      this.logger.error(
-        `Failed to get active users for room ${roomId}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+      this.handleError('get active users in room', error);
+    }
+  }
+
+  async getRoomsForUser(userId: number): Promise<ChatRoom[]> {
+    try {
+      return await this.chatRoomRepository.findRoomsForUser(userId);
+    } catch (error) {
+      this.handleError('get rooms for user', error);
     }
   }
 }
