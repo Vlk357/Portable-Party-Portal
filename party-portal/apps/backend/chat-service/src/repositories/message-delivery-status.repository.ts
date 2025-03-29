@@ -10,6 +10,11 @@ export class MessageDeliveryStatusRepository {
     private repository: Repository<MessageDeliveryStatus>
   ) {}
 
+  async create(data: Pick<MessageDeliveryStatus, 'message_id' | 'chat_room_user_id'>): Promise<MessageDeliveryStatus> {
+    const status = this.repository.create(data);
+    return this.repository.save(status);
+  }
+
   async updateDeliveryStatus(
     messageId: number,
     chatRoomUserId: number,

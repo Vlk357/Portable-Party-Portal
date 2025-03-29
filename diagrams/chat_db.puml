@@ -14,7 +14,7 @@ entity ChatRoom {
 entity ChatRoomUserHistory {
     * id: int <<PK>>
     --
-    * chat_room_id: int
+    * chat_room_id: int <<FK>>
     * user_id: int
     * joined_at: timestamp
     * display_name: varchar(255)
@@ -23,7 +23,6 @@ entity ChatRoomUserHistory {
     --
     Unique(chat_room_id, user_id, joined_at)
     Check(left_at IS NULL OR left_by_user_id IS NOT NULL)
-
 }
 
 entity Message {
@@ -31,14 +30,17 @@ entity Message {
     --
     * chat_room_user_id: int <<FK>>
     * chat_room_id: int <<FK>>
+    * created_at: timestamp
+    * server_received: timestamp
       thread_parent_id: int <<FK>>
       show_in_main: boolean
+      is_priority: boolean
+      requires_read_receipt: boolean
       deleted_at: timestamp
       deleted_by_user_id: int
     --
-      Check(thread_parent_id IS NULL OR show_in_main IS NOT NULL)
-      Check(deleted_at IS NULL OR deleted_by_user_id IS NOT NULL)
-
+    Check(thread_parent_id IS NULL OR show_in_main IS NOT NULL)
+    Check(deleted_at IS NULL OR deleted_by_user_id IS NOT NULL)
 }
 
 entity MessageVersion {
@@ -47,7 +49,7 @@ entity MessageVersion {
     --
     * content: text
     * created_at: timestamp
-    * delivered_at: timestamp
+    * server_received: timestamp
 }
 
 entity MessageReply {
@@ -55,11 +57,22 @@ entity MessageReply {
     * referenced_message_id: int <<PK>> <<FK>>
 }
 
+entity MessageDeliveryStatus {
+    * message_id: int <<PK>> <<FK>>
+    * chat_room_user_id: int <<PK>> <<FK>>
+    --
+      delivered_to_device_at: timestamp
+      seen_at: timestamp
+      read_receipt_at: timestamp
+}
+
 ChatRoom ||--o{ ChatRoomUserHistory
 ChatRoom ||--o{ Message
 Message ||--o{ MessageVersion
 Message ||--o{ MessageReply : "replying"
 Message ||--o{ MessageReply : "referenced"
+Message ||--o{ MessageDeliveryStatus
 ChatRoomUserHistory ||--o{ Message
+ChatRoomUserHistory ||--o{ MessageDeliveryStatus
 
 @enduml
