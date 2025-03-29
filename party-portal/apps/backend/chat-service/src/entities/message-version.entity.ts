@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, CreateDateColumn, PrimaryColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, CreateDateColumn, PrimaryColumn, JoinColumn } from 'typeorm';
 import { Message } from './message.entity';
 
 @Entity()
@@ -12,12 +12,13 @@ export class MessageVersion {
   @Column('text')
   content: string;
 
-  @CreateDateColumn()
-  created_at: Date;
-
   @Column({ type: 'timestamp' })
-  delivered_at: Date;
+  created_at: Date;
+  
+  @CreateDateColumn()
+  server_received: Date;
 
   @ManyToOne(() => Message, (message) => message.versions)
+  @JoinColumn({ name: 'message_id', referencedColumnName: 'id' })
   message: Message;
 }

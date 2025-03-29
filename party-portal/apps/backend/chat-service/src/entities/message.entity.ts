@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, Check } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, Check } from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
 import { ChatRoomUserHistory } from './chat-room-user-history.entity';
 import { MessageVersion } from './message-version.entity';
 import { MessageReply } from './message-reply.entity';
+import { MessageDeliveryStatus } from './message-delivery-status.entity';
 
 @Entity()
 @Check('thread_parent_id IS NULL OR show_in_main IS NOT NULL')
@@ -17,11 +18,23 @@ export class Message {
   @Column()
   chat_room_id: number;
 
+  @Column({ type: 'timestamp' })
+  created_at: Date;
+
+  @CreateDateColumn({ name: 'server_received' })
+  server_received: Date;
+
   @Column({ nullable: true })
   thread_parent_id: number | null;
 
   @Column({ nullable: true })
   show_in_main: boolean | null;
+
+  @Column({ default: false })
+  is_priority: boolean;
+
+  @Column({ default: false })
+  requires_read_receipt: boolean;
 
   @Column({ nullable: true, type: 'timestamp' })
   deleted_at: Date | null;
@@ -29,18 +42,21 @@ export class Message {
   @Column({ nullable: true })
   deleted_by_user_id: number | null;
 
-  @ManyToOne(() => ChatRoom, (chatRoom) => chatRoom.messages)
+  @ManyToOne(() => ChatRoom)
   chat_room: ChatRoom;
 
-  @ManyToOne(() => ChatRoomUserHistory, (user) => user.messages)
+  @ManyToOne(() => ChatRoomUserHistory)
   chat_room_user: ChatRoomUserHistory;
 
-  @OneToMany(() => MessageVersion, (version) => version.message)
+  @OneToMany(() => MessageVersion, version => version.message)
   versions: MessageVersion[];
 
-  @OneToMany(() => MessageReply, (reply) => reply.replying_message)
-  replies_sent: MessageReply[];
+  @OneToMany(() => MessageReply, reply => reply.replying_message)
+  sent_replies: MessageReply[];
 
-  @OneToMany(() => MessageReply, (reply) => reply.referenced_message)
-  replies_received: MessageReply[];
+  @OneToMany(() => MessageReply, reply => reply.referenced_message)
+  received_replies: MessageReply[];
+
+  @OneToMany(() => MessageDeliveryStatus, status => status.message)
+  delivery_status: MessageDeliveryStatus[];
 }
