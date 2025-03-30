@@ -19,6 +19,11 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 
+#[Route('/api/user')]
+/**
+ * UserController handles user-related actions such as creating users,
+ * retrieving user information, and managing user permissions.
+ */
 class UserController extends AbstractController
 {
     public function __construct(
@@ -29,7 +34,7 @@ class UserController extends AbstractController
     ) {
     }
 
-    #[Route('/api/users', methods: ['GET'])]
+    #[Route('', methods: ['GET'])]
     public function getAllUsers(): JsonResponse
     {
         try {
@@ -40,7 +45,7 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/api/user/{id<\d+>}', methods: ['GET'])]
+    #[Route('/{id<\d+>}', methods: ['GET'])]
     public function getUserById(int $id): JsonResponse
     {
         $user = $this->db->findUserById($id);
@@ -59,12 +64,12 @@ class UserController extends AbstractController
         return $this->json($user);
     }
 
-    #[Route('/api/user/self', name: 'api_user_self', methods: ['GET'])]
+    #[Route('/self', name: 'api_user_self', methods: ['GET'])]
     public function getUserSelf(): JsonResponse
     {
         /** @var User $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             throw $this->createAccessDeniedException('No authenticated user found');
         }
@@ -72,7 +77,7 @@ class UserController extends AbstractController
         return $this->json($user);
     }
 
-    #[Route('/api/user', methods: ['POST'])]
+    #[Route('', methods: ['POST'])]
     public function createUser(Request $request): JsonResponse
     {
         try {
@@ -97,42 +102,5 @@ class UserController extends AbstractController
         } catch (\Exception $e) {
             return $this->json(['error' => 'Internal server error'], 500);
         }
-    }
-
-    #[Route('/api/login', methods: ['POST'])]
-    public function login(Request $request): JsonResponse
-    {
-
-        // This method will never be called because Symfony's security system
-        // intercepts the request before it reaches the controller
-        throw new \LogicException('This code should never be reached! - Login method in UserController');
-
-        /* try {
-            $dto = LoginDTO::fromJson($request->getContent());
-            if (!$dto) {
-                return $this->json(['error' => 'Invalid input'], 400);
-            }
-
-            // Find user
-            $user = $this->db->findUserByUsername($dto->username);
-            if (!$user) {
-                return $this->json(['error' => 'Invalid credentials'], 401);
-            }
-
-            // Verify password
-            if (!$this->passwordHasher->isPasswordValid($user, $dto->password)) {
-                return $this->json(['error' => 'Invalid credentials'], 401);
-            }
-
-            // Generate token
-            $token = $this->jwtManager->create($user);
-
-            return $this->json([
-                'user' => $user
-                // 'token' => $token
-            ]);
-        } catch (\Exception $e) {
-            return $this->json(['error' => 'Internal server error', 'exception' => $e->getMessage()], 500);
-        } */
     }
 }
