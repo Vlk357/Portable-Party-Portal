@@ -17,6 +17,10 @@ import { MessageReplyRepository } from './repositories/message-reply.repository'
 import { MessageService } from './services/message.service';
 import { MessageDeliveryStatusRepository } from './repositories/message-delivery-status.repository';
 import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-history.repository';
+import { ConfigModule } from '@nestjs/config';
+import { HttpModule } from '@nestjs/axios';
+import { ChatGateway } from './gateways/chat.gateway';
+import { PermissionClientService } from './services/permission-client.service';
 
 @Module({
   imports: [
@@ -45,8 +49,15 @@ import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-his
       MessageReply,
       MessageDeliveryStatus,
     ]),
+    HttpModule.register({
+      timeout: 5000,
+      maxRedirects: 5,
+    }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
   ],
-  controllers: [AppController],
+  controllers: [AppController, ChatGateway],
   providers: [
     AppService,
     // Repositories
@@ -60,7 +71,13 @@ import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-his
     ChatRoomService,
     MessageService,
     MessageDeliveryStatusService,
+    PermissionClientService,
   ],
-  exports: [ChatRoomService, MessageService, MessageDeliveryStatusService],
+  exports: [
+    ChatRoomService,
+    MessageService,
+    MessageDeliveryStatusService,
+    PermissionClientService,
+  ],
 })
 export class AppModule {}
