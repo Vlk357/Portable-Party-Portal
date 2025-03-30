@@ -103,4 +103,45 @@ class UserController extends AbstractController
             return $this->json(['error' => 'Internal server error'], 500);
         }
     }
+
+    #[Route('/user/{userId<\d+>}/ability', methods: ['POST'])]
+    public function addUserAbility(int $userId, Request $request): JsonResponse
+    {
+        $this->denyAccessUnlessGranted('AUTH:ABILITY:ASSIGN');
+        
+        $dto = PermissionDTO::fromRequest($request);
+        $this->userService->addUserAbility($userId, $dto->ability);
+
+        return $this->json(['status' => 'success']);
+    }
+
+    #[Route('/user/{userId<\d+>}/ability', methods: ['GET'])]
+    public function getUserAbilities(int $userId): JsonResponse
+    {
+        // TODO: Check if user can read any user or only themselves, handle correctly OWN definition
+        $this->denyAccessUnlessGranted('AUTH:USER:READ:OWN');
+        
+        $abilities = $this->userService->getUserAbilities($userId);
+        return $this->json($abilities);
+    }
+
+    #[Route('/user/{userId<\d+>}/ability', methods: ['PUT'])]
+    public function updateUserAbility(int $userId, Request $request): JsonResponse
+    {
+        $this->denyAccessUnlessGranted('AUTH:ABILITY:ASSIGN');
+        
+        $dto = PermissionDTO::fromRequest($request);
+        $this->userService->updateUserAbility($userId, $dto->ability);
+
+        return $this->json(['status' => 'success']);
+    }
+
+    #[Route('/user/{userId<\d+>}/ability/{abilityId<\d+>}', methods: ['DELETE'])]
+    public function removeUserAbility(int $userId, int $abilityId): JsonResponse
+    {
+        $this->denyAccessUnlessGranted('AUTH:ABILITY:ASSIGN');
+        
+        $this->userService->removeUserAbility($userId, $abilityId);
+        return $this->json(['status' => 'success']);
+    }
 }

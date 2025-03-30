@@ -5,8 +5,9 @@ namespace App\Service;
 use App\Entity\User;
 use App\Enum\UserStatus;
 use App\Exception\ValidationException;
+use App\Repository\AbilityRepository;
+use App\Repository\UserAbilityRepository;
 use App\Repository\UserRepository;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
 
@@ -14,7 +15,9 @@ class UserService
 {
     public function __construct(
         private readonly UserValidationService $validator,
-        private readonly UserRepository $userRepository
+        private readonly UserRepository $userRepository,
+        private readonly AbilityRepository $abilityRepository,
+        private readonly UserAbilityRepository $userAbilityRepository
     ) {
     }
 
@@ -68,5 +71,57 @@ class UserService
         $this->validator->validateProperty($user, 'username');
 
         return $this->userRepository->update($user);
+    }
+
+    public function addUserAbility(int $userId, int $abilityId): void
+    {
+        $user = $this->userRepository->find($userId);
+        if (!$user) {
+            throw new \InvalidArgumentException('User not found');
+        }
+
+        $ability = $this->abilityRepository->find($abilityId);
+        if (!$ability) {
+            throw new \InvalidArgumentException('Ability not found');
+        }
+
+        $user->addAbility($ability);
+        $this->userRepository->save($user);
+    }
+
+    public function getUserAbilities(int $userId): array
+    {
+        $user = $this->userRepository->find($userId);
+        if (!$user) {
+            throw new \InvalidArgumentException('User not found');
+        }
+
+        return $user->getDirectAbilities();
+    }
+
+    public function updateUserAbility(int $userId, int $abilityId): void
+    {
+        $userAbility = $this->userAbilityRepository->findByUserAndAbility($userId, $abilityId);
+        if (!$userAbility) {
+            throw new \InvalidArgumentException('User ability not found');
+        }
+        $userAbility->setExpiresAt(new \DateTimeImmutable());
+        $this->userAbilityRepository->save($userAbility);
+    }
+
+    public function removeUserAbility(int $userId, int $abilityId): void
+    {
+        $user = $this->userRepository->find($userId);
+        if (!$user) {
+            throw new \InvalidArgumentException('User not found');
+        }
+
+        $ability = $this->abilityRepository->find($abilityId);
+        if (!$ability) {
+            throw new \InvalidArgumentException('Ability not found');
+        }
+
+        $user->removeAbility($ability);
+        $this->userRepository->save($user);
     }
 }
