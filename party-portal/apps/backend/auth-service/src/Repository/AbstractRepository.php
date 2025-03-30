@@ -116,18 +116,18 @@ abstract class AbstractRepository implements RepositoryInterface
                 if ($existingEntity === null) {
                     throw EntityNotFoundException::create($this->entityClass, $entity->getId());
                 }
-                
+
                 // Update existing entity with new values
                 $this->entityManager->getUnitOfWork()->recomputeSingleEntityChangeSet(
                     $this->entityManager->getClassMetadata($this->entityClass),
                     $entity
                 );
             }
-    
+
             if ($flush) {
                 $this->entityManager->flush();
             }
-    
+
             return $entity;
         } catch (EntityNotFoundException $e) {
             throw $e;

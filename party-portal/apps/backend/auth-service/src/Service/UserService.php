@@ -76,35 +76,28 @@ class UserService
     public function addUserAbility(int $userId, int $abilityId): void
     {
         $user = $this->userRepository->find($userId);
-        if (!$user) {
-            throw new \InvalidArgumentException('User not found');
-        }
 
         $ability = $this->abilityRepository->find($abilityId);
-        if (!$ability) {
-            throw new \InvalidArgumentException('Ability not found');
-        }
 
         $user->addAbility($ability);
         $this->userRepository->save($user);
     }
 
+    /**
+     * @param int $userId
+     * @throws \InvalidArgumentException
+     * @return \App\Entity\Ability[]
+     */
     public function getUserAbilities(int $userId): array
     {
         $user = $this->userRepository->find($userId);
-        if (!$user) {
-            throw new \InvalidArgumentException('User not found');
-        }
 
         return $user->getDirectAbilities();
     }
 
     public function updateUserAbility(int $userId, int $abilityId): void
     {
-        $userAbility = $this->userAbilityRepository->findByUserAndAbility($userId, $abilityId);
-        if (!$userAbility) {
-            throw new \InvalidArgumentException('User ability not found');
-        }
+        $userAbility = $this->userAbilityRepository->findByCompositeKey($userId, $abilityId);
         $userAbility->setExpiresAt(new \DateTimeImmutable());
         $this->userAbilityRepository->save($userAbility);
     }
@@ -112,14 +105,7 @@ class UserService
     public function removeUserAbility(int $userId, int $abilityId): void
     {
         $user = $this->userRepository->find($userId);
-        if (!$user) {
-            throw new \InvalidArgumentException('User not found');
-        }
-
         $ability = $this->abilityRepository->find($abilityId);
-        if (!$ability) {
-            throw new \InvalidArgumentException('Ability not found');
-        }
 
         $user->removeAbility($ability);
         $this->userRepository->save($user);

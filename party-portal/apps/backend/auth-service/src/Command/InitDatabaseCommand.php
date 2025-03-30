@@ -83,7 +83,6 @@ class InitDatabaseCommand extends Command
                 foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
                     $key = sprintf('%s:%s:%s', ModuleEnum::AUTH->value, $resource, $action->value);
                     for ($i = 0; $i < 2; $i++) {
-                        
                         if (!isset($existingAbilityMap[$key])) {
                             $io->note("Creating ability $key");
                             // $ability = $this->em->getRepository(Ability::class)->findOneBy([
@@ -95,7 +94,7 @@ class InitDatabaseCommand extends Command
                                 ModuleEnum::AUTH,
                                 $resource,
                                 $action,
-                                $i === 1 ? "OWN": null,
+                                $i === 1 ? "OWN" : null,
                                 "Can {$action->value} {$resource}s"
                             );
                             $this->em->persist($ability);

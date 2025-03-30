@@ -1,28 +1,27 @@
 <?php
 
+declare(strict_types=1);
 namespace App\Repository;
-
-use App\Entity\Ability;
+use App\Entity\Role;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * @extends AbstractRepository<Ability>
+ * @extends AbstractRepository<Role>
  */
-class AbilityRepository extends AbstractRepository
+class RoleRepository extends AbstractRepository
 {
     public function __construct(EntityManagerInterface $entityManager)
     {
-        parent::__construct($entityManager, Ability::class);
+        parent::__construct($entityManager, Role::class);
     }
 
-
     /**
-     * @return array<Ability>
+     * @return array<Role>
      */
     public function findByModule(string $module): array
     {
         return $this->entityManager
-            ->getRepository(Ability::class)
+            ->getRepository(Role::class)
             ->findBy(['module' => $module]);
     }
 }

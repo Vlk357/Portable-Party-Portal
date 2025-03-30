@@ -15,7 +15,8 @@ class PermissionService
         private readonly AbilityRepository $abilityRepository,
         private readonly RoleRepository $roleRepository,
         private readonly UserRepository $userRepository
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<Role>
@@ -34,37 +35,10 @@ class PermissionService
     }
 
     /**
-     * @return array<array{id: int, username: string, abilities: array<Ability>, roles: array<Role>}>
+     * @return array<User>
      */
     public function getUsersByModule(string $module): array
     {
         return $this->userRepository->findUsersWithPermissionsByModule($module);
-    }
-
-    public function addUserAbility(int $userId, Ability $ability): void
-    {
-        $user = $this->userRepository->find($userId);
-        if (!$user) {
-            throw new \InvalidArgumentException('User not found');
-        }
-
-        $user->addAbility($ability);
-        $this->userRepository->save($user);
-    }
-
-    public function removeUserAbility(int $userId, int $abilityId): void
-    {
-        $user = $this->userRepository->find($userId);
-        if (!$user) {
-            throw new \InvalidArgumentException('User not found');
-        }
-
-        $ability = $this->abilityRepository->find($abilityId);
-        if (!$ability) {
-            throw new \InvalidArgumentException('Ability not found');
-        }
-
-        $user->removeAbility($ability);
-        $this->userRepository->save($user);
     }
 }
