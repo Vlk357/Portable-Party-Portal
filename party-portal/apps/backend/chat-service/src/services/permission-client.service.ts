@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { Role } from '../interfaces/role.interface';
@@ -12,7 +12,7 @@ interface ServicePermissions {
 }
 
 @Injectable()
-export class PermissionClientService {
+export class PermissionClientService implements OnModuleInit {
   private readonly logger = new Logger(PermissionClientService.name);
   private readonly cache = new Map<number, UserPermissions>();
   // Hard-code the URL or use environment variable directly
@@ -22,6 +22,19 @@ export class PermissionClientService {
 
   constructor(private readonly httpService: HttpService) {
     // No ConfigService dependency
+  }
+  async onModuleInit() {
+    await this.refreshPermissions();
+
+    const refreshInterval = process.env.PERMISSION_REFRESH_INTERVAL
+      ? parseInt(process.env.PERMISSION_REFRESH_INTERVAL, 10) * 1000
+      : 10 * 60 * 1000; // Default to 10 minutes
+
+    setInterval(() => {
+      this.refreshPermissions().catch((error) => {
+        this.logger.error("Couldn't refresh permissions: ", error);
+      });
+    }, refreshInterval);
   }
 
   async refreshPermissions(): Promise<void> {
@@ -61,9 +74,19 @@ export class PermissionClientService {
   }
 
   checkPermission(userId: number, abilityString: string): boolean {
-    const user = this.cache.get(userId);
-    if (!user) {
-      return false;
+    let user = this.cache.get(userId);
+    if (user === undefined) {
+      if (this.cache.size === 0) {
+        this.refreshPermissions().catch((error) => {
+          this.logger.error("Couldn't refresh permissions: ", error);
+        });
+        user = this.cache.get(userId);
+        if (user === undefined) {
+          return false;
+        }
+      } else {
+        return false;
+      }
     }
 
     return user.abilities.some((ability) => {
