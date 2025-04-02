@@ -42,14 +42,14 @@ class UserAbilityRepository
             UserAbility::class,
             ['user' => $userId, 'ability' => $abilityId]
         );
-        
+
         if (!$entity instanceof UserAbility) {
             throw EntityNotFoundException::create(
                 UserAbility::class,
                 null
             );
         }
-        
+
         return $entity;
     }
 }

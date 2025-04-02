@@ -28,4 +28,12 @@ class PermissionController extends AbstractController
             'users' => $this->permissionService->getUsersByModule($module),
         ]);
     }
+
+    #[Route('', methods: ['GET'])]
+    public function helloController(): JsonResponse
+    {
+        return $this->json([
+            'message' => 'Hello from PermissionController!',
+        ]);
+    }
 }

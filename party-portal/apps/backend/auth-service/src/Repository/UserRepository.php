@@ -30,7 +30,7 @@ class UserRepository extends AbstractRepository
     public function findUsersWithPermissionsByModule(string $module): array
     {
         $qb = $this->entityManager->createQueryBuilder();
-    
+
         /** @var array<User> */
         $result = $qb->select('u')
             ->addSelect('r')
@@ -49,7 +49,7 @@ class UserRepository extends AbstractRepository
             ->groupBy('u.id')
             ->getQuery()
             ->getResult();
-    
+
         return $result;
     }
 }
