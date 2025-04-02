@@ -19,8 +19,9 @@ import { MessageDeliveryStatusRepository } from './repositories/message-delivery
 import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-history.repository';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
-import { ChatGateway } from './gateways/chat.gateway';
 import { PermissionClientService } from './services/permission-client.service';
+import { AuthClientService } from './services/auth-client.service';
+import { ChatGateway } from './gateways/chat.gateway';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { PermissionClientService } from './services/permission-client.service';
       port: 5432,
       username: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
-      database: 'chat',
+      database: process.env.POSTGRES_DB || 'chat_db',
       entities: [
         ChatRoom,
         ChatRoomUserHistory,
@@ -40,6 +41,7 @@ import { PermissionClientService } from './services/permission-client.service';
         MessageDeliveryStatus,
       ],
       synchronize: process.env.NODE_ENV === 'development',
+      logging: process.env.NODE_ENV === 'development',
     }),
     TypeOrmModule.forFeature([
       ChatRoom,
@@ -57,9 +59,10 @@ import { PermissionClientService } from './services/permission-client.service';
       isGlobal: true,
     }),
   ],
-  controllers: [AppController, ChatGateway],
+  controllers: [AppController],
   providers: [
     AppService,
+    ChatGateway,
     // Repositories
     ChatRoomRepository,
     MessageRepository,
@@ -72,12 +75,14 @@ import { PermissionClientService } from './services/permission-client.service';
     MessageService,
     MessageDeliveryStatusService,
     PermissionClientService,
+    AuthClientService,
   ],
   exports: [
     ChatRoomService,
     MessageService,
     MessageDeliveryStatusService,
     PermissionClientService,
+    AuthClientService,
   ],
 })
 export class AppModule {}

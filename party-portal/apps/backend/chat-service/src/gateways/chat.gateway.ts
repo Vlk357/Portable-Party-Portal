@@ -13,6 +13,7 @@ import { ChatRoomService } from '../services/chat-room.service';
 import { MessageService } from '../services/message.service';
 import { MessageDeliveryStatusService } from '../services/message-delivery-status.service';
 import { AuthClientService } from 'src/services/auth-client.service';
+import { PermissionClientService } from 'src/services/permission-client.service';
 
 interface AuthenticatedSocket extends Socket {
   userId: number;
@@ -37,6 +38,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly messageService: MessageService,
     private readonly statusService: MessageDeliveryStatusService,
     private readonly authClient: AuthClientService,
+    private readonly permissionService: PermissionClientService,
   ) {}
 
   private handleError(

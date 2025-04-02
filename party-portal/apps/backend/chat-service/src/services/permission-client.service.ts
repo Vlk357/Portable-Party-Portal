@@ -11,19 +11,27 @@ interface ServicePermissions {
   users: UserPermissions[];
 }
 
+interface ServiceTokenResponse {
+  token: string;
+}
+
 @Injectable()
 export class PermissionClientService implements OnModuleInit {
   private readonly logger = new Logger(PermissionClientService.name);
   private readonly cache = new Map<number, UserPermissions>();
+  private serviceToken: string | null = null;
+
   // Hard-code the URL or use environment variable directly
   private readonly baseUrl: string = process.env.AUTH_SERVICE_URL
     ? `${process.env.AUTH_SERVICE_URL}`
-    : 'http://auth';
+    : 'http://nginx/auth';
 
   constructor(private readonly httpService: HttpService) {
     // No ConfigService dependency
   }
   async onModuleInit() {
+    await this.getServiceToken();
+
     await this.refreshPermissions();
 
     const refreshInterval = process.env.PERMISSION_REFRESH_INTERVAL
@@ -37,22 +45,66 @@ export class PermissionClientService implements OnModuleInit {
     }, refreshInterval);
   }
 
-  async refreshPermissions(): Promise<void> {
+  private async getServiceToken(): Promise<void> {
     try {
+      // Create a URLSearchParams object to send form data instead of JSON
+      const formData = new URLSearchParams();
+      formData.append('service_id', process.env.CHAT_SERVICE_ID || 'CHAT'); // Match the env value
+      formData.append(
+        'service_secret',
+        process.env.CHAT_SERVICE_SECRET || 'your-secret-here',
+      );
+
       const response = await firstValueFrom(
-        this.httpService.get<ServicePermissions>(
-          `${this.baseUrl}/api/permissions/service/CHAT`,
+        this.httpService.post<ServiceTokenResponse>(
+          `${this.baseUrl}/api/service-token`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          },
         ),
       );
 
-      // Update cache
+      this.serviceToken = response.data.token;
+      this.logger.log('Service token obtained successfully');
+    } catch (error) {
+      this.logger.error('Failed to get service token', error);
+    }
+  }
+
+  async refreshPermissions(): Promise<void> {
+    try {
+      // Try to get a token if we don't have one
+      if (!this.serviceToken) {
+        await this.getServiceToken();
+      }
+
+      // Get permissions with the token in the Authorization header
+      const response = await firstValueFrom(
+        this.httpService.get<ServicePermissions>(
+          `${this.baseUrl}/api/permissions/CHAT`,
+          {
+            headers: this.serviceToken
+              ? {
+                  Authorization: `Bearer ${this.serviceToken}`,
+                }
+              : {},
+          },
+        ),
+      );
+
+      // Update cache - add null check for safety
       this.cache.clear();
-      response.data.users.forEach((user) => {
-        this.cache.set(user.id, user);
-      });
+      if (response.data?.users) {
+        response.data.users.forEach((user) => {
+          this.cache.set(user.id, user);
+        });
+      }
     } catch (error) {
       this.logger.error('Failed to refresh permissions', error);
-      throw error;
+      // Don't throw the error - makes your service more resilient
     }
   }
 
@@ -90,7 +142,6 @@ export class PermissionClientService implements OnModuleInit {
     }
 
     return user.abilities.some((ability) => {
-      // Format: MODULE:RESOURCE[:CONSTRAINT]:ACTION
       let permissionString = `${ability.module}:${ability.resource}:${ability.action}`;
 
       // Add constraint if present, otherwise skip it

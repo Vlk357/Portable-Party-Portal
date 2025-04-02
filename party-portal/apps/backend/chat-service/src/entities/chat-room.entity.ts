@@ -22,7 +22,7 @@ export class ChatRoom {
   @Column({ nullable: true, type: 'timestamp' })
   deleted_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'int' })
   deleted_by_user_id: number | null;
 
   @OneToMany(() => ChatRoomUserHistory, (history) => history.chat_room)

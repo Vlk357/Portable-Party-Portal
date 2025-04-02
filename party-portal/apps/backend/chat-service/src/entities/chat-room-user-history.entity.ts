@@ -33,7 +33,7 @@ export class ChatRoomUserHistory {
   @Column({ nullable: true, type: 'timestamp' })
   left_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'int' })
   left_by_user_id: number | null;
 
   @ManyToOne(() => ChatRoom, (chatRoom) => chatRoom.user_history)

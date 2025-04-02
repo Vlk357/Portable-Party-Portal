@@ -32,22 +32,22 @@ export class Message {
   @CreateDateColumn({ name: 'server_received' })
   server_received: Date;
 
-  @Column({ nullable: true })
+  @Column({ name: 'thread_parent_id', type: 'int', nullable: true })
   thread_parent_id: number | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'boolean' }) // Add explicit type here
   show_in_main: boolean | null;
 
-  @Column({ default: false })
+  @Column({ default: false, type: 'boolean' }) // Add explicit type here
   is_priority: boolean;
 
-  @Column({ default: false })
+  @Column({ default: false, type: 'boolean' }) // Add explicit type here
   requires_read_receipt: boolean;
 
   @Column({ nullable: true, type: 'timestamp' })
   deleted_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'int' }) // Add explicit type here
   deleted_by_user_id: number | null;
 
   @ManyToOne(() => ChatRoom)
