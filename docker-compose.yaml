@@ -21,7 +21,7 @@ services:
     environment:
       XDEBUG_MODE: 'off'
       APP_ENV: dev
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?serverVersion=17
+      DATABASE_URL: ${CHAT_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,8 +53,18 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
+      - AUTH_SERVICE_URL=http://nginx/auth
+      - POSTGRES_USER=${CHAT_USER:-chat_user}
+      - POSTGRES_PASSWORD=${CHAT_PASSWORD}
+      - POSTGRES_DB=${CHAT_DB:-chat_db}
+      - SERVICE_ID=${CHAT_SERVICE_ID:-CHAT}
+      - SERVICE_SECRET=${CHAT_SERVICE_SECRET}
     networks:
       - backend
+    depends_on:
+      - nginx
+      - auth
+
 
 
   nginx:
@@ -73,19 +83,20 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_USER=${POSTGRES_USER:-auth_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-auth_password}
+      - POSTGRES_DB=${POSTGRES_ROOT_DB:-postgres}
+      - POSTGRES_USER=${POSTGRES_ROOT_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./databases/auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./databases/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./databases/auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
       - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
       - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ROOT_USER} -d ${POSTGRES_ROOT_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
