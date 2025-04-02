@@ -41,6 +41,7 @@ security:
     access_control:
         - { path: ^/auth/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/auth/api/register, roles: PUBLIC_ACCESS }
+        - { path: ^/auth/api/service-token, roles: PUBLIC_ACCESS }
         - { path: ^/auth/api, roles: IS_AUTHENTICATED_FULLY }
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/profile, roles: ROLE_USER }
