@@ -42,18 +42,27 @@ class InitDatabaseCommand extends Command
             return Command::FAILURE;
         }
 
+        $chatUsername = $_ENV['CHAT_SERVICE_ID'] ?? null;
+        $chatPassword = $_ENV['CHAT_SERVICE_SECRET'] ?? null;
+
+        if (!$chatUsername || !$chatPassword) {
+            $io->error('CHAT_SERVICE_ID and CHAT_SERVICE_SECRET must be set in .env file');
+            return Command::FAILURE;
+        }
+
         $this->em->clear();
         $this->em->getConnection()->beginTransaction();
         try {
             $adminRole = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
             if (!$adminRole) {
                 $io->note('Creating admin role...');
-                $adminRole = new Role('admin', 'System administrator - has all abilities in the system');
+                $adminRole = new Role('admin', 'System administrator - has all non-constrained abilities in the system');
 
                 $this->em->persist($adminRole);
                 $this->em->flush();
             }
 
+            // TODO: Admin has to be created at the end to receive all abilities from all modules
             $admin = $this->em->getRepository(User::class)->findOneBy(['username' => $adminUsername]);
             if (!$admin) {
                 $io->note('Creating admin user...');
@@ -65,31 +74,38 @@ class InitDatabaseCommand extends Command
             $admin->setPassword($adminPassword);
             $this->em->flush();
 
-            $existingAbilities = $this->em->getRepository(Ability::class)->findAll();
-            $existingAbilityMap = [];
+            $existingAbilities = $this->em->getRepository(Ability::class)->findBy([
+                'module' => ModuleEnum::AUTH,
+            ]);
+            if (count($existingAbilities) > 0) {
+                $io->note('Found existing abilities for Auth module');
+            } else {
+                $io->note('No existing abilities for Auth module found');
+            }
+            $existingAuthAbilityMap = [];
             foreach ($existingAbilities as $ability) {
+                if ($ability->getResourceConstraint()) {
+                    $io->note('Skipping ability with resource constraint');
+                    continue;
+                }
                 $key = sprintf(
                     '%s:%s:%s',
                     $ability->getModule()->value,
                     $ability->getResource(),
                     $ability->getAction()->value
                 );
-                $existingAbilityMap[$key] = $ability;
+                $existingAuthAbilityMap[$key] = $ability;
             }
 
-            // Create abilities
-            $newAbilities = [];
+            // Create abilities for Auth module
+            // $io->note('Creating abilities for Auth module...');
+            $newAuthAbilities = [];
             foreach (['USER', 'ROLE', 'ABILITY', 'USER_ROLE', 'USER_ABILITY', 'ROLE_ABILITY'] as $resource) {
                 foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
                     $key = sprintf('%s:%s:%s', ModuleEnum::AUTH->value, $resource, $action->value);
                     for ($i = 0; $i < 2; $i++) {
-                        if (!isset($existingAbilityMap[$key])) {
+                        if (!isset($existingAuthAbilityMap[$key])) {
                             $io->note("Creating ability $key");
-                            // $ability = $this->em->getRepository(Ability::class)->findOneBy([
-                            //     'module' => ModuleEnum::AUTH,
-                            //     'resource' => $resource,
-                            //     'action' => $action
-                            // ]);
                             $ability = new Ability(
                                 ModuleEnum::AUTH,
                                 $resource,
@@ -98,21 +114,25 @@ class InitDatabaseCommand extends Command
                                 "Can {$action->value} {$resource}s"
                             );
                             $this->em->persist($ability);
-                            $newAbilities[] = $ability;
-                        } else {
-                            $newAbilities[] = $existingAbilityMap[$key];
+                            $newAuthAbilities[] = $ability;
                         }
                     }
                 }
             }
             $this->em->flush();
 
-            $io->note('There is a total of ' . count($newAbilities) . ' abilities');
+            $io->note('There have been ' . count($newAuthAbilities) . ' new Auth abilities created.');
 
             $addedAbilities = 0;
-            foreach ($newAbilities as $ability) {
+            foreach ($newAuthAbilities as $ability) {
                 if (!$adminRole->hasAbility($ability)) {
-                    $io->note("Adding ability {$ability->getId()} to admin role");
+                    $io->note(sprintf(
+                        "Adding ability %s:%s:%s%s to admin role", 
+                        $ability->getModule()->value, 
+                        $ability->getResource(), 
+                        $ability->getAction()->value,
+                        $ability->getResourceConstraint() ? ":{$ability->getResourceConstraint()}" : ""
+                    ));
                     $adminRole->addAbility($ability);
                     $addedAbilities++;
                 }
@@ -134,6 +154,95 @@ class InitDatabaseCommand extends Command
             // $io->note(json_encode($adminRole->jsonSerialize()));
 
             $this->em->persist($admin);
+            $this->em->flush();
+
+            // Create default abilities for chat module
+
+            $existingChatAbilities = $this->em->getRepository(Ability::class)->findBy([
+                'module' => ModuleEnum::CHAT,
+            ]);
+            if (count($existingChatAbilities) > 0) {
+                $io->note('Found existing abilities for Chat module');
+            } else {
+                $io->note('No existing abilities for Chat module found');
+            }
+            $existingChatAbilityMap = [];
+            foreach ($existingChatAbilities as $ability) {
+                if ($ability->getResourceConstraint()) {
+                    $io->note('Skipping ability with resource constraint');
+                    continue;
+                }
+                $key = sprintf(
+                    '%s:%s:%s',
+                    $ability->getModule()->value,
+                    $ability->getResource(),
+                    $ability->getAction()->value
+                );
+                $existingChatAbilityMap[$key] = $ability;
+            }
+
+            $io->note('Creating abilities for Chat module...');
+            $newChatAbilities = [];
+
+            foreach (['MESSAGE', 'CHAT_ROOM', 'CHAT_ROOM_USER_HISTORY'] as $resource) {
+                foreach ([ActionEnum::CREATE, ActionEnum::READ, ActionEnum::UPDATE, ActionEnum::DELETE] as $action) {
+                    $key = sprintf('%s:%s:%s', ModuleEnum::CHAT->value, $resource, $action->value);
+                    if (!isset($existingChatAbilityMap[$key])) {
+                        $io->note("Creating ability $key");
+                        $ability = new Ability(
+                            ModuleEnum::CHAT,
+                            $resource,
+                            $action,
+                            null,
+                            "Can {$action->value} {$resource}s"
+                        );
+                        $this->em->persist($ability);
+                        $newChatAbilities[] = $ability;
+                    }
+                }
+            }
+
+            $this->em->flush();
+
+            $io->note('There have been ' . count($newChatAbilities) . ' new Chat abilities created.');
+
+            // Create chat service role
+            $chatRole = $this->em->getRepository(Role::class)->findOneBy(['name' => $chatUsername]);
+            if (!$chatRole) {
+                $io->note('Creating chat service role...');
+                $chatRole = new Role($chatUsername, 'Chat service role - has all abilities in the chat module');
+                foreach ($newChatAbilities as $ability) {
+                    if (!$chatRole->hasAbility($ability)) {
+                        $io->note(sprintf(
+                            "Adding ability %s:%s:%s to %s role", 
+                            $ability->getModule()->value, 
+                            $ability->getResource(), 
+                            $ability->getAction()->value,
+                            $chatRole->getName()
+                        ));
+                        $chatRole->addAbility($ability);
+                    }
+                }
+                $this->em->persist($chatRole);
+            }
+
+            $this->em->flush();
+
+            // Create chat service user
+            $chatUser = $this->em->getRepository(User::class)->findOneBy(['username' => $chatUsername]);
+            if (!$chatUser) {
+                $io->note('Creating chat service user...');
+                $chatUser = new User($chatUsername, $chatPassword);
+                $chatUser->setStatus(UserStatus::ACTIVE);
+                $this->em->persist($chatUser);
+            }
+            $chatUser->setPassword($chatPassword);
+            $this->em->flush();
+
+            if (!$chatUser->hasRole($chatRole)) {
+                $io->note('Adding chat service role to chat service user');
+                $chatUser->addRole($chatRole);
+            }
             $this->em->flush();
 
             $this->em->getConnection()->commit();
