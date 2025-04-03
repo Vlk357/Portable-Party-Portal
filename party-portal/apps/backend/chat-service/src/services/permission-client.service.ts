@@ -19,7 +19,7 @@ interface ServiceTokenResponse {
 export class PermissionClientService implements OnModuleInit {
   private readonly logger = new Logger(PermissionClientService.name);
   private readonly cache = new Map<number, UserPermissions>();
-  private serviceToken: string | null = null;
+  private authorizationToken: string | null = null;
 
   // Hard-code the URL or use environment variable directly
   private readonly baseUrl: string = process.env.AUTH_SERVICE_URL
@@ -30,7 +30,7 @@ export class PermissionClientService implements OnModuleInit {
     // No ConfigService dependency
   }
   async onModuleInit() {
-    await this.getServiceToken();
+    await this.getAuthorizationToken();
 
     await this.refreshPermissions();
 
@@ -45,19 +45,19 @@ export class PermissionClientService implements OnModuleInit {
     }, refreshInterval);
   }
 
-  private async getServiceToken(): Promise<void> {
+  private async getAuthorizationToken(): Promise<void> {
     try {
       // Create a URLSearchParams object to send form data instead of JSON
       const formData = new URLSearchParams();
-      formData.append('service_id', process.env.CHAT_SERVICE_ID || 'CHAT'); // Match the env value
+      formData.append('username', process.env.CHAT_SERVICE_ID || 'CHAT'); // Match the env value
       formData.append(
-        'service_secret',
+        'password',
         process.env.CHAT_SERVICE_SECRET || 'your-secret-here',
       );
 
       const response = await firstValueFrom(
         this.httpService.post<ServiceTokenResponse>(
-          `${this.baseUrl}/api/service-token`,
+          `${this.baseUrl}/api/login`,
           formData,
           {
             headers: {
@@ -67,18 +67,18 @@ export class PermissionClientService implements OnModuleInit {
         ),
       );
 
-      this.serviceToken = response.data.token;
-      this.logger.log('Service token obtained successfully');
+      this.authorizationToken = response.data.token;
+      this.logger.log('Authorization token obtained successfully');
     } catch (error) {
-      this.logger.error('Failed to get service token', error);
+      this.logger.error('Failed to get authorization token', error);
     }
   }
 
   async refreshPermissions(): Promise<void> {
     try {
       // Try to get a token if we don't have one
-      if (!this.serviceToken) {
-        await this.getServiceToken();
+      if (!this.authorizationToken) {
+        await this.getAuthorizationToken();
       }
 
       // Get permissions with the token in the Authorization header
@@ -86,9 +86,9 @@ export class PermissionClientService implements OnModuleInit {
         this.httpService.get<ServicePermissions>(
           `${this.baseUrl}/api/permissions/CHAT`,
           {
-            headers: this.serviceToken
+            headers: this.authorizationToken
               ? {
-                  Authorization: `Bearer ${this.serviceToken}`,
+                  Authorization: `Bearer ${this.authorizationToken}`,
                 }
               : {},
           },
