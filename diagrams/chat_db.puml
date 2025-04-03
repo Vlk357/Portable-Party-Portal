@@ -68,6 +68,7 @@ entity MessageDeliveryStatus {
 
 ChatRoom ||--o{ ChatRoomUserHistory
 ChatRoom ||--o{ Message
+Message  |o--o{ Message : "thread_parent"
 Message ||--o{ MessageVersion
 Message ||--o{ MessageReply : "replying"
 Message ||--o{ MessageReply : "referenced"
