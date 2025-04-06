@@ -11,14 +11,6 @@ use App\Entity\User;
 
 class SecurityController extends AbstractController
 {
-    private ServiceCredentialsManager $serviceCredentialsManager;
-
-    public function __construct(
-        ServiceCredentialsManager $serviceCredentialsManager
-    ) {
-        $this->serviceCredentialsManager = $serviceCredentialsManager;
-    }
-
     #[Route('/api/login', name: 'app_login', methods: ['POST'])]
     public function login(#[CurrentUser] ?User $user): JsonResponse
     {

@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\ModuleEnum;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -172,6 +173,23 @@ class Role implements \JsonSerializable, EntityInterface
     {
         return $this->roleAbilities
             ->exists(fn(int $index, RoleAbility $roleAbility) => $roleAbility->getAbility() === $ability);
+    }
+
+    /**
+     * Creates a filtered view of this role's abilities, keeping only those from a specific module
+     * This doesn't modify the internal collection, just creates a filtered view for the response
+     *
+     * @param ModuleEnum $module The module to filter by
+     * @return Collection<int, RoleAbility>
+     */
+    public function filterAbilitiesByModule(ModuleEnum $module): Collection
+    {
+        // Create a new collection with only the abilities from the specified module
+        $filteredAbilities = $this->roleAbilities->filter(function (RoleAbility $roleAbility) use ($module) {
+            return $roleAbility->getAbility()->getModule() === $module;
+        });
+
+        return $filteredAbilities;
     }
 
     public function __toString(): string

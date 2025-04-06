@@ -52,4 +52,47 @@ class UserRepository extends AbstractRepository
 
         return $result;
     }
+
+    /**
+     * Find users that have only the specified abilities and roles
+     * @param array<int> $abilityIds List of allowed ability IDs
+     * @param array<int> $roleIds List of allowed role IDs
+     * @return array<User> Users matching the criteria
+     */
+    public function findUsersWithAbilitiesAndRoles(array $abilityIds, array $roleIds): array
+    {
+        $qb = $this->entityManager->createQueryBuilder();
+
+        /**
+         * @var array<User>
+         */
+        $users = $qb->select('u')
+            ->from(User::class, 'u')
+            ->leftJoin('u.userAbilities', 'ua')
+            ->leftJoin('u.roles', 'r')
+            ->where(
+                $qb->expr()->orX(
+                    $qb->expr()->in('ua.ability', ':abilityIds'),
+                    $qb->expr()->in('r.id', ':roleIds')
+                )
+            )
+            ->andWhere('NOT EXISTS (
+                SELECT 1 FROM App\Entity\UserAbility ua2
+                WHERE ua2.user = u.id
+                AND ua2.ability NOT IN (:abilityIds)
+            )')
+            ->andWhere('NOT EXISTS (
+                SELECT 1 FROM App\Entity\User u2
+                JOIN u2.roles r2
+                WHERE u2.id = u.id
+                AND r2.id NOT IN (:roleIds)
+            )')
+            ->setParameter('abilityIds', $abilityIds)
+            ->setParameter('roleIds', $roleIds)
+            ->groupBy('u.id')
+            ->getQuery()
+            ->getResult();
+
+        return $users;
+    }
 }
