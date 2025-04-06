@@ -127,9 +127,9 @@ class InitDatabaseCommand extends Command
             foreach ($newAuthAbilities as $ability) {
                 if (!$adminRole->hasAbility($ability)) {
                     $io->note(sprintf(
-                        "Adding ability %s:%s:%s%s to admin role", 
-                        $ability->getModule()->value, 
-                        $ability->getResource(), 
+                        "Adding ability %s:%s:%s%s to admin role",
+                        $ability->getModule()->value,
+                        $ability->getResource(),
                         $ability->getAction()->value,
                         $ability->getResourceConstraint() ? ":{$ability->getResourceConstraint()}" : ""
                     ));
@@ -214,9 +214,9 @@ class InitDatabaseCommand extends Command
                 foreach ($newChatAbilities as $ability) {
                     if (!$chatRole->hasAbility($ability)) {
                         $io->note(sprintf(
-                            "Adding ability %s:%s:%s to %s role", 
-                            $ability->getModule()->value, 
-                            $ability->getResource(), 
+                            "Adding ability %s:%s:%s to %s role",
+                            $ability->getModule()->value,
+                            $ability->getResource(),
                             $ability->getAction()->value,
                             $chatRole->getName()
                         ));
@@ -224,6 +224,30 @@ class InitDatabaseCommand extends Command
                     }
                 }
                 $this->em->persist($chatRole);
+            }
+
+            // Add abilities to get roles, abilities and users to cache in chat service
+            $readAuthAbility = $this->em->getRepository(Ability::class)->findOneBy(['module' => 'AUTH', 'action' => 'READ', 'resource' => 'ABILITY']);
+            if ($readAuthAbility && !$chatRole->hasAbility($readAuthAbility)) {
+                $io->note("Adding AUTH:ABILITY:READ to chatRole");
+                $chatRole->addAbility($readAuthAbility);
+            } else {
+                $io->note("Ability AUTH:ABILITY:READ couldn't be found or is already assigned to chatRole");
+            }
+
+            $readAuthRole = $this->em->getRepository(Ability::class)->findOneBy(['module' => 'AUTH', 'action' => 'READ', 'resource' => 'ROLE']);
+            if ($readAuthRole && !$chatRole->hasAbility($readAuthRole)) {
+                $io->note("Adding AUTH:ROLE:READ to chatRole");
+                $chatRole->addAbility($readAuthRole);
+            } else {
+                $io->note("Ability AUTH:ROLE:READ couldn't be found or is already assigned to chatRole");
+            }
+            $readAuthUser = $this->em->getRepository(Ability::class)->findOneBy(['module' => 'AUTH', 'action' => 'READ', 'resource' => 'USER']);
+            if ($readAuthUser && !$chatRole->hasAbility($readAuthUser)) {
+                $io->note("Adding AUTH:USER:READ to chatRole");
+                $chatRole->addAbility($readAuthUser);
+            } else {
+                $io->note("Ability AUTH:USER:READ couldn't be found or is already assigned to chatRole");
             }
 
             $this->em->flush();
