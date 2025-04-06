@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\DTO\ModulePermissionsDTO;
 use App\Entity\Ability;
 use App\Entity\Role;
 use App\Service\PermissionService;
@@ -36,11 +37,11 @@ class PermissionController extends AbstractController
         $roleIds = array_map(fn(Role $role) => $role->getId(), $roles);
         $roleIds = array_filter($roleIds, fn($id) => $id !== null);
 
-        return $this->json([
-            'roles' => $roles,
-            'abilities' => $moduleAbilities,
-            'users' => $this->permissionService->getUsersByAbilitiesAndRoles($abilityIds, $roleIds),
-        ]);
+        $users = $this->permissionService->getUsersByAbilitiesAndRoles($abilityIds, $roleIds);
+
+        $modulePermissions = new ModulePermissionsDTO($roles, $moduleAbilities, $users);
+
+        return $this->json($modulePermissions);
     }
 
     #[Route('', methods: ['GET'])]

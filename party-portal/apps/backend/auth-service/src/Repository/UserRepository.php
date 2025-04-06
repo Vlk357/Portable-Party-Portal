@@ -69,22 +69,25 @@ class UserRepository extends AbstractRepository
         $users = $qb->select('u')
             ->from(User::class, 'u')
             ->leftJoin('u.userAbilities', 'ua')
-            ->leftJoin('u.roles', 'r')
+            ->leftJoin('ua.ability', 'a')
+            ->leftJoin('u.userRoles', 'ur')
+            ->leftJoin('ur.role', 'r')
             ->where(
                 $qb->expr()->orX(
-                    $qb->expr()->in('ua.ability', ':abilityIds'),
+                    $qb->expr()->in('a.id', ':abilityIds'),
                     $qb->expr()->in('r.id', ':roleIds')
                 )
             )
             ->andWhere('NOT EXISTS (
                 SELECT 1 FROM App\Entity\UserAbility ua2
+                JOIN ua2.ability a2
                 WHERE ua2.user = u.id
-                AND ua2.ability NOT IN (:abilityIds)
+                AND a2.id NOT IN (:abilityIds)
             )')
             ->andWhere('NOT EXISTS (
-                SELECT 1 FROM App\Entity\User u2
-                JOIN u2.roles r2
-                WHERE u2.id = u.id
+                SELECT 1 FROM App\Entity\UserRole ur2
+                JOIN ur2.role r2
+                WHERE ur2.user = u.id
                 AND r2.id NOT IN (:roleIds)
             )')
             ->setParameter('abilityIds', $abilityIds)

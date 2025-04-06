@@ -176,6 +176,15 @@ class Role implements \JsonSerializable, EntityInterface
     }
 
     /**
+     * Summary of getRoleAbilities
+     * @return Collection<int, RoleAbility>
+     */
+    public function getRoleAbilities(): Collection
+    {
+        return $this->roleAbilities;
+    }
+
+    /**
      * Creates a filtered view of this role's abilities, keeping only those from a specific module
      * This doesn't modify the internal collection, just creates a filtered view for the response
      *

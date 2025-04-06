@@ -17,6 +17,8 @@ use App\Validator\Constraints\ComplexPassword;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+use function PHPUnit\Framework\returnArgument;
+
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSerializable, EntityInterface
@@ -222,6 +224,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this;
     }
 
+    /**
+     * Summary of getUserAbilities
+     * @return Collection<int, UserAbility>
+     */
+    public function getUserAbilities(): Collection
+    {
+        return $this->userAbilities;
+    }
+
     public function getPassword(): ?string
     {
         return $this->password;
@@ -299,6 +310,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         }
 
         return $this;
+    }
+
+    /**
+     * Summary of getUserRoles
+     * @return Collection<int, UserRole>
+     */
+    public function getUserRoles(): Collection
+    {
+        return $this->userRoles;
     }
 
     public function hasRole(Role $role): bool
