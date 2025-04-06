@@ -21,7 +21,7 @@ services:
     environment:
       XDEBUG_MODE: 'off'
       APP_ENV: dev
-      DATABASE_URL: ${CHAT_URL}
+      DATABASE_URL: ${AUTH_URL}
       CHAT_SERVICE_ID: ${CHAT_SERVICE_ID}
       CHAT_SERVICE_SECRET: ${CHAT_SERVICE_SECRET}
     depends_on:
