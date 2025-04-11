@@ -29,6 +29,18 @@ services:
             $projectDir: "%kernel.project_dir%"
         tags: ["console.command"]
 
+    App\Command\InstallAuditTriggersCommand:
+        arguments:
+            $connection: '@doctrine.dbal.default_connection'
+            $projectDir: '%kernel.project_dir%'
+        tags: ['console.command']
+
+    App\Command\SetupDatabaseCommand:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'
+            $projectDir: '%kernel.project_dir%'
+        tags: ['console.command']
+
     App\Service\DatabaseService:
         arguments:
             $entityManager: '@doctrine.orm.entity_manager'

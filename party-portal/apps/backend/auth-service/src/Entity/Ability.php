@@ -18,7 +18,7 @@ class Ability implements \JsonSerializable, EntityInterface
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\Column(type: Types::STRING, enumType: ModuleEnum::class)]
+    #[ORM\Column(type: "string", enumType: ModuleEnum::class)]
     private ModuleEnum $module;
 
     #[ORM\Column(length: 100)]

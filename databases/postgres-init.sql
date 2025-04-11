@@ -17,14 +17,14 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO auth_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO auth_user;
 
 -- Load schema
-\i /docker-entrypoint-initdb.d/migrations/001_initial_schema.sql
+-- \i /docker-entrypoint-initdb.d/migrations/001_initial_schema.sql
 
 -- Grant permissions on existing tables and sequences
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO auth_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO auth_user;
 
 -- Load functions
-\i /docker-entrypoint-initdb.d/functions/audit_triggers.sql
+-- \i /docker-entrypoint-initdb.d/functions/audit_triggers.sql
 
 -- Load seed data
 -- \i /docker-entrypoint-initdb.d/seeds/001_default_roles.sql
