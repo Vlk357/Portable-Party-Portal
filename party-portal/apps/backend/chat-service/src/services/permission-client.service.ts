@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { Role } from '../interfaces/role.interface';
 import { Ability } from '../interfaces/ability.interface';
 import { UserPermissions } from '../interfaces/user-permission.interface';
+import { decode } from 'jsonwebtoken';
 
 interface ServicePermissions {
   roles: Role[];
@@ -11,28 +12,33 @@ interface ServicePermissions {
   users: UserPermissions[];
 }
 
-interface ServiceTokenResponse {
+interface TokenResponse {
   token: string;
+  refresh_token: string;
+  refresh_token_expiration: number;
 }
 
 @Injectable()
 export class PermissionClientService implements OnModuleInit {
   private readonly logger = new Logger(PermissionClientService.name);
   private readonly cache = new Map<number, UserPermissions>();
-  private authorizationToken: string | null = null;
+
+  // Authentication state
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+  private accessTokenExpiry: number | null = null;
+  private refreshTokenExpiry: number | null = null;
+  private tokenRefreshInProgress = false;
 
   // Hard-code the URL or use environment variable directly
   private readonly baseUrl: string = process.env.AUTH_SERVICE_URL
     ? `${process.env.AUTH_SERVICE_URL}`
     : 'http://nginx/auth';
 
-  constructor(private readonly httpService: HttpService) {
-    // No ConfigService dependency
-  }
-  async onModuleInit() {
-    await this.getAuthorizationToken();
+  constructor(private readonly httpService: HttpService) {}
 
-    await this.refreshPermissions();
+  async onModuleInit() {
+    await this.authenticate();
 
     const refreshInterval = process.env.PERMISSION_REFRESH_INTERVAL
       ? parseInt(process.env.PERMISSION_REFRESH_INTERVAL, 10) * 1000
@@ -43,84 +49,168 @@ export class PermissionClientService implements OnModuleInit {
         this.logger.error("Couldn't refresh permissions: ", error);
       });
     }, refreshInterval);
+
+    // Check token expiration every minute
+    setInterval(() => {
+      this.checkTokenExpiration().catch((error) => {
+        this.logger.error('Token refresh check failed: ', error);
+      });
+    }, 60 * 1000);
   }
 
-  private async getAuthorizationToken(): Promise<void> {
+  private async authenticate(): Promise<void> {
     try {
-      // Create a URLSearchParams object to send form data instead of JSON
-      const formData = new URLSearchParams();
-      formData.append('username', process.env.CHAT_SERVICE_ID || 'CHAT'); // Match the env value
-      formData.append(
-        'password',
-        process.env.CHAT_SERVICE_SECRET || 'your-secret-here',
-      );
+      const credentials = {
+        username: process.env.CHAT_SERVICE_ID || 'CHAT',
+        password: process.env.CHAT_SERVICE_SECRET || 'your-secret-here',
+      };
 
       const response = await firstValueFrom(
-        this.httpService.post<ServiceTokenResponse>(
+        this.httpService.post<TokenResponse>(
           `${this.baseUrl}/api/login`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-          },
+          credentials,
+          { headers: { 'Content-Type': 'application/json' } },
         ),
       );
 
-      this.authorizationToken = response.data.token;
-      this.logger.log('Authorization token obtained successfully');
+      this.updateTokens(response.data);
+      this.logger.log('Authentication successful');
     } catch (error) {
-      this.logger.error('Failed to get authorization token', error);
+      this.logger.error('Authentication failed', error);
+      throw error;
     }
   }
 
-  async refreshPermissions(): Promise<void> {
+  private async refreshAccessToken(): Promise<void> {
+    // Prevent multiple concurrent refresh attempts
+    if (this.tokenRefreshInProgress) {
+      return;
+    }
+
     try {
-      // Try to get a token if we don't have one
-      if (!this.authorizationToken) {
-        await this.getAuthorizationToken();
+      this.tokenRefreshInProgress = true;
+
+      if (!this.refreshToken) {
+        // If no refresh token, we need to do a full authentication
+        await this.authenticate();
+        return;
       }
 
-      // Get permissions with the token in the Authorization header
       const response = await firstValueFrom(
-        this.httpService.get<ServicePermissions>(
-          `${this.baseUrl}/api/permissions/CHAT`,
-          {
-            headers: this.authorizationToken
-              ? {
-                  Authorization: `Bearer ${this.authorizationToken}`,
-                }
-              : {},
-          },
+        this.httpService.post<TokenResponse>(
+          `${this.baseUrl}/api/token/refresh`,
+          { refresh_token: this.refreshToken },
+          { headers: { 'Content-Type': 'application/json' } },
         ),
       );
 
-      // Update cache - add null check for safety
+      this.updateTokens(response.data);
+      this.logger.log('Token refreshed successfully');
+    } catch (error) {
+      this.logger.error('Token refresh failed', error);
+      // On refresh failure, try full authentication
+      this.refreshToken = null;
+      await this.authenticate();
+    } finally {
+      this.tokenRefreshInProgress = false;
+    }
+  }
+
+  private updateTokens(tokenData: TokenResponse): void {
+    this.accessToken = tokenData.token;
+    this.refreshToken = tokenData.refresh_token;
+
+    // Parse JWT to get access token expiry
+    try {
+      // Use a more type-safe approach
+      const decoded = decode(tokenData.token);
+
+      // Type guard to check if decoded is an object with exp property
+      if (decoded && typeof decoded === 'object' && 'exp' in decoded) {
+        this.accessTokenExpiry = (decoded.exp as number) * 1000; // Convert to milliseconds
+      }
+    } catch (e) {
+      this.logger.error('Failed to decode JWT', e);
+    }
+
+    // Set refresh token expiry
+    this.refreshTokenExpiry = tokenData.refresh_token_expiration * 1000;
+  }
+
+  private async checkTokenExpiration(): Promise<void> {
+    if (!this.accessToken || !this.accessTokenExpiry) {
+      return;
+    }
+
+    const currentTime = Date.now();
+    const bufferTime = 60 * 1000; // Refresh 1 minute before expiry
+
+    if (this.accessTokenExpiry - currentTime < bufferTime) {
+      this.logger.log('Access token nearing expiry, refreshing...');
+      await this.refreshAccessToken();
+    }
+  }
+
+  private getAuthHeaders() {
+    return this.accessToken
+      ? { Authorization: `Bearer ${this.accessToken}` }
+      : {};
+  }
+
+  async refreshPermissions(): Promise<void> {
+    await this.executeWithRetry(async () => {
+      const response = await firstValueFrom(
+        this.httpService.get<ServicePermissions>(
+          `${this.baseUrl}/api/permissions/CHAT`,
+          { headers: this.getAuthHeaders() },
+        ),
+      );
+
+      // Update cache
       this.cache.clear();
       if (response.data?.users) {
         response.data.users.forEach((user) => {
           this.cache.set(user.id, user);
         });
       }
-    } catch (error) {
-      this.logger.error('Failed to refresh permissions', error);
-      // Don't throw the error - makes your service more resilient
-    }
+    });
   }
 
   async addUserAbility(userId: number, ability: string): Promise<void> {
-    try {
+    await this.executeWithRetry(async () => {
       await firstValueFrom(
         this.httpService.post(
           `${this.baseUrl}/api/permissions/user/${userId}/ability`,
           { ability },
+          { headers: this.getAuthHeaders() },
         ),
       );
 
       // Refresh cache for this user
       await this.refreshPermissions();
-    } catch (error) {
-      this.logger.error(`Failed to add ability to user ${userId}`, error);
+    });
+  }
+
+  private async executeWithRetry<T>(
+    fn: () => Promise<T>,
+    retries = 1,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      // Check for 401 Unauthorized error
+      // Add proper type check for axios error
+      const axiosError = error as { response?: { status?: number } };
+
+      if (
+        axiosError.response?.status === 401 &&
+        retries > 0 &&
+        !this.tokenRefreshInProgress
+      ) {
+        this.logger.log('Request failed with 401, attempting token refresh');
+        await this.refreshAccessToken();
+        return this.executeWithRetry(fn, retries - 1);
+      }
       throw error;
     }
   }
