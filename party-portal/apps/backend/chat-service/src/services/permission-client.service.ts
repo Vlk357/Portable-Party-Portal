@@ -18,10 +18,256 @@ interface TokenResponse {
   refresh_token_expiration: number;
 }
 
+/**
+ * PermissionCache class to efficiently store and query permissions
+ */
+class PermissionCache {
+  private roles = new Map<number, Role>();
+  private abilities = new Map<number, Ability>();
+  private users = new Map<number, UserPermissions>();
+
+  // Quick lookup maps
+  private userRoles = new Map<number, Set<number>>(); // userId -> Set of roleIds
+  private userAbilities = new Map<number, Set<number>>(); // userId -> Set of abilityIds
+  private roleAbilities = new Map<number, Set<number>>(); // roleId -> Set of abilityIds
+  private abilityByName = new Map<string, number>(); // abilityName -> abilityId
+
+  constructor(private logger: Logger) {}
+
+  /**
+   * Clear all cached data
+   */
+  clear(): void {
+    this.roles.clear();
+    this.abilities.clear();
+    this.users.clear();
+    this.userRoles.clear();
+    this.userAbilities.clear();
+    this.roleAbilities.clear();
+    this.abilityByName.clear();
+  }
+
+  /**
+   * Update the cache with new permissions data
+   */
+  update(data: ServicePermissions): void {
+    this.clear();
+
+    // First, store all abilities and create name lookups
+    if (data.abilities) {
+      data.abilities.forEach((ability) => {
+        this.abilities.set(ability.id, ability);
+
+        // Create ability name -> id lookup
+        const abilityName = this.getAbilityFullName(ability);
+        this.abilityByName.set(abilityName, ability.id);
+      });
+    }
+
+    // Next, store all roles and their abilities
+    if (data.roles) {
+      data.roles.forEach((role) => {
+        this.roles.set(role.id, role);
+
+        // Store role -> abilities relationships
+        const roleAbilityIds = new Set<number>();
+        if (role.abilities) {
+          role.abilities.forEach((ability) => {
+            roleAbilityIds.add(ability.id);
+          });
+        }
+        this.roleAbilities.set(role.id, roleAbilityIds);
+      });
+    }
+
+    // Finally, store users with their roles and abilities
+    if (data.users) {
+      data.users.forEach((user) => {
+        this.users.set(user.id, user);
+
+        // Store user -> roles relationships
+        const userRoleIds = new Set<number>();
+        if (user.roles) {
+          user.roles.forEach((role) => {
+            // Extract the role ID
+            userRoleIds.add(role.id);
+          });
+        }
+        this.userRoles.set(user.id, userRoleIds);
+
+        // Store user -> abilities relationships (direct assignments)
+        const userAbilityIds = new Set<number>();
+        if (user.abilities) {
+          user.abilities.forEach((ability) => {
+            userAbilityIds.add(ability.id);
+          });
+        }
+        this.userAbilities.set(user.id, userAbilityIds);
+      });
+    }
+
+    this.logger.log(
+      `Permission cache updated: ${this.abilities.size} abilities, ` +
+        `${this.roles.size} roles, ${this.users.size} users`,
+    );
+  }
+
+  /**
+   * Check if a user has a specific permission
+   */
+  hasPermission(userId: number, permissionString: string): boolean {
+    // First check if user exists
+    if (!this.users.has(userId)) {
+      return false;
+    }
+
+    // Check direct user ability assignments
+    if (this.hasDirectAbility(userId, permissionString)) {
+      return true;
+    }
+
+    // Check user's roles for the ability
+    return this.hasRoleBasedAbility(userId, permissionString);
+  }
+
+  /**
+   * Get all users with a specific permission
+   */
+  getUsersWithPermission(permissionString: string): number[] {
+    const result: number[] = [];
+
+    // Get the ability ID from the permission string
+    const abilityId = this.getAbilityIdByName(permissionString);
+    if (!abilityId) {
+      return result;
+    }
+
+    // Check each user
+    this.users.forEach((user, userId) => {
+      if (this.hasPermission(userId, permissionString)) {
+        result.push(userId);
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Get a user by ID with all permissions resolved
+   */
+  getUser(userId: number): UserPermissions | undefined {
+    return this.users.get(userId);
+  }
+
+  /**
+   * Get all roles for a user
+   */
+  getUserRoles(userId: number): Role[] {
+    const roleIds = this.userRoles.get(userId);
+    if (!roleIds) {
+      return [];
+    }
+
+    const roles: Role[] = [];
+    roleIds.forEach((roleId) => {
+      const role = this.roles.get(roleId);
+      if (role) {
+        roles.push(role);
+      }
+    });
+
+    return roles;
+  }
+
+  /**
+   * Get all abilities for a user
+   */
+  getUserAbilities(userId: number): Ability[] {
+    // Start with direct abilities
+    const abilities = new Map<number, Ability>();
+
+    // Add direct abilities
+    const directAbilityIds =
+      this.userAbilities.get(userId) || new Set<number>();
+    directAbilityIds.forEach((abilityId) => {
+      const ability = this.abilities.get(abilityId);
+      if (ability) {
+        abilities.set(abilityId, ability);
+      }
+    });
+
+    // Add abilities from roles
+    const roleIds = this.userRoles.get(userId) || new Set<number>();
+    roleIds.forEach((roleId) => {
+      const roleAbilityIds =
+        this.roleAbilities.get(roleId) || new Set<number>();
+      roleAbilityIds.forEach((abilityId) => {
+        const ability = this.abilities.get(abilityId);
+        if (ability) {
+          abilities.set(abilityId, ability);
+        }
+      });
+    });
+
+    return Array.from(abilities.values());
+  }
+
+  // Helper methods
+  private hasDirectAbility(userId: number, permissionString: string): boolean {
+    // Get ability ID
+    const abilityId = this.getAbilityIdByName(permissionString);
+    if (!abilityId) {
+      return false;
+    }
+
+    // Check if user has this ability directly
+    const userAbilityIds = this.userAbilities.get(userId);
+    return userAbilityIds ? userAbilityIds.has(abilityId) : false;
+  }
+
+  private hasRoleBasedAbility(
+    userId: number,
+    permissionString: string,
+  ): boolean {
+    // Get ability ID
+    const abilityId = this.getAbilityIdByName(permissionString);
+    if (!abilityId) {
+      return false;
+    }
+
+    // Check if any of user's roles has this ability
+    const userRoleIds = this.userRoles.get(userId);
+    if (!userRoleIds) {
+      return false;
+    }
+
+    for (const roleId of userRoleIds) {
+      const roleAbilityIds = this.roleAbilities.get(roleId);
+      if (roleAbilityIds && roleAbilityIds.has(abilityId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private getAbilityIdByName(permissionString: string): number | undefined {
+    return this.abilityByName.get(permissionString);
+  }
+
+  private getAbilityFullName(ability: Ability): string {
+    let name = `${ability.module}:${ability.resource}:${ability.action}`;
+    if (ability.resourceConstraint) {
+      name += `:${ability.resourceConstraint}`;
+    }
+    return name;
+  }
+}
+
 @Injectable()
 export class PermissionClientService implements OnModuleInit {
   private readonly logger = new Logger(PermissionClientService.name);
-  private readonly cache = new Map<number, UserPermissions>();
+  private readonly permissionCache = new PermissionCache(this.logger);
 
   // Authentication state
   private accessToken: string | null = null;
@@ -208,13 +454,8 @@ export class PermissionClientService implements OnModuleInit {
         ),
       );
 
-      // Update cache
-      this.cache.clear();
-      if (response.data?.users) {
-        response.data.users.forEach((user) => {
-          this.cache.set(user.id, user);
-        });
-      }
+      // Update the permission cache with fresh data
+      this.permissionCache.update(response.data);
 
       // After initial permissions fetch, schedule periodic refreshes
       if (!this.permissionRefreshTimeout) {
@@ -261,32 +502,38 @@ export class PermissionClientService implements OnModuleInit {
     }
   }
 
+  /**
+   * Check if a user has a specific permission
+   */
   checkPermission(userId: number, abilityString: string): boolean {
-    let user = this.cache.get(userId);
-    if (user === undefined) {
-      if (this.cache.size === 0) {
-        this.refreshPermissions().catch((error) => {
-          this.logger.error("Couldn't refresh permissions: ", error);
-        });
-        user = this.cache.get(userId);
-        if (user === undefined) {
-          return false;
-        }
-      } else {
-        return false;
-      }
-    }
+    return this.permissionCache.hasPermission(userId, abilityString);
+  }
 
-    return user.abilities.some((ability) => {
-      let permissionString = `${ability.module}:${ability.resource}:${ability.action}`;
+  /**
+   * Get all roles for a user
+   */
+  getUserRoles(userId: number): Role[] {
+    return this.permissionCache.getUserRoles(userId);
+  }
 
-      // Add constraint if present, otherwise skip it
-      if (ability.resourceConstraint) {
-        permissionString += `:${ability.resourceConstraint}`;
-      }
+  /**
+   * Get all abilities for a user
+   */
+  getUserAbilities(userId: number): Ability[] {
+    return this.permissionCache.getUserAbilities(userId);
+  }
 
-      // Compare with the provided ability string
-      return permissionString === abilityString;
-    });
+  /**
+   * Get all users with a specific permission
+   */
+  getUsersWithPermission(abilityString: string): number[] {
+    return this.permissionCache.getUsersWithPermission(abilityString);
+  }
+
+  /**
+   * Get user details with permissions
+   */
+  getUser(userId: number): UserPermissions | undefined {
+    return this.permissionCache.getUser(userId);
   }
 }
