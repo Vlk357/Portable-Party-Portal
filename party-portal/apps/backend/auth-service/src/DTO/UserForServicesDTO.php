@@ -41,7 +41,7 @@ class UserForServicesDTO implements \JsonSerializable
             $role = $userRole->getRole();
             $roles[] = [
                 'id' => $role->getId(),
-                'name' => $role->getName(),
+                // 'name' => $role->getName(),
             ];
         }
         $this->roles = $roles;
@@ -56,9 +56,9 @@ class UserForServicesDTO implements \JsonSerializable
             $ability = $userAbility->getAbility();
             $abilities[] = [
                 'id' => $ability->getId(),
-                'module' => $ability->getModule()->value,
-                'resource' => $ability->getResource(),
-                'action' => $ability->getAction()->value,
+                // 'module' => $ability->getModule()->value,
+                // 'resource' => $ability->getResource(),
+                // 'action' => $ability->getAction()->value,
             ];
         }
         $this->abilities = $abilities;
@@ -71,9 +71,9 @@ class UserForServicesDTO implements \JsonSerializable
     {
         return [
             'id' => $this->id,
-            'username' => $this->username,
-            'status' => $this->status,
-            'created_at' => $this->createdAt,
+            // 'username' => $this->username,
+            // 'status' => $this->status,
+            // 'created_at' => $this->createdAt,
             'roles' => $this->roles,
             'abilities' => $this->abilities
         ];

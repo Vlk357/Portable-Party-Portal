@@ -31,18 +31,34 @@ class AbilityForServicesDTO implements \JsonSerializable
     }
 
     /**
+     * Convert ability to standardized string format: module:resource:action[:resourceConstraint]
+     */
+    public function abilityToString(): string
+    {
+        $abilityString = sprintf('%s:%s:%s', $this->module, $this->resource, $this->action);
+        
+        // Add resource constraint if available
+        if ($this->resourceConstraint !== null && $this->resourceConstraint !== '') {
+            $abilityString .= ":{$this->resourceConstraint}";
+        }
+        
+        return $abilityString;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array
     {
         return [
             'id' => $this->id,
-            'module' => $this->module,
-            'resource' => $this->resource,
-            'resource_constraint' => $this->resourceConstraint,
-            'action' => $this->action,
-            'description' => $this->description,
-            'created_at' => $this->createdAt
+            'ability_string' => $this->abilityToString(),
+            // 'module' => $this->module,
+            // 'resource' => $this->resource,
+            // 'resource_constraint' => $this->resourceConstraint,
+            // 'action' => $this->action,
+            // 'description' => $this->description,
+            // 'created_at' => $this->createdAt
         ];
     }
 }

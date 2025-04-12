@@ -23,6 +23,7 @@ class PermissionController extends AbstractController
     #[Route('/{module}', methods: ['GET'])]
     public function getModulePermissions(string $module): JsonResponse
     {
+        // TODO: Should also return the expiration for temporary abilities and roles
         $this->denyAccessUnlessGranted('AUTH:ABILITY:READ');
         $this->denyAccessUnlessGranted('AUTH:ROLE:READ');
         $this->denyAccessUnlessGranted('AUTH:USER:READ');

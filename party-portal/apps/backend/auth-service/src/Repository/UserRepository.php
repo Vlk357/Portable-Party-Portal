@@ -63,6 +63,7 @@ class UserRepository extends AbstractRepository
     {
         $qb = $this->entityManager->createQueryBuilder();
 
+        // TODO: Update to filter only to active users
         /**
          * @var array<User>
          */

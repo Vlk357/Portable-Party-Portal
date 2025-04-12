@@ -32,12 +32,18 @@ class RoleForServicesDTO implements \JsonSerializable
         /** @var Collection<int, RoleAbility> $roleAbilities */
         $roleAbilities = $role->getRoleAbilities();
 
-        /** @var array<int, AbilityForServicesDTO> $abilities */
-        $abilities = [];
+        /** @var array<int, int> $abilityIds */
+        $abilityIds = [];
         foreach ($roleAbilities as $roleAbility) {
-            $abilities[] = new AbilityForServicesDTO($roleAbility->getAbility());
+            $ability = $roleAbility->getAbility();
+            $abilityId = $ability->getId();
+
+            // Only include valid IDs
+            if ($abilityId !== null) {
+                $abilityIds[] = $abilityId;
+            }
         }
-        $this->abilities = $abilities;
+        $this->abilities = $abilityIds;
     }
 
     /**
@@ -47,10 +53,15 @@ class RoleForServicesDTO implements \JsonSerializable
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'created_at' => $this->createdAt,
-            'abilities' => $this->abilities
+            // 'name' => $this->name,
+            // 'description' => $this->description,
+            // 'created_at' => $this->createdAt,
+            'abilities' => array_map(
+                fn(int $ability): array => [
+                    'id' => $ability
+                ],
+                $this->abilities
+            )
         ];
     }
 }
