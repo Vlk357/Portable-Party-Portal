@@ -30,6 +30,10 @@ export class PermissionClientService implements OnModuleInit {
   private refreshTokenExpiry: number | null = null;
   private tokenRefreshInProgress = false;
 
+  // Timeout handles
+  private accessTokenRefreshTimeout: NodeJS.Timeout | null = null;
+  private permissionRefreshTimeout: NodeJS.Timeout | null = null;
+
   // Hard-code the URL or use environment variable directly
   private readonly baseUrl: string = process.env.AUTH_SERVICE_URL
     ? `${process.env.AUTH_SERVICE_URL}`
@@ -39,23 +43,7 @@ export class PermissionClientService implements OnModuleInit {
 
   async onModuleInit() {
     await this.authenticate();
-
-    const refreshInterval = process.env.PERMISSION_REFRESH_INTERVAL
-      ? parseInt(process.env.PERMISSION_REFRESH_INTERVAL, 10) * 1000
-      : 10 * 60 * 1000; // Default to 10 minutes
-
-    setInterval(() => {
-      this.refreshPermissions().catch((error) => {
-        this.logger.error("Couldn't refresh permissions: ", error);
-      });
-    }, refreshInterval);
-
-    // Check token expiration every minute
-    setInterval(() => {
-      this.checkTokenExpiration().catch((error) => {
-        this.logger.error('Token refresh check failed: ', error);
-      });
-    }, 60 * 1000);
+    await this.refreshPermissions();
   }
 
   private async authenticate(): Promise<void> {
@@ -79,6 +67,71 @@ export class PermissionClientService implements OnModuleInit {
       this.logger.error('Authentication failed', error);
       throw error;
     }
+  }
+
+  private scheduleAccessTokenRefresh(): void {
+    if (!this.accessTokenExpiry) {
+      this.logger.warn('Cannot schedule token refresh: No access token expiry');
+      return;
+    }
+
+    // Clear any existing timeout
+    if (this.accessTokenRefreshTimeout) {
+      clearTimeout(this.accessTokenRefreshTimeout);
+      this.accessTokenRefreshTimeout = null;
+    }
+
+    const currentTime = Date.now();
+    const expiryTime = this.accessTokenExpiry;
+
+    // Add a buffer to refresh token before it actually expires (1 minute)
+    const bufferTimeMs = 60 * 1000;
+
+    // Calculate time until refresh needs to happen
+    const timeUntilRefresh = Math.max(
+      0,
+      expiryTime - currentTime - bufferTimeMs,
+    );
+
+    // Log the scheduled refresh
+    const refreshDate = new Date(currentTime + timeUntilRefresh);
+    this.logger.log(
+      `Access token expires at ${new Date(expiryTime).toISOString()}`,
+    );
+
+    this.accessTokenRefreshTimeout = setTimeout(() => {
+      this.refreshAccessToken().catch((error) => {
+        this.logger.error('Failed to refresh access token:', error);
+      });
+    }, timeUntilRefresh);
+
+    this.logger.log(
+      `Scheduled token refresh at ${refreshDate.toISOString()} (in ${timeUntilRefresh / 1000}s)`,
+    );
+  }
+
+  private schedulePermissionRefresh(): void {
+    // Clear any existing timeout
+    if (this.permissionRefreshTimeout) {
+      clearTimeout(this.permissionRefreshTimeout);
+      this.permissionRefreshTimeout = null;
+    }
+
+    // Get refresh interval from environment or use default
+    const refreshInterval = process.env.PERMISSION_REFRESH_INTERVAL
+      ? parseInt(process.env.PERMISSION_REFRESH_INTERVAL, 10) * 1000
+      : 10 * 60 * 1000; // Default to 10 minutes
+
+    this.permissionRefreshTimeout = setTimeout(() => {
+      this.refreshPermissions()
+        .catch((error) => {
+          this.logger.error('Failed to refresh permissions:', error);
+        })
+        .finally(() => {
+          // Schedule next refresh regardless of success or failure
+          this.schedulePermissionRefresh();
+        });
+    }, refreshInterval);
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -122,12 +175,15 @@ export class PermissionClientService implements OnModuleInit {
 
     // Parse JWT to get access token expiry
     try {
-      // Use a more type-safe approach
       const decoded = decode(tokenData.token);
 
       // Type guard to check if decoded is an object with exp property
       if (decoded && typeof decoded === 'object' && 'exp' in decoded) {
         this.accessTokenExpiry = (decoded.exp as number) * 1000; // Convert to milliseconds
+        // Schedule refresh based on actual token expiry
+        this.scheduleAccessTokenRefresh();
+      } else {
+        this.logger.warn('JWT token does not contain expiration claim');
       }
     } catch (e) {
       this.logger.error('Failed to decode JWT', e);
@@ -135,20 +191,6 @@ export class PermissionClientService implements OnModuleInit {
 
     // Set refresh token expiry
     this.refreshTokenExpiry = tokenData.refresh_token_expiration * 1000;
-  }
-
-  private async checkTokenExpiration(): Promise<void> {
-    if (!this.accessToken || !this.accessTokenExpiry) {
-      return;
-    }
-
-    const currentTime = Date.now();
-    const bufferTime = 60 * 1000; // Refresh 1 minute before expiry
-
-    if (this.accessTokenExpiry - currentTime < bufferTime) {
-      this.logger.log('Access token nearing expiry, refreshing...');
-      await this.refreshAccessToken();
-    }
   }
 
   private getAuthHeaders() {
@@ -172,6 +214,11 @@ export class PermissionClientService implements OnModuleInit {
         response.data.users.forEach((user) => {
           this.cache.set(user.id, user);
         });
+      }
+
+      // After initial permissions fetch, schedule periodic refreshes
+      if (!this.permissionRefreshTimeout) {
+        this.schedulePermissionRefresh();
       }
     });
   }
@@ -199,7 +246,6 @@ export class PermissionClientService implements OnModuleInit {
       return await fn();
     } catch (error: unknown) {
       // Check for 401 Unauthorized error
-      // Add proper type check for axios error
       const axiosError = error as { response?: { status?: number } };
 
       if (
