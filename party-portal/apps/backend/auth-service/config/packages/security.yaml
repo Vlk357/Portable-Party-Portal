@@ -25,7 +25,9 @@ security:
         refresh:
             pattern: ^/auth/api/token/refresh
             stateless: true
-            refresh_jwt: ~
+            refresh_jwt:
+                check_path: /auth/api/token/refresh # Route name should match
+                provider: app_user_provider # User provider to use
 
         login:
             pattern: ^/auth/api/login
