@@ -11,22 +11,22 @@ use Doctrine\Common\Collections\Collection;
 class RoleForServicesDTO implements \JsonSerializable
 {
     private int $id;
-    private string $name;
-    private ?string $description;
-    private string $createdAt;
+    // private string $name;
+    // private ?string $description;
+    // private string $createdAt;
 
-    /** @var array<int, AbilityForServicesDTO> */
+    /** @var array<int, int> */
     private array $abilities;
 
     public function __construct(Role $role)
     {
         $this->id = $role->getId() ?? 0;
-        $this->name = $role->getName();
-        $this->description = $role->getDescription();
+        // $this->name = $role->getName();
+        // $this->description = $role->getDescription();
 
         // Fix for createdAt handling
-        $createdAt = $role->getCreatedAt();
-        $this->createdAt = $createdAt->format('c');
+        // $createdAt = $role->getCreatedAt();
+        // $this->createdAt = $createdAt->format('c');
 
         // Map abilities without circular references
         /** @var Collection<int, RoleAbility> $roleAbilities */

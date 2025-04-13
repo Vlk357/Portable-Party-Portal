@@ -12,9 +12,9 @@ use Doctrine\Common\Collections\Collection;
 class UserForServicesDTO implements \JsonSerializable
 {
     private int $id;
-    private string $username;
-    private string $status;
-    private string $createdAt;
+    // private string $username;
+    // private string $status;
+    // private string $createdAt;
 
     /** @var array<int, array<string, mixed>> */
     private array $roles;
@@ -25,11 +25,11 @@ class UserForServicesDTO implements \JsonSerializable
     public function __construct(User $user)
     {
         $this->id = $user->getId() ?? 0;
-        $this->username = $user->getUsername();
-        $this->status = $user->getStatus()->value;
+        // $this->username = $user->getUsername();
+        // $this->status = $user->getStatus()->value;
 
-        $createdAt = $user->getCreatedAt();
-        $this->createdAt = $createdAt->format('c');
+        // $createdAt = $user->getCreatedAt();
+        // $this->createdAt = $createdAt->format('c');
 
         // Simplified role information
         /** @var Collection<int, UserRole> $userRoles */

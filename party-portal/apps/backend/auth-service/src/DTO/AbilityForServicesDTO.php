@@ -13,8 +13,8 @@ class AbilityForServicesDTO implements \JsonSerializable
     private string $resource;
     private ?string $resourceConstraint;
     private string $action;
-    private ?string $description;
-    private string $createdAt;
+    // private ?string $description;
+    // private string $createdAt;
 
     public function __construct(Ability $ability)
     {
@@ -23,11 +23,11 @@ class AbilityForServicesDTO implements \JsonSerializable
         $this->resource = $ability->getResource();
         $this->resourceConstraint = $ability->getResourceConstraint();
         $this->action = $ability->getAction()->value;
-        $this->description = $ability->getDescription();
+        // $this->description = $ability->getDescription();
 
         // Fix: Handle null case explicitly and don't use nullsafe operator on non-nullable type
-        $createdAt = $ability->getCreatedAt();
-        $this->createdAt = $createdAt->format('c');
+        // $createdAt = $ability->getCreatedAt();
+        // $this->createdAt = $createdAt->format('c');
     }
 
     /**
