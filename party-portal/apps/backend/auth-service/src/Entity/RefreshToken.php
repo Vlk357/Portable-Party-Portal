@@ -1,4 +1,5 @@
 <?php
+
 // src/Entity/RefreshToken.php
 
 namespace App\Entity;

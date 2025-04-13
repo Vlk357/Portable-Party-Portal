@@ -1,4 +1,5 @@
 <?php
+
 // filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/backend/auth-service/src/Controller/SecurityController.php
 
 namespace App\Controller;
@@ -110,7 +111,6 @@ class SecurityController extends AbstractController
                 'exp' => $exp,
                 // 'roles' => $decodedToken['roles'] ?? []
             ]);
-
         } catch (JWTDecodeFailureException $e) {
             // Handle different failure reasons
             $reason = $e->getReason();

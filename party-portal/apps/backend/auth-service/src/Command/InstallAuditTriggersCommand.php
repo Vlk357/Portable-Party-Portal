@@ -1,4 +1,5 @@
 <?php
+
 // src/Command/InstallAuditTriggersCommand.php
 
 namespace App\Command;

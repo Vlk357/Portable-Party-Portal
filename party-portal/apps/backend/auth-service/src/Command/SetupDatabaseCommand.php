@@ -1,4 +1,5 @@
 <?php
+
 // src/Command/SetupDatabaseCommand.php
 
 namespace App\Command;

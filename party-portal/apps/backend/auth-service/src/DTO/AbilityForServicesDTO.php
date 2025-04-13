@@ -36,12 +36,12 @@ class AbilityForServicesDTO implements \JsonSerializable
     public function abilityToString(): string
     {
         $abilityString = sprintf('%s:%s:%s', $this->module, $this->resource, $this->action);
-        
+
         // Add resource constraint if available
         if ($this->resourceConstraint !== null && $this->resourceConstraint !== '') {
             $abilityString .= ":{$this->resourceConstraint}";
         }
-        
+
         return $abilityString;
     }
 
