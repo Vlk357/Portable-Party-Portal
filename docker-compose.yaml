@@ -61,6 +61,7 @@ services:
       - POSTGRES_DB=${CHAT_DB:-chat_db}
       - CHAT_SERVICE_ID=${CHAT_SERVICE_ID:-CHAT}
       - CHAT_SERVICE_SECRET=${CHAT_SERVICE_SECRET}
+      - GENERAL_CHAT_NAME=General
     networks:
       - backend
     depends_on:

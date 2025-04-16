@@ -16,8 +16,14 @@ export class ChatRoom {
   @Column({ length: 255 })
   name: string;
 
+  @Column({ nullable: true })
+  description: string;
+
   @CreateDateColumn()
   created_at: Date;
+
+  @Column({ nullable: false, type: 'int' })
+  created_by_user_id: number;
 
   @Column({ nullable: true, type: 'timestamp' })
   deleted_at: Date | null;

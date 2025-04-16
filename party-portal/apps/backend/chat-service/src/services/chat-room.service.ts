@@ -23,10 +23,18 @@ export class ChatRoomService {
     this.logger.error(serviceError.message, serviceError.cause?.stack);
     throw serviceError;
   }
-  async createRoom(name: string): Promise<ChatRoom> {
+  async createRoom(chatRoomData: {
+    name: string;
+    description?: string;
+    createdByUserId: number;
+  }): Promise<ChatRoom> {
     try {
-      const room = await this.chatRoomRepository.create({ name });
-      this.logger.log(`Created new chat room: ${room.id} - ${name}`);
+      const room = await this.chatRoomRepository.create({
+        name: chatRoomData.name,
+        description: chatRoomData.description,
+        created_by_user_id: chatRoomData.createdByUserId,
+      });
+      this.logger.log(`Created new chat room: ${room.id} - ${room.name}`);
       return room;
     } catch (error) {
       this.handleError('create chat room', error);
@@ -131,5 +139,55 @@ export class ChatRoomService {
     } catch (error) {
       this.handleError('get rooms for user', error);
     }
+  }
+
+  async ensureGeneralChatExists(chatServiceId: number): Promise<number> {
+    const GENERAL_CHAT_NAME = process.env.GENERAL_CHAT_NAME
+      ? `${process.env.GENERAL_CHAT_NAME}`
+      : 'General';
+
+    try {
+      // Find rooms created by the chat service
+      const existingRooms =
+        await this.chatRoomRepository.findUserCreatedRooms(chatServiceId);
+
+      // Filter to find general chat(s)
+      const generalChats = existingRooms.filter(
+        (room) => room.created_by_user_id === chatServiceId,
+      );
+
+      if (generalChats.length === 0) {
+        // Create general chat if it doesn't exist
+        this.logger.log('Creating general chat room');
+
+        const generalRoom = await this.createRoom({
+          name: GENERAL_CHAT_NAME,
+          description: 'Chat room for all users',
+          createdByUserId: chatServiceId,
+        });
+
+        this.logger.log(`General chat room created with ID: ${generalRoom.id}`);
+        return generalRoom.id;
+
+        // Create permissions for this room would go here
+        // This would be implemented in the PermissionClientService
+      } else if (generalChats.length === 1) {
+        // One general chat exists, which is the expected case
+        this.logger.log(`General chat exists with ID: ${generalChats[0].id}`);
+        return generalChats[0].id;
+      } else {
+        // Multiple general chats exist, which is an error state
+        const ids = generalChats.map((room) => room.id).join(', ');
+        this.logger.error(
+          `Multiple general chat rooms detected with IDs: ${ids}`,
+        );
+        // Keep the system running, but notify admins
+        // You could add a notification service here
+      }
+    } catch (error) {
+      this.logger.error('Failed to ensure general chat exists', error);
+      throw error;
+    }
+    throw Error('General chat existence was not ensured');
   }
 }

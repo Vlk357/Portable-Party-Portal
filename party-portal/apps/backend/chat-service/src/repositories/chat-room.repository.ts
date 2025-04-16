@@ -30,4 +30,11 @@ export class ChatRoomRepository extends SoftDeleteRepository<ChatRoom> {
       .andWhere('room.deleted_at IS NULL')
       .getMany();
   }
+
+  async findUserCreatedRooms(userId: number): Promise<ChatRoom[]> {
+    return this.repository
+      .createQueryBuilder('room')
+      .where('created_by_user_id = :userId', { userId })
+      .getMany();
+  }
 }

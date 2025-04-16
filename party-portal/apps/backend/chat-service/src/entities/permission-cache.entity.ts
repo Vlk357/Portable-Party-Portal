@@ -144,4 +144,11 @@ export class PermissionCache {
 
     return abilityStrings;
   }
+
+  /**
+   * Check if a permission exists in the cache
+   */
+  permissionExists(abilityString: string): boolean {
+    return this.abilityStringToId.has(abilityString);
+  }
 }

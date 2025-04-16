@@ -27,11 +27,54 @@ export class PermissionClientService implements OnModuleInit {
     ? `${process.env.AUTH_SERVICE_URL}`
     : 'http://nginx/auth';
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly chatRoomService: ChatRoomService,
+  ) {}
 
   async onModuleInit() {
     await this.authenticate();
+    await this.getChatServiceUserId();
+    await this.initGeneralChat();
+
     await this.refreshPermissions();
+  }
+
+  async initGeneralChat() {
+    if (this.chatServiceId) {
+      const generalChatId = await this.chatRoomService.ensureGeneralChatExists(
+        this.chatServiceId,
+      );
+      await this.ensureGeneralChatPermissionsExists(generalChatId);
+    } else {
+      this.logger.error(
+        'Failed to initialize: Could not determine chat service ID',
+      );
+      throw new Error('Chat service ID not available');
+    }
+  }
+  async getChatServiceUserId(): Promise<number> {
+    try {
+      const response = await this.executeWithRetry(async () => {
+        return await firstValueFrom(
+          this.httpService.get<{ id: number; username: string }>(
+            `${this.baseUrl}/api/user/self`,
+            { headers: this.getAuthHeaders() },
+          ),
+        );
+      });
+
+      if (response.data && response.data.id) {
+        this.chatServiceId = response.data.id;
+        this.logger.log(`Chat service ID determined: ${this.chatServiceId}`);
+        return this.chatServiceId;
+      }
+
+      throw new Error('User ID not found in response');
+    } catch (error) {
+      this.logger.error('Failed to get chat service user ID', error);
+      throw error;
+    }
   }
 
   private async authenticate(): Promise<void> {
