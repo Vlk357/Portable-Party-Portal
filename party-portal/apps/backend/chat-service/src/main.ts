@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { WsAdapter } from '@nestjs/platform-ws';
+import { WsExceptionFilter } from './filters/ws-exception.filter';
 import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
@@ -8,6 +9,7 @@ async function bootstrap() {
 
   try {
     const app = await NestFactory.create(AppModule);
+    app.useGlobalFilters(new WsExceptionFilter());
     app.useWebSocketAdapter(new WsAdapter(app));
     app.setGlobalPrefix('chat');
 

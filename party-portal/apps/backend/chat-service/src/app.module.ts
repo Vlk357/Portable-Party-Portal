@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -19,9 +19,17 @@ import { MessageDeliveryStatusRepository } from './repositories/message-delivery
 import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-history.repository';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
-import { PermissionClientService } from './services/permission-client.service';
+import { PermissionService } from './services/permission.service';
 import { AuthClientService } from './services/auth-client.service';
 import { ChatGateway } from './gateways/chat.gateway';
+import { Ability } from './entities/ability.entity';
+import { UserAbility } from './entities/user-ability.entity';
+import { Role } from './entities/role.entity';
+import { UserRole } from './entities/user-role.entity';
+import { RoleAbility } from './entities/role-ability.entity';
+import { PermissionCacheService } from './services/permission-cache.service';
+import { PermissionRepository } from './repositories/permission.repository';
+import { PermissionGuard } from './guards/permission.guard';
 
 @Module({
   imports: [
@@ -50,6 +58,11 @@ import { ChatGateway } from './gateways/chat.gateway';
       MessageVersion,
       MessageReply,
       MessageDeliveryStatus,
+      Ability,
+      UserAbility,
+      Role,
+      UserRole,
+      RoleAbility,
     ]),
     HttpModule.register({
       timeout: 5000,
@@ -61,6 +74,7 @@ import { ChatGateway } from './gateways/chat.gateway';
   ],
   controllers: [AppController],
   providers: [
+    Logger,
     AppService,
     ChatGateway,
     // Repositories
@@ -70,18 +84,22 @@ import { ChatGateway } from './gateways/chat.gateway';
     MessageReplyRepository,
     MessageDeliveryStatusRepository,
     ChatRoomUserHistoryRepository,
+    PermissionRepository,
     // Services
     ChatRoomService,
     MessageService,
     MessageDeliveryStatusService,
-    PermissionClientService,
+    PermissionService,
+    PermissionCacheService,
     AuthClientService,
+    // Guards
+    PermissionGuard,
   ],
   exports: [
     ChatRoomService,
     MessageService,
     MessageDeliveryStatusService,
-    PermissionClientService,
+    PermissionService,
     AuthClientService,
   ],
 })

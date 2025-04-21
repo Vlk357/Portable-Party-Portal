@@ -1,3 +1,4 @@
+// src/gateways/chat.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -6,15 +7,17 @@ import {
   OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { ChatRoomService } from '../services/chat-room.service';
 import { MessageService } from '../services/message.service';
 import { MessageDeliveryStatusService } from '../services/message-delivery-status.service';
-import { AuthClientService } from 'src/services/auth-client.service';
-import { PermissionClientService } from 'src/services/permission-client.service';
-
+import { PermissionService } from '../services/permission.service';
+import { PermissionGuard } from '../guards/permission.guard';
+import { RequirePermission } from '../guards/permission.guard';
+import { WebSocketAuthMiddleware } from '../auth/websocket-auth.middleware';
 interface AuthenticatedSocket extends Socket {
   userId: number;
   chatRoomUserId: number;
@@ -37,8 +40,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatRoomService: ChatRoomService,
     private readonly messageService: MessageService,
     private readonly statusService: MessageDeliveryStatusService,
-    private readonly authClient: AuthClientService,
-    private readonly permissionService: PermissionClientService,
+    private readonly wsAuthMiddleware: WebSocketAuthMiddleware,
+    private readonly permissionService: PermissionService,
   ) {}
 
   private handleError(
@@ -52,30 +55,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit(message, { error_message });
   }
 
-  async handleConnection(client: AuthenticatedSocket) {
+  /**
+   * Sets up a user's authenticated socket connection
+   * @param client The socket client
+   * @param userId The authenticated user ID
+   */
+  private setupUserConnection(
+    client: Socket,
+    userId: number,
+  ): AuthenticatedSocket {
+    const authClient = client as AuthenticatedSocket;
+    authClient.userId = userId;
+
+    // Store socket connection
+    const userSockets = this.userSockets.get(userId) || [];
+    userSockets.push(authClient);
+    this.userSockets.set(userId, userSockets);
+
+    return authClient;
+  }
+
+  async handleConnection(client: Socket) {
     try {
-      // Get token from handshake
-      const token = client.handshake.auth.token as string;
-      if (!token) {
-        throw new UnauthorizedException('No auth token provided');
-      }
+      // Authenticate the socket connection
+      const userId = await this.wsAuthMiddleware.authenticate(client);
 
-      // Validate token with auth service
-      const userId = await this.authClient.validateToken(token);
-      client.userId = userId;
-
-      // Store socket connection
-      const userSockets = this.userSockets.get(userId) || [];
-      userSockets.push(client);
-      this.userSockets.set(userId, userSockets);
+      // Setup user connection with authenticated ID
+      const authClient = this.setupUserConnection(client, userId);
 
       // Send initial state to client
       const activeRooms = await this.chatRoomService.getRoomsForUser(userId);
-      client.emit('activeRooms', activeRooms);
+      authClient.emit('activeRooms', activeRooms);
 
-      this.logger.log(`Client connected: ${client.id} (User: ${userId})`);
+      this.logger.log(`Client connected: ${authClient.id} (User: ${userId})`);
     } catch (error) {
-      this.handleError(client, error, 'Connection error: ');
+      this.logger.error(
+        `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      client.emit('error', { message: 'Authentication failed' });
       client.disconnect();
     }
   }
@@ -127,36 +144,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     sockets.forEach((socket) => socket.emit(event, data));
   }
 
-  @SubscribeMessage('joinRoom')
-  async handleJoinRoom(
-    @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { roomId: number; displayName: string },
-  ) {
-    try {
-      const userHistory = await this.chatRoomService.joinRoom(
-        data.roomId,
-        client.userId,
-        data.displayName,
-      );
-
-      client.chatRoomUserId = userHistory.id;
-      await client.join(`room:${data.roomId}`);
-
-      // Send recent messages
-      const messages = await this.messageService.getRoomMessages(data.roomId);
-      client.emit('recentMessages', messages);
-
-      // Notify room about new user
-      this.server.to(`room:${data.roomId}`).emit('userJoined', {
-        userId: client.userId,
-        displayName: data.displayName,
-      });
-    } catch (error) {
-      this.handleError(client, error, 'Join room error: ');
-    }
-  }
-
+  @UseGuards(PermissionGuard)
   @SubscribeMessage('sendMessage')
+  @RequirePermission('CHAT:MESSAGE:CREATE')
   async handleMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody()
@@ -170,6 +160,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ) {
     try {
+      // Check if user has permission for this specific room
+      const canCreateMessages = await this.permissionService.hasPermission(
+        client.userId,
+        'CHAT',
+        'MESSAGE',
+        'CREATE',
+        data.roomId.toString(),
+      );
+
+      if (!canCreateMessages) {
+        throw new WsException(
+          'You do not have permission to send messages in this room',
+        );
+      }
+
       const message = await this.messageService.createMessage({
         chatRoomId: data.roomId,
         userId: client.userId,
@@ -190,7 +195,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.chatRoomUserId,
       );
     } catch (error) {
-      this.handleError(client, error, 'Send message error: ');
+      this.handleError(client, error, 'Send message error:');
     }
   }
 

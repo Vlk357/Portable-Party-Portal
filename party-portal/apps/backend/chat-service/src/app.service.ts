@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PermissionClientService } from './services/permission-client.service';
+import { PermissionClientService } from './services/permission.service';
 
 @Injectable()
 export class AppService implements OnModuleInit {
