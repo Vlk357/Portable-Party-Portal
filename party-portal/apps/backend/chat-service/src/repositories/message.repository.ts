@@ -37,7 +37,8 @@ export class MessageRepository extends BaseRepository<Message> {
   async findMessagesForRoom(
     roomId: number,
     limit = 50,
-    before?: Date,
+    beforeId?: number,
+    beforeDate?: Date,
   ): Promise<Message[]> {
     try {
       const query = this.repository
@@ -46,13 +47,14 @@ export class MessageRepository extends BaseRepository<Message> {
         .orderBy('message.created_at', 'DESC')
         .take(limit);
 
-      if (before) {
-        query.andWhere('message.created_at < :before', { before });
+      // Apply filters - priority to ID if both are provided
+      if (beforeId) {
+        query.andWhere('message.id < :beforeId', { beforeId });
+      } else if (beforeDate) {
+        query.andWhere('message.created_at < :beforeDate', { beforeDate });
       }
 
       const messages = await query.getMany();
-
-      // Process messages to handle deleted content
       return this.processMessages(messages);
     } catch (error) {
       throw new RepositoryError(

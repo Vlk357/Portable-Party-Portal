@@ -201,6 +201,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @UseGuards(PermissionGuard)
+  @SubscribeMessage('getMessages')
+  @RequirePermission('CHAT:MESSAGE:READ:$resourceId', {
+    allowOwner: false,
+    resourceIdField: undefined,
+    constraintField: 'roomId',
+  })
+  async handleGetMessages(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      roomId: number;
+      limit?: number;
+      beforeId?: number;
+      beforeDate?: Date;
+    },
+  ) {
+    try {
+      // Get messages with pagination
+      const messages = await this.messageService.getRoomMessages(
+        data.roomId,
+        data.limit || 50,
+        data.beforeId,
+        data.beforeDate,
+      );
+
+      // Return messages directly to the requesting client only
+      return {
+        success: true,
+        roomId: data.roomId,
+        messages: messages,
+      };
+    } catch (error) {
+      this.handleError(client, error, 'Get messages error:');
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to get messages',
+      };
+    }
+  }
+
+  @UseGuards(PermissionGuard)
   @SubscribeMessage('deleteMessage')
   @RequirePermission('CHAT:MESSAGE:DELETE:$resourceId', {
     allowOwner: true,

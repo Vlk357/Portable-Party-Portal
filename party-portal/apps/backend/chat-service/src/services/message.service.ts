@@ -45,13 +45,15 @@ export class MessageService {
   async getRoomMessages(
     roomId: number,
     limit: number = 50,
-    before?: Date,
+    beforeId?: number,
+    beforeDate?: Date,
   ): Promise<Message[]> {
     try {
       return await this.messageRepository.findMessagesForRoom(
         roomId,
         limit,
-        before,
+        beforeId,
+        beforeDate,
       );
     } catch (error) {
       this.handleError(error, `Failed to fetch messages for room ${roomId}`);
