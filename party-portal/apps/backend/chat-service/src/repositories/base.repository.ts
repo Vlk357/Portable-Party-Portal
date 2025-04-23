@@ -51,6 +51,32 @@ export abstract class BaseRepository<T extends ObjectLiteral & HasId> {
     }
   }
 
+  /**
+   * Update an entity and return the updated entity
+   */
+  async updateAndReturn(id: number, data: DeepPartial<T>): Promise<T> {
+    try {
+      await this.repository.update(id, data);
+      const updated = await this.findById(id);
+
+      if (!updated) {
+        throw new RepositoryError(
+          'update and return',
+          this.repository.metadata.name,
+          new Error(`Entity with id ${id} not found after update`),
+        );
+      }
+
+      return updated;
+    } catch (error) {
+      throw new RepositoryError(
+        'update and return',
+        this.repository.metadata.name,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
   async findById(id: number): Promise<T | null> {
     try {
       return await this.repository.findOneBy({ id } as FindOptionsWhere<T>);

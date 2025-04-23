@@ -179,6 +179,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     data: {
       roomId: number;
       content: string;
+      createdAt: Date;
     },
   ) {
     try {
@@ -187,7 +188,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         chatRoomId: data.roomId,
         userId: client.userId,
         content: data.content,
-        createdAt: new Date(),
+        createdAt: data.createdAt,
       });
 
       // Broadcast to room
@@ -224,22 +225,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         throw new WsException('Invalid room ID for this message');
       }
 
-      // 2. Perform the soft-delete operation
-      await this.messageService.softDeleteMessage(
+      // 2. Perform the soft-delete operation and get updated message
+      const deletedMessage = await this.messageService.softDeleteMessage(
         data.messageId,
         client.userId,
       );
 
-      // 3. Broadcast deletion to all users in the room
+      // 3. Broadcast deletion to all users in the room using the actual timestamp
       this.server.to(`room:${data.roomId}`).emit('messageDeleted', {
-        messageId: data.messageId,
-        roomId: data.roomId,
-        deletedBy: client.userId,
-        deletedAt: new Date(),
+        messageId: deletedMessage.id,
+        roomId: deletedMessage.chat_room_id,
+        deletedBy: deletedMessage.deleted_by_user_id,
+        deletedAt: deletedMessage.deleted_at,
       });
 
       // 4. Return success to the client that initiated the deletion
-      return { success: true };
+      return {
+        success: true,
+        deletedAt: deletedMessage.deleted_at, // Include the actual timestamp in the response
+      };
     } catch (error) {
       this.handleError(client, error, 'Delete message error:');
     }

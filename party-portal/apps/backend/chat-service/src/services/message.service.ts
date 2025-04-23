@@ -72,14 +72,28 @@ export class MessageService {
     }
   }
 
-  async softDeleteMessage(messageId: number, userId: number): Promise<void> {
+  /**
+   * Soft delete a message and return the updated message
+   */
+  async softDeleteMessage(messageId: number, userId: number): Promise<Message> {
     try {
-      await this.messageRepository.update(messageId, {
-        deleted_at: new Date(),
-        deleted_by_user_id: userId,
-      });
+      const deletedMessage = await this.messageRepository.updateAndReturn(
+        messageId,
+        {
+          deleted_at: new Date(),
+          deleted_by_user_id: userId,
+        },
+      );
 
-      this.logger.log(`Deleted message ${messageId} by user ${userId}`);
+      // Format the date to avoid template expression error
+      const deletedAtString = deletedMessage.deleted_at
+        ? deletedMessage.deleted_at.toISOString()
+        : 'unknown time';
+
+      this.logger.log(
+        `Deleted message ${messageId} by user ${userId} at ${deletedAtString}`,
+      );
+      return deletedMessage;
     } catch (error) {
       this.handleError(error, `Failed to delete message ${messageId}`);
     }
