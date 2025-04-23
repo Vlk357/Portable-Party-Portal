@@ -189,9 +189,9 @@ export class PermissionGuard implements CanActivate {
             );
             return false;
           }
-          // Make sure the method name matches what's available in ChatRoomService
+          // Get room with proper error handling
           const room = await this.chatRoomService.getRoom(resourceId);
-          // Make sure the property name matches your ChatRoom interface
+          // Safely check if room exists and user is owner
           return room !== null && room.created_by_user_id === userId;
         }
         // Add more resource types as needed

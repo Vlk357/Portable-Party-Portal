@@ -13,7 +13,6 @@ import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { ChatRoomService } from '../services/chat-room.service';
 import { MessageService } from '../services/message.service';
-import { MessageDeliveryStatusService } from '../services/message-delivery-status.service';
 import { PermissionService } from '../services/permission.service';
 import { PermissionGuard } from '../guards/permission.guard';
 import { RequirePermission } from '../guards/permission.guard';
@@ -38,7 +37,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly chatRoomService: ChatRoomService,
     private readonly messageService: MessageService,
-    private readonly statusService: MessageDeliveryStatusService,
     private readonly wsAuthMiddleware: WebSocketAuthMiddleware,
     private readonly permissionService: PermissionService,
   ) {}
@@ -171,9 +169,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @UseGuards(PermissionGuard)
   @SubscribeMessage('sendMessage')
   @RequirePermission('CHAT:MESSAGE:CREATE:$resourceId', {
-    allowOwner: false, // No "ownership" concept for creating messages
-    resourceIdField: undefined, // No resource to check ownership against
-    constraintField: 'chat_room_id', // Use chat_room_id for permission constraint
+    allowOwner: false,
+    resourceIdField: undefined,
+    constraintField: 'chatRoomId',
   })
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -181,35 +179,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     data: {
       roomId: number;
       content: string;
-      isPriority?: boolean;
-      requiresReadReceipt?: boolean;
-      threadParentId?: number;
-      replyToMessageIds?: number[];
     },
   ) {
     try {
-      // Guard has already verified permissions for this room
-
       // Create the message
       const message = await this.messageService.createMessage({
         chatRoomId: data.roomId,
         userId: client.userId,
         content: data.content,
         createdAt: new Date(),
-        isPriority: data.isPriority,
-        requiresReadReceipt: data.requiresReadReceipt,
-        threadParentId: data.threadParentId,
-        replyToMessageIds: data.replyToMessageIds,
       });
 
       // Broadcast to room
       this.server.to(`room:${data.roomId}`).emit('newMessage', message);
-
-      // Mark as delivered for sender
-      await this.statusService.markAsRead(
-        message.id,
-        client.userId, // Using userId directly instead of chatRoomUserId
-      );
 
       return { success: true, messageId: message.id };
     } catch (error) {
@@ -217,25 +199,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('messageDelivered')
-  async handleMessageDelivered(
-    @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { messageId: number },
-  ) {
-    try {
-      await this.statusService.markAsDelivered(data.messageId, client.userId);
-    } catch (error) {
-      this.handleError(client, error, 'Message delivered error: ');
-    }
-  }
-
   @UseGuards(PermissionGuard)
   @SubscribeMessage('deleteMessage')
   @RequirePermission('CHAT:MESSAGE:DELETE:$resourceId', {
-    allowOwner: true, // Allow message owners to delete their messages
-    resourceType: 'message', // Resource type for ownership check
-    resourceIdField: 'messageId', // Field for checking resource ownership
-    constraintField: 'roomId', // Field for permission constraint (room context)
+    allowOwner: true,
+    resourceType: 'message',
+    resourceIdField: 'messageId',
+    constraintField: 'roomId',
   })
   async handleDeleteMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -253,8 +223,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (message.chat_room_id !== data.roomId) {
         throw new WsException('Invalid room ID for this message');
       }
-
-      // The guard has already checked permissions, so we can proceed
 
       // 2. Perform the soft-delete operation
       await this.messageService.softDeleteMessage(

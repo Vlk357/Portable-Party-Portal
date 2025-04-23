@@ -145,4 +145,13 @@ export class ChatRoomService {
     }
     throw Error('General chat existence was not ensured');
   }
+
+  async getRoom(id: number): Promise<ChatRoom | null> {
+    try {
+      const room = await this.chatRoomRepository.findById(id);
+      return room;
+    } catch (error) {
+      this.handleError('get chat room', error);
+    }
+  }
 }

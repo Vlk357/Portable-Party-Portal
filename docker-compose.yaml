@@ -62,6 +62,7 @@ services:
       - CHAT_SERVICE_ID=${CHAT_SERVICE_ID:-CHAT}
       - CHAT_SERVICE_SECRET=${CHAT_SERVICE_SECRET}
       - GENERAL_CHAT_NAME=General
+      - DELETED_MESSAGE_TEXT='This message has been deleted'
     networks:
       - backend
     depends_on:
