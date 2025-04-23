@@ -14,17 +14,17 @@ export class Ability {
   @Column({ type: 'enum', enum: ModuleEnum, default: ModuleEnum.CHAT })
   module: ModuleEnum;
 
-  @Column({ length: 100 })
+  @Column({ type: 'enum', enum: ResourceEnum })
   resource: ResourceEnum;
 
   @Column({ nullable: true })
-  resourceConstraint: string;
+  resourceConstraint: number | null;
 
   @Column({ type: 'enum', enum: ActionEnum })
   action: ActionEnum;
 
   @Column({ nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({
     name: 'created_at',

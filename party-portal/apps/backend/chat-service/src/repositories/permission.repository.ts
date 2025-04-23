@@ -7,6 +7,9 @@ import { UserAbility } from '../entities/user-ability.entity';
 import { Role } from '../entities/role.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { RoleAbility } from '../entities/role-ability.entity';
+import { ModuleEnum } from '../enums/module.enum';
+import { ResourceEnum } from '../enums/resource.enum';
+import { ActionEnum } from '../enums/action.enum';
 
 @Injectable()
 export class PermissionRepository {
@@ -26,28 +29,42 @@ export class PermissionRepository {
 
   async checkPermission(
     userId: number,
-    module: string,
-    resource: string,
-    action: string,
-    constraint?: string,
+    module: ModuleEnum | string,
+    resource: ResourceEnum | string,
+    action: ActionEnum | string,
+    constraint?: number | string,
   ): Promise<boolean> {
     try {
+      // Convert string inputs to proper enums if needed
+      const moduleEnum =
+        typeof module === 'string' ? (module as ModuleEnum) : module;
+      const resourceEnum =
+        typeof resource === 'string' ? (resource as ResourceEnum) : resource;
+      const actionEnum =
+        typeof action === 'string' ? (action as ActionEnum) : action;
+
+      // Convert string constraint to number if needed
+      const constraintValue =
+        typeof constraint === 'string' && !isNaN(parseInt(constraint))
+          ? parseInt(constraint)
+          : (constraint as number | undefined);
+
       // Check direct permission
       const directCount = await this.userAbilityRepo
         .createQueryBuilder('ua')
         .innerJoin('ua.ability', 'a')
         .where('ua.userId = :userId', { userId })
-        .andWhere('a.module = :module', { module })
-        .andWhere('a.resource = :resource', { resource })
-        .andWhere('a.action = :action', { action })
+        .andWhere('a.module = :module', { module: moduleEnum })
+        .andWhere('a.resource = :resource', { resource: resourceEnum })
+        .andWhere('a.action = :action', { action: actionEnum })
         .andWhere('(ua.expiresAt IS NULL OR ua.expiresAt > :now)', {
           now: new Date(),
         })
         .andWhere(
-          constraint
+          constraintValue !== undefined
             ? 'a.resourceConstraint = :constraint'
             : 'a.resourceConstraint IS NULL',
-          constraint ? { constraint } : {},
+          constraintValue !== undefined ? { constraint: constraintValue } : {},
         )
         .getCount();
 
@@ -60,9 +77,9 @@ export class PermissionRepository {
         .innerJoin('r.roleAbilities', 'ra')
         .innerJoin('ra.ability', 'a')
         .where('ur.userId = :userId', { userId })
-        .andWhere('a.module = :module', { module })
-        .andWhere('a.resource = :resource', { resource })
-        .andWhere('a.action = :action', { action })
+        .andWhere('a.module = :module', { module: moduleEnum })
+        .andWhere('a.resource = :resource', { resource: resourceEnum })
+        .andWhere('a.action = :action', { action: actionEnum })
         .andWhere('(ur.expiresAt IS NULL OR ur.expiresAt > :now)', {
           now: new Date(),
         })
@@ -70,10 +87,10 @@ export class PermissionRepository {
           now: new Date(),
         })
         .andWhere(
-          constraint
+          constraintValue !== undefined
             ? 'a.resourceConstraint = :constraint'
             : 'a.resourceConstraint IS NULL',
-          constraint ? { constraint } : {},
+          constraintValue !== undefined ? { constraint: constraintValue } : {},
         )
         .getCount();
 
@@ -139,20 +156,43 @@ export class PermissionRepository {
 
   // Find ability by its components
   async findAbility(
-    module: string,
-    resource: string,
-    action: string,
-    constraint?: string,
+    module: ModuleEnum | string,
+    resource: ResourceEnum | string,
+    action: ActionEnum | string,
+    constraint?: number | string,
   ): Promise<Ability | null> {
     try {
-      return await this.abilityRepo.findOne({
-        where: {
-          module,
-          resource,
-          action,
-          resourceConstraint: constraint || null,
-        },
-      });
+      // Convert string inputs to proper enums if needed
+      const moduleEnum =
+        typeof module === 'string' ? (module as ModuleEnum) : module;
+      const resourceEnum =
+        typeof resource === 'string' ? (resource as ResourceEnum) : resource;
+      const actionEnum =
+        typeof action === 'string' ? (action as ActionEnum) : action;
+
+      // Convert string constraint to number if needed
+      const constraintValue =
+        typeof constraint === 'string' && !isNaN(parseInt(constraint))
+          ? parseInt(constraint)
+          : (constraint as number | undefined);
+
+      // Use TypeORM's query builder instead of findOne to avoid type issues
+      const query = this.abilityRepo
+        .createQueryBuilder('ability')
+        .where('ability.module = :module', { module: moduleEnum })
+        .andWhere('ability.resource = :resource', { resource: resourceEnum })
+        .andWhere('ability.action = :action', { action: actionEnum });
+
+      // Add constraint condition based on value
+      if (constraintValue !== undefined) {
+        query.andWhere('ability.resourceConstraint = :constraint', {
+          constraint: constraintValue,
+        });
+      } else {
+        query.andWhere('ability.resourceConstraint IS NULL');
+      }
+
+      return await query.getOne();
     } catch (error) {
       this.logger.error(
         `Error finding ability: ${error instanceof Error ? error.message : String(error)}`,
@@ -164,20 +204,41 @@ export class PermissionRepository {
 
   // Create a new ability
   async createAbility(
-    module: string,
-    resource: string,
-    action: string,
-    constraint?: string,
+    module: ModuleEnum | string,
+    resource: ResourceEnum | string,
+    action: ActionEnum | string,
+    constraint?: number | string,
     description?: string,
   ): Promise<Ability> {
     try {
-      const ability = this.abilityRepo.create({
-        module,
-        resource,
-        action,
-        resourceConstraint: constraint,
-        description,
-      });
+      // Convert string inputs to proper enums if needed
+      const moduleEnum =
+        typeof module === 'string' ? (module as ModuleEnum) : module;
+      const resourceEnum =
+        typeof resource === 'string' ? (resource as ResourceEnum) : resource;
+      const actionEnum =
+        typeof action === 'string' ? (action as ActionEnum) : action;
+
+      // Convert string constraint to number if needed
+      const constraintValue =
+        typeof constraint === 'string' && !isNaN(parseInt(constraint))
+          ? parseInt(constraint)
+          : (constraint as number | undefined);
+
+      // Create a new ability entity properly typed
+      const ability = new Ability();
+      ability.module = moduleEnum;
+      ability.resource = resourceEnum;
+      ability.action = actionEnum;
+
+      // Fix nullable field assignments without 'any'
+      if (ability.resourceConstraint !== undefined) {
+        ability.resourceConstraint = constraintValue ?? null;
+      }
+
+      if (ability.description !== undefined) {
+        ability.description = description ?? null;
+      }
 
       return await this.abilityRepo.save(ability);
     } catch (error) {
