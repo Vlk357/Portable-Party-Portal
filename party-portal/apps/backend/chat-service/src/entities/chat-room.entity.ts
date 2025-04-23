@@ -5,7 +5,7 @@ import {
   OneToMany,
   CreateDateColumn,
 } from 'typeorm';
-import { ChatRoomUserHistory } from './chat-room-user-history.entity';
+import { ChatRoomUser } from './chat-room-user.entity';
 import { Message } from './message.entity';
 
 @Entity()
@@ -31,8 +31,8 @@ export class ChatRoom {
   @Column({ nullable: true, type: 'int' })
   deleted_by_user_id: number | null;
 
-  @OneToMany(() => ChatRoomUserHistory, (history) => history.chat_room)
-  user_history: ChatRoomUserHistory[];
+  @OneToMany(() => ChatRoomUser, (history) => history.chat_room)
+  chat_room_users: ChatRoomUser[];
 
   @OneToMany(() => Message, (message) => message.chat_room)
   messages: Message[];

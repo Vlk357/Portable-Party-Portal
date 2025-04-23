@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatRoom } from './entities/chat-room.entity';
-import { ChatRoomUserHistory } from './entities/chat-room-user-history.entity';
+import { ChatRoomUser } from './entities/chat-room-user.entity';
 import { Message } from './entities/message.entity';
 import { MessageVersion } from './entities/message-version.entity';
 import { MessageReply } from './entities/message-reply.entity';
@@ -16,7 +16,7 @@ import { MessageVersionRepository } from './repositories/message-version.reposit
 import { MessageReplyRepository } from './repositories/message-reply.repository';
 import { MessageService } from './services/message.service';
 import { MessageDeliveryStatusRepository } from './repositories/message-delivery-status.repository';
-import { ChatRoomUserHistoryRepository } from './repositories/chat-room-user-history.repository';
+import { ChatRoomUserRepository } from './repositories/chat-room-user.repository';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { PermissionService } from './services/permission.service';
@@ -42,7 +42,7 @@ import { PermissionGuard } from './guards/permission.guard';
       database: process.env.POSTGRES_DB || 'chat_db',
       entities: [
         ChatRoom,
-        ChatRoomUserHistory,
+        ChatRoomUser,
         Message,
         MessageVersion,
         MessageReply,
@@ -53,7 +53,7 @@ import { PermissionGuard } from './guards/permission.guard';
     }),
     TypeOrmModule.forFeature([
       ChatRoom,
-      ChatRoomUserHistory,
+      ChatRoomUser,
       Message,
       MessageVersion,
       MessageReply,
@@ -83,7 +83,7 @@ import { PermissionGuard } from './guards/permission.guard';
     MessageVersionRepository,
     MessageReplyRepository,
     MessageDeliveryStatusRepository,
-    ChatRoomUserHistoryRepository,
+    ChatRoomUserRepository,
     PermissionRepository,
     // Services
     ChatRoomService,

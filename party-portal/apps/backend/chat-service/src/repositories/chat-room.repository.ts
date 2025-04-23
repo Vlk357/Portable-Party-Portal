@@ -22,13 +22,15 @@ export class ChatRoomRepository extends SoftDeleteRepository<ChatRoom> {
   }
 
   async findRoomsForUser(userId: number): Promise<ChatRoom[]> {
-    return this.repository
-      .createQueryBuilder('room')
-      .innerJoin('room.user_history', 'history')
-      .where('history.user_id = :userId', { userId })
-      .andWhere('history.left_at IS NULL')
-      .andWhere('room.deleted_at IS NULL')
-      .getMany();
+    return (
+      this.repository
+        .createQueryBuilder('room')
+        .innerJoin('room.user_history', 'history')
+        .where('history.user_id = :userId', { userId })
+        // .andWhere('history.left_at IS NULL')
+        .andWhere('room.deleted_at IS NULL')
+        .getMany()
+    );
   }
 
   async findUserCreatedRooms(userId: number): Promise<ChatRoom[]> {

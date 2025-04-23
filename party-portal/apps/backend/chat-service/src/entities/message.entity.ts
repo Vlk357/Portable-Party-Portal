@@ -8,7 +8,6 @@ import {
   Check,
 } from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
-import { ChatRoomUserHistory } from './chat-room-user-history.entity';
 import { MessageVersion } from './message-version.entity';
 import { MessageReply } from './message-reply.entity';
 import { MessageDeliveryStatus } from './message-delivery-status.entity';
@@ -21,7 +20,7 @@ export class Message {
   id: number;
 
   @Column()
-  chat_room_user_id: number;
+  user_id: number;
 
   @Column()
   chat_room_id: number;
@@ -52,9 +51,6 @@ export class Message {
 
   @ManyToOne(() => ChatRoom)
   chat_room: ChatRoom;
-
-  @ManyToOne(() => ChatRoomUserHistory)
-  chat_room_user: ChatRoomUserHistory;
 
   @OneToMany(() => MessageVersion, (version) => version.message)
   versions: MessageVersion[];

@@ -1,6 +1,6 @@
 import { Entity, Column, ManyToOne, PrimaryColumn, JoinColumn } from 'typeorm';
 import { Message } from './message.entity';
-import { ChatRoomUserHistory } from './chat-room-user-history.entity';
+import { ChatRoomUser } from './chat-room-user.entity';
 
 @Entity()
 export class MessageDeliveryStatus {
@@ -23,7 +23,7 @@ export class MessageDeliveryStatus {
   @JoinColumn({ name: 'message_id' })
   message: Message;
 
-  @ManyToOne(() => ChatRoomUserHistory)
+  @ManyToOne(() => ChatRoomUser)
   @JoinColumn({ name: 'chat_room_user_id' })
-  chat_room_user: ChatRoomUserHistory;
+  chat_room_user: ChatRoomUser;
 }
