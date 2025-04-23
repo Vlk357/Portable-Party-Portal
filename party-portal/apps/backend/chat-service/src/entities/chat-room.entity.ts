@@ -31,7 +31,7 @@ export class ChatRoom {
   @Column({ nullable: true, type: 'int' })
   deleted_by_user_id: number | null;
 
-  @OneToMany(() => ChatRoomUser, (history) => history.chat_room)
+  @OneToMany(() => ChatRoomUser, (chat_room_user) => chat_room_user.chat_room)
   chat_room_users: ChatRoomUser[];
 
   @OneToMany(() => Message, (message) => message.chat_room)

@@ -5,17 +5,12 @@ import { AppService } from './app.service';
 import { ChatRoom } from './entities/chat-room.entity';
 import { ChatRoomUser } from './entities/chat-room-user.entity';
 import { Message } from './entities/message.entity';
-import { MessageVersion } from './entities/message-version.entity';
-import { MessageReply } from './entities/message-reply.entity';
 import { ChatRoomRepository } from './repositories/chat-room.repository';
 import { ChatRoomService } from './services/chat-room.service';
-import { MessageDeliveryStatus } from './entities/message-delivery-status.entity';
-import { MessageDeliveryStatusService } from './services/message-delivery-status.service';
 import { MessageRepository } from './repositories/message.repository';
 import { MessageVersionRepository } from './repositories/message-version.repository';
 import { MessageReplyRepository } from './repositories/message-reply.repository';
 import { MessageService } from './services/message.service';
-import { MessageDeliveryStatusRepository } from './repositories/message-delivery-status.repository';
 import { ChatRoomUserRepository } from './repositories/chat-room-user.repository';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
@@ -30,6 +25,7 @@ import { RoleAbility } from './entities/role-ability.entity';
 import { PermissionCacheService } from './services/permission-cache.service';
 import { PermissionRepository } from './repositories/permission.repository';
 import { PermissionGuard } from './guards/permission.guard';
+import { ChatService } from './services/chat.service';
 
 @Module({
   imports: [
@@ -40,14 +36,7 @@ import { PermissionGuard } from './guards/permission.guard';
       username: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB || 'chat_db',
-      entities: [
-        ChatRoom,
-        ChatRoomUser,
-        Message,
-        MessageVersion,
-        MessageReply,
-        MessageDeliveryStatus,
-      ],
+      entities: [ChatRoom, ChatRoomUser, Message],
       synchronize: process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
     }),
@@ -55,9 +44,6 @@ import { PermissionGuard } from './guards/permission.guard';
       ChatRoom,
       ChatRoomUser,
       Message,
-      MessageVersion,
-      MessageReply,
-      MessageDeliveryStatus,
       Ability,
       UserAbility,
       Role,
@@ -82,23 +68,21 @@ import { PermissionGuard } from './guards/permission.guard';
     MessageRepository,
     MessageVersionRepository,
     MessageReplyRepository,
-    MessageDeliveryStatusRepository,
     ChatRoomUserRepository,
     PermissionRepository,
     // Services
     ChatRoomService,
     MessageService,
-    MessageDeliveryStatusService,
     PermissionService,
     PermissionCacheService,
     AuthClientService,
+    ChatService,
     // Guards
     PermissionGuard,
   ],
   exports: [
     ChatRoomService,
     MessageService,
-    MessageDeliveryStatusService,
     PermissionService,
     AuthClientService,
   ],

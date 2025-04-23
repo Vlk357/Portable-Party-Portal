@@ -17,6 +17,7 @@ import { PermissionService } from '../services/permission.service';
 import { PermissionGuard } from '../guards/permission.guard';
 import { RequirePermission } from '../guards/permission.guard';
 import { WebSocketAuthMiddleware } from '../auth/websocket-auth.middleware';
+import { ChatService } from 'src/services/chat.service';
 interface AuthenticatedSocket extends Socket {
   userId: number;
 }
@@ -39,6 +40,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly messageService: MessageService,
     private readonly wsAuthMiddleware: WebSocketAuthMiddleware,
     private readonly permissionService: PermissionService,
+    private readonly chatService: ChatService,
   ) {}
 
   private handleError(
@@ -80,13 +82,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Setup user connection with authenticated ID
       const authClient = this.setupUserConnection(client, userId);
 
-      // Send initial state to client
-      const activeRooms = await this.chatRoomService.getRoomsForUser(userId);
-      authClient.emit('activeRooms', activeRooms);
+      // Get rooms the user has permission to access
+      const permittedRooms =
+        await this.chatService.getUserPermittedRooms(userId);
+
+      // Join all permitted rooms
+      for (const room of permittedRooms) {
+        await authClient.join(`room:${room.roomId}`);
+      }
+
+      // Get complete initial data
+      const initialData = await this.chatService.getUserInitialData(userId);
+
+      // Send initial data to client
+      authClient.emit('initialData', initialData);
 
       this.logger.log(`Client connected: ${authClient.id} (User: ${userId})`);
-
-      await this.updateUserStatus(userId, true);
     } catch (error) {
       // Extract the specific error message to send to client
       let errorMessage = 'Authentication failed';
@@ -115,43 +126,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private async updateUserStatus(userId: number, isOnline: boolean) {
-    // Get rooms the user is in
-    const userRooms = await this.chatRoomService.getRoomsForUser(userId);
-
-    // Broadcast status to all rooms
-    userRooms.forEach((room) => {
-      this.server.to(`room:${room.id}`).emit('userStatus', {
-        userId,
-        status: isOnline ? 'online' : 'offline',
-        timestamp: new Date(),
-      });
-    });
-  }
-
-  async handleDisconnect(client: AuthenticatedSocket) {
+  handleDisconnect(client: AuthenticatedSocket) {
     try {
-      const userSockets = this.userSockets.get(client.userId) || [];
-      const index = userSockets.indexOf(client);
+      const userId = client.userId;
+      if (!userId) return; // Skip if no userId (not authenticated)
 
-      if (index > -1) {
-        // Remove this socket
-        userSockets.splice(index, 1);
+      // Get all the rooms this socket is in
+      const socketRooms = Array.from(client.rooms).filter(
+        (room) => room !== client.id && room.startsWith('room:'),
+      );
 
-        if (userSockets.length === 0) {
-          this.userSockets.delete(client.userId);
-          await this.updateUserStatus(client.userId, false);
-        } else {
-          // Update remaining sockets
-          this.userSockets.set(client.userId, userSockets);
-        }
+      // Leave all rooms (Socket.io automatically handles this, but we log it)
+      this.logger.debug(
+        `Client ${client.id} leaving ${socketRooms.length} rooms`,
+      );
+
+      const userSockets = this.userSockets.get(userId) || [];
+      const remainingSockets = userSockets.filter(
+        (socket) => socket !== client,
+      );
+
+      if (remainingSockets.length > 0) {
+        this.userSockets.set(userId, remainingSockets);
+      } else {
+        this.userSockets.delete(userId);
       }
 
-      this.logger.log(
-        `Client disconnected: ${client.id} (User: ${client.userId})`,
-      );
+      this.logger.log(`Client disconnected: ${client.id} (User: ${userId})`);
     } catch (error) {
-      this.handleError(client, error, 'Disconnection error: ');
+      // Properly typed error handling
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Disconnection error: ${errorMessage}`);
     }
   }
 
@@ -288,6 +294,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     } catch (error) {
       this.handleError(client, error, 'Delete message error:');
+    }
+  }
+
+  // Update getInitialData to be simpler and just reuse the service
+  @SubscribeMessage('getInitialData')
+  async handleGetInitialData(@ConnectedSocket() client: AuthenticatedSocket) {
+    try {
+      // This is now just a refreshing method that reuses the service
+      const initialData = await this.chatService.getUserInitialData(
+        client.userId,
+      );
+      return initialData;
+    } catch (error) {
+      this.handleError(client, error, 'Get initial data error:');
+      return {
+        success: false,
+        rooms: [],
+        roomMessages: {},
+        error:
+          error instanceof Error ? error.message : 'Failed to get initial data',
+      };
     }
   }
 }
