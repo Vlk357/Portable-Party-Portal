@@ -21,7 +21,7 @@ export class PermissionService {
     constraint?: string,
   ): Promise<boolean> {
     const permString = `${module}:${resource}:${action}${constraint ? `:${constraint}` : ''}`;
-    const cacheKey = `perm:${userId}:${permString}`;
+    const cacheKey = `PERM:${userId}:${permString}`;
 
     // Try cache first
     const cached = this.permissionCache.get(cacheKey);
@@ -83,7 +83,7 @@ export class PermissionService {
 
       // Clear cache for this permission
       const permString = `${module}:${resource}:${action}${constraint ? `:${constraint}` : ''}`;
-      const cacheKey = `perm:${userId}:${permString}`;
+      const cacheKey = `PERM:${userId}:${permString}`;
       this.permissionCache.delete(cacheKey);
 
       this.logger.log(`Granted ability ${permString} to user ${userId}`);

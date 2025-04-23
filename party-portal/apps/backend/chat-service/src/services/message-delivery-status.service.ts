@@ -1,7 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MessageDeliveryStatusRepository } from '../repositories/message-delivery-status.repository';
 import { MessageDeliveryStatus } from '../entities/message-delivery-status.entity';
 import { DeliveryStatusError } from 'src/errors/delivery-status.error';
+import { ChatRoomUser } from 'src/entities/chat-room-user.entity';
+import { ChatRoomUserRepository } from '../repositories/chat-room-user.repository';
+import { MessageRepository } from 'src/repositories/message.repository';
 
 @Injectable()
 export class MessageDeliveryStatusService {
@@ -9,6 +12,8 @@ export class MessageDeliveryStatusService {
 
   constructor(
     private readonly statusRepository: MessageDeliveryStatusRepository,
+    private readonly chatRoomUserRepository: ChatRoomUserRepository,
+    private readonly messageRepository: MessageRepository,
   ) {}
 
   private handleError(
@@ -34,75 +39,73 @@ export class MessageDeliveryStatusService {
     throw statusError;
   }
 
-  async markAsDelivered(
+  async markAsDelivered(messageId: number, userId: number): Promise<void> {
+    try {
+      const chatRoomUser = await this.getChatRoomUserFromMessageAndUserId(
+        messageId,
+        userId,
+      );
+      await this.statusRepository.markAsDelivered(messageId, chatRoomUser.id);
+      this.logger.log(
+        `Message ${messageId} marked as delivered for user ${userId} (ChatRoomUser ${chatRoomUser.id})`,
+      );
+    } catch (error) {
+      this.handleError('mark message as delivered', error, messageId, userId);
+    }
+  }
+
+  async getChatRoomUserFromMessageAndUserId(
     messageId: number,
-    chatRoomUserId: number,
-  ): Promise<void> {
-    try {
-      await this.statusRepository.updateDeliveryStatus(
-        messageId,
-        chatRoomUserId,
-        { delivered_to_device_at: new Date() },
+    userId: number,
+  ): Promise<ChatRoomUser> {
+    const message = await this.messageRepository.findById(messageId);
+
+    if (!message) {
+      throw new NotFoundException(`Message with ID ${messageId} not found`);
+    }
+
+    // Find the ChatRoomUser record for this user in this room
+    const chatRoomUser = await this.chatRoomUserRepository.findUserInRoom(
+      message.chat_room_id,
+      userId,
+    );
+
+    if (!chatRoomUser) {
+      throw new NotFoundException(
+        `User ${userId} is not a member of the room for message ${messageId}`,
       );
+    }
+
+    return chatRoomUser;
+  }
+
+  async markAsSeen(messageId: number, userId: number): Promise<void> {
+    try {
+      const chatRoomUser = await this.getChatRoomUserFromMessageAndUserId(
+        messageId,
+        userId,
+      );
+      await this.statusRepository.markAsSeen(messageId, chatRoomUser.id);
       this.logger.log(
-        `Message ${messageId} marked as delivered for user ${chatRoomUserId}`,
+        `Message ${messageId} marked as seen for user ${userId} (ChatRoomUser ${chatRoomUser.id})`,
       );
     } catch (error) {
-      this.handleError(
-        'mark message as delivered',
-        error,
-        messageId,
-        chatRoomUserId,
-      );
+      this.handleError('mark message as seen', error, messageId, userId);
     }
   }
 
-  async markAsSeen(messageId: number, chatRoomUserId: number): Promise<void> {
+  async markAsRead(messageId: number, userId: number): Promise<void> {
     try {
-      const now = new Date();
-      await this.statusRepository.updateDeliveryStatus(
+      const chatRoomUser = await this.getChatRoomUserFromMessageAndUserId(
         messageId,
-        chatRoomUserId,
-        {
-          delivered_to_device_at: now, // Ensure delivery is marked
-          seen_at: now,
-        },
+        userId,
       );
+      await this.statusRepository.markAsRead(messageId, chatRoomUser.id);
       this.logger.log(
-        `Message ${messageId} marked as seen for user ${chatRoomUserId}`,
+        `Message ${messageId} marked as read for user ${userId} (ChatRoomUser ${chatRoomUser.id})`,
       );
     } catch (error) {
-      this.handleError(
-        'mark message as seen',
-        error,
-        messageId,
-        chatRoomUserId,
-      );
-    }
-  }
-
-  async markAsRead(messageId: number, chatRoomUserId: number): Promise<void> {
-    try {
-      const now = new Date();
-      await this.statusRepository.updateDeliveryStatus(
-        messageId,
-        chatRoomUserId,
-        {
-          delivered_to_device_at: now, // Ensure delivery is marked
-          seen_at: now, // Ensure seen is marked
-          read_receipt_at: now,
-        },
-      );
-      this.logger.log(
-        `Message ${messageId} marked as read for user ${chatRoomUserId}`,
-      );
-    } catch (error) {
-      this.handleError(
-        'mark message as read',
-        error,
-        messageId,
-        chatRoomUserId,
-      );
+      this.handleError('mark message as read', error, messageId, userId);
     }
   }
 

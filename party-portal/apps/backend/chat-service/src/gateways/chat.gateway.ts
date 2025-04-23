@@ -20,7 +20,6 @@ import { RequirePermission } from '../guards/permission.guard';
 import { WebSocketAuthMiddleware } from '../auth/websocket-auth.middleware';
 interface AuthenticatedSocket extends Socket {
   userId: number;
-  chatRoomUserId: number;
 }
 
 @WebSocketGateway({
@@ -88,13 +87,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       authClient.emit('activeRooms', activeRooms);
 
       this.logger.log(`Client connected: ${authClient.id} (User: ${userId})`);
+
+      await this.updateUserStatus(userId, true);
     } catch (error) {
-      this.logger.error(
-        `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      client.emit('error', { message: 'Authentication failed' });
+      // Extract the specific error message to send to client
+      let errorMessage = 'Authentication failed';
+
+      if (error instanceof WsException) {
+        // Use the original WsException message
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        // For other errors, use their message but don't expose internal details
+        this.logger.error(`Connection failed: ${error.message}`, error.stack);
+
+        // For JWT errors, provide a more user-friendly message
+        if (
+          error.name === 'JsonWebTokenError' ||
+          error.name === 'TokenExpiredError'
+        ) {
+          errorMessage = 'Invalid or expired token';
+        }
+      } else {
+        this.logger.error('Connection failed with unknown error type', error);
+      }
+
+      // Send the appropriate error message to the client
+      client.emit('error', { message: errorMessage });
       client.disconnect();
     }
+  }
+
+  private async updateUserStatus(userId: number, isOnline: boolean) {
+    // Get rooms the user is in
+    const userRooms = await this.chatRoomService.getRoomsForUser(userId);
+
+    // Broadcast status to all rooms
+    userRooms.forEach((room) => {
+      this.server.to(`room:${room.id}`).emit('userStatus', {
+        userId,
+        status: isOnline ? 'online' : 'offline',
+        timestamp: new Date(),
+      });
+    });
   }
 
   async handleDisconnect(client: AuthenticatedSocket) {
@@ -107,18 +141,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userSockets.splice(index, 1);
 
         if (userSockets.length === 0) {
-          // User has no more active connections
           this.userSockets.delete(client.userId);
-
-          // Leave all rooms
-          const activeRooms = await this.chatRoomService.getRoomsForUser(
-            client.userId,
-          );
-          await Promise.all(
-            activeRooms.map((room) =>
-              this.chatRoomService.leaveRoom(room.id, client.userId),
-            ),
-          );
+          await this.updateUserStatus(client.userId, false);
         } else {
           // Update remaining sockets
           this.userSockets.set(client.userId, userSockets);
@@ -146,8 +170,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @UseGuards(PermissionGuard)
   @SubscribeMessage('sendMessage')
-  @RequirePermission('CHAT:MESSAGE:CREATE')
-  async handleMessage(
+  @RequirePermission('CHAT:MESSAGE:CREATE:$resourceId', {
+    allowOwner: false, // No "ownership" concept for creating messages
+    resourceIdField: undefined, // No resource to check ownership against
+    constraintField: 'chat_room_id', // Use chat_room_id for permission constraint
+  })
+  async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody()
     data: {
@@ -160,21 +188,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ) {
     try {
-      // Check if user has permission for this specific room
-      const canCreateMessages = await this.permissionService.hasPermission(
-        client.userId,
-        'CHAT',
-        'MESSAGE',
-        'CREATE',
-        data.roomId.toString(),
-      );
+      // Guard has already verified permissions for this room
 
-      if (!canCreateMessages) {
-        throw new WsException(
-          'You do not have permission to send messages in this room',
-        );
-      }
-
+      // Create the message
       const message = await this.messageService.createMessage({
         chatRoomId: data.roomId,
         userId: client.userId,
@@ -190,10 +206,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(`room:${data.roomId}`).emit('newMessage', message);
 
       // Mark as delivered for sender
-      await this.statusService.markAsDelivered(
+      await this.statusService.markAsRead(
         message.id,
-        client.chatRoomUserId,
+        client.userId, // Using userId directly instead of chatRoomUserId
       );
+
+      return { success: true, messageId: message.id };
     } catch (error) {
       this.handleError(client, error, 'Send message error:');
     }
@@ -205,27 +223,57 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { messageId: number },
   ) {
     try {
-      await this.statusService.markAsDelivered(
-        data.messageId,
-        client.chatRoomUserId,
-      );
+      await this.statusService.markAsDelivered(data.messageId, client.userId);
     } catch (error) {
       this.handleError(client, error, 'Message delivered error: ');
     }
   }
 
-  @SubscribeMessage('messageSeen')
-  async handleMessageSeen(
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('deleteMessage')
+  @RequirePermission('CHAT:MESSAGE:DELETE:$resourceId', {
+    allowOwner: true, // Allow message owners to delete their messages
+    resourceType: 'message', // Resource type for ownership check
+    resourceIdField: 'messageId', // Field for checking resource ownership
+    constraintField: 'roomId', // Field for permission constraint (room context)
+  })
+  async handleDeleteMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { messageId: number },
+    @MessageBody() data: { messageId: number; roomId: number },
   ) {
     try {
-      await this.statusService.markAsSeen(
+      // 1. Get the message to verify it exists
+      const message = await this.messageService.getMessage(data.messageId);
+
+      if (!message) {
+        throw new WsException('Message not found');
+      }
+
+      // Verify the provided roomId matches the message's room
+      if (message.chat_room_id !== data.roomId) {
+        throw new WsException('Invalid room ID for this message');
+      }
+
+      // The guard has already checked permissions, so we can proceed
+
+      // 2. Perform the soft-delete operation
+      await this.messageService.softDeleteMessage(
         data.messageId,
-        client.chatRoomUserId,
+        client.userId,
       );
+
+      // 3. Broadcast deletion to all users in the room
+      this.server.to(`room:${data.roomId}`).emit('messageDeleted', {
+        messageId: data.messageId,
+        roomId: data.roomId,
+        deletedBy: client.userId,
+        deletedAt: new Date(),
+      });
+
+      // 4. Return success to the client that initiated the deletion
+      return { success: true };
     } catch (error) {
-      this.handleError(client, error, 'Message seen error: ');
+      this.handleError(client, error, 'Delete message error:');
     }
   }
 }

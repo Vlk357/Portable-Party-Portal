@@ -47,7 +47,7 @@ export class MessageService {
     try {
       const message = await this.messageRepository.create({
         chat_room_id: data.chatRoomId,
-        chat_room_user_id: data.userId,
+        user_id: data.userId,
         created_at: data.createdAt,
         is_priority: data.isPriority ?? false,
         requires_read_receipt: data.requiresReadReceipt ?? false,
@@ -140,5 +140,19 @@ export class MessageService {
     } catch (error) {
       this.handleError(error, `Failed to fetch messages in thread ${parentId}`);
     }
+  }
+
+  // These methods need to exist in your MessageService class
+  async getMessage(messageId: number): Promise<Message | null> {
+    // Fetch message with room details
+    return this.messageRepository.findById(messageId);
+  }
+
+  async softDeleteMessage(messageId: number, user_id: number): Promise<void> {
+    // Update message to mark as deleted but keep in database
+    await this.messageRepository.update(messageId, {
+      deleted_at: new Date(),
+      deleted_by_user_id: user_id,
+    });
   }
 }

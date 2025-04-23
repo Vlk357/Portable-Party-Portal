@@ -17,30 +17,111 @@ export class MessageDeliveryStatusRepository {
     return this.repository.save(status);
   }
 
-  async updateDeliveryStatus(
+  /**
+   * Ensures a status record exists (creates if not)
+   */
+  private async ensureStatusExists(
     messageId: number,
-    chatRoomUserId: number,
-    status: Partial<
-      Pick<
-        MessageDeliveryStatus,
-        'delivered_to_device_at' | 'seen_at' | 'read_receipt_at'
-      >
-    >,
-  ): Promise<void> {
-    await this.repository
-      .createQueryBuilder()
-      .insert()
-      .into(MessageDeliveryStatus)
-      .values({
+    userId: number,
+  ): Promise<MessageDeliveryStatus> {
+    // Try to find existing record
+    let status = await this.repository.findOne({
+      where: {
         message_id: messageId,
-        chat_room_user_id: chatRoomUserId,
-        ...status,
-      })
-      .orUpdate(
-        ['delivered_to_device_at', 'seen_at', 'read_receipt_at'],
-        ['message_id', 'chat_room_user_id'],
-      )
-      .execute();
+        chat_room_user_id: userId,
+      },
+    });
+
+    // Create if it doesn't exist
+    if (!status) {
+      status = await this.create({
+        message_id: messageId,
+        chat_room_user_id: userId,
+      });
+    }
+
+    return status;
+  }
+
+  /**
+   * Mark a message as delivered to device
+   * Only sets timestamp if not already set
+   */
+  async markAsDelivered(messageId: number, userId: number): Promise<void> {
+    const status = await this.ensureStatusExists(messageId, userId);
+
+    // Only update if not already delivered
+    if (!status.delivered_to_device_at) {
+      await this.repository.update(
+        { message_id: messageId, chat_room_user_id: userId },
+        { delivered_to_device_at: new Date() },
+      );
+    }
+  }
+
+  /**
+   * Mark a message as seen
+   * Only sets timestamp if not already set
+   * Ensures delivered status is also set
+   */
+  async markAsSeen(messageId: number, userId: number): Promise<void> {
+    const status = await this.ensureStatusExists(messageId, userId);
+
+    const updates: Partial<MessageDeliveryStatus> = {};
+    const now = new Date();
+
+    // Ensure delivered timestamp exists
+    if (!status.delivered_to_device_at) {
+      updates.delivered_to_device_at = now;
+    }
+
+    // Only update seen if not already set
+    if (!status.seen_at) {
+      updates.seen_at = now;
+    }
+
+    // Only update if changes needed
+    if (Object.keys(updates).length > 0) {
+      await this.repository.update(
+        { message_id: messageId, chat_room_user_id: userId },
+        updates,
+      );
+    }
+  }
+
+  /**
+   * Mark a message as read (send read receipt)
+   * Only sets timestamp if not already set
+   * Ensures delivered and seen statuses are also set
+   */
+  async markAsRead(messageId: number, userId: number): Promise<void> {
+    const status = await this.ensureStatusExists(messageId, userId);
+
+    const updates: Partial<MessageDeliveryStatus> = {};
+    const now = new Date();
+
+    // Ensure delivered timestamp exists
+    if (!status.delivered_to_device_at) {
+      updates.delivered_to_device_at = now;
+    }
+
+    // Ensure seen timestamp exists
+    if (!status.seen_at) {
+      updates.seen_at = now;
+    }
+
+    // Only update read receipt if not already set
+    if (!status.read_receipt_at) {
+      updates.read_receipt_at = now;
+    }
+
+    // Only update if changes needed
+    if (Object.keys(updates).length > 0) {
+      await this.repository.update(
+        { message_id: messageId, chat_room_user_id: userId },
+        updates,
+      );
+    }
   }
 
   async findMessageStatus(messageId: number): Promise<MessageDeliveryStatus[]> {
