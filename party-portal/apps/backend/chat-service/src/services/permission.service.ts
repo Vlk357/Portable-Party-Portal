@@ -52,7 +52,6 @@ export class PermissionService {
     action: string,
     constraint?: string,
     expiresAt?: Date,
-    resourceInstanceId?: number,
   ): Promise<void> {
     try {
       // Find or create the ability
@@ -74,12 +73,7 @@ export class PermissionService {
       }
 
       // Grant ability to user
-      await this.permissionRepo.grantAbilityToUser(
-        userId,
-        ability,
-        expiresAt,
-        resourceInstanceId,
-      );
+      await this.permissionRepo.grantAbilityToUser(userId, ability, expiresAt);
 
       // Clear cache for this permission
       const permString = `${module}:${resource}:${action}${constraint ? `:${constraint}` : ''}`;

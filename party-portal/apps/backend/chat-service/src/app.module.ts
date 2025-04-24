@@ -26,6 +26,7 @@ import { PermissionCacheService } from './services/permission-cache.service';
 import { PermissionRepository } from './repositories/permission.repository';
 import { PermissionGuard } from './guards/permission.guard';
 import { ChatService } from './services/chat.service';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ChatService } from './services/chat.service';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

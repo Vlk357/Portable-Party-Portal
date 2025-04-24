@@ -30,6 +30,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.0.12",
     "@nestjs/jwt": "^11.0.0",
+    "@nestjs/schedule": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.14.1",
     "reflect-metadata": "^0.2.2",
