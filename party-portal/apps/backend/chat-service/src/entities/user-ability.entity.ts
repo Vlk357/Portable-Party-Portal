@@ -14,9 +14,6 @@ export class UserAbility {
   @PrimaryColumn({ name: 'ability_id' })
   abilityId: number;
 
-  @Column({ name: 'resource_instance_id', nullable: true })
-  resourceInstanceId: number | null;
-
   @Column({ name: 'expires_at', nullable: true })
   expiresAt: Date | null;
 }

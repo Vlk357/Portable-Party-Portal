@@ -109,7 +109,6 @@ export class PermissionRepository {
     userId: number,
     ability: Ability,
     expiresAt?: Date,
-    resourceInstanceId?: number,
   ): Promise<UserAbility> {
     try {
       const userAbility = this.userAbilityRepo.create({
@@ -117,7 +116,6 @@ export class PermissionRepository {
         ability,
         abilityId: ability.id,
         expiresAt,
-        resourceInstanceId,
       });
 
       return await this.userAbilityRepo.save(userAbility);

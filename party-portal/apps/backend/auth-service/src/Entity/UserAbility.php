@@ -18,21 +18,16 @@ class UserAbility
     #[ORM\JoinColumn(name: 'ability_id', referencedColumnName: 'id')]
     private Ability $ability;
 
-    #[ORM\Column(name: 'resource_instance_id', type: 'integer', nullable: true)]
-    private ?int $resourceInstanceId;
-
     #[ORM\Column(name: 'expires_at', type: 'datetime', nullable: true)]
     private ?\DateTimeInterface $expiresAt;
 
     public function __construct(
         User $user,
         Ability $ability,
-        ?int $resourceInstanceId = null,
         ?\DateTimeInterface $expiresAt = null
     ) {
         $this->user = $user;
         $this->ability = $ability;
-        $this->resourceInstanceId = $resourceInstanceId;
         $this->expiresAt = $expiresAt;
     }
 
@@ -44,17 +39,6 @@ class UserAbility
     public function getAbility(): Ability
     {
         return $this->ability;
-    }
-
-    public function getResourceInstanceId(): ?int
-    {
-        return $this->resourceInstanceId;
-    }
-
-    public function setResourceInstanceId(?int $resourceInstanceId): self
-    {
-        $this->resourceInstanceId = $resourceInstanceId;
-        return $this;
     }
 
     public function getExpiresAt(): ?\DateTimeInterface
