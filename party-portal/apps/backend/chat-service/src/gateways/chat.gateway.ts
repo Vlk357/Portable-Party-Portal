@@ -18,6 +18,9 @@ import { PermissionGuard } from '../guards/permission.guard';
 import { RequirePermission } from '../guards/permission.guard';
 import { WebSocketAuthMiddleware } from '../auth/websocket-auth.middleware';
 import { ChatService } from 'src/services/chat.service';
+import { CreateRoomDto } from 'src/dtos/create-room.dto';
+import { ChatRoom } from 'src/entities/chat-room.entity';
+import { UpdateRoomDto } from 'src/dtos/update-room.dto';
 interface AuthenticatedSocket extends Socket {
   userId: number;
 }
@@ -294,6 +297,144 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     } catch (error) {
       this.handleError(client, error, 'Delete message error:');
+    }
+  }
+
+  // --- Chat Room Handlers ---
+
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('createRoom')
+  @RequirePermission('CHAT:CHAT_ROOM:CREATE')
+  async handleCreateRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: CreateRoomDto,
+  ): Promise<{ success: boolean; room?: ChatRoom; error?: string }> {
+    try {
+      const newRoom = await this.chatRoomService.createRoom({
+        name: data.name,
+        description: data.description,
+        createdByUserId: client.userId,
+        users: data.users,
+      });
+
+      // Automatically join the creator to the new room's socket.io room
+      await client.join(`room:${newRoom.id}`);
+      this.logger.log(
+        `Creator ${client.userId} joined socket room: room:${newRoom.id}`,
+      );
+
+      // Join initial users to the socket.io room
+      if (data.users && data.users.length > 0) {
+        this.logger.log(
+          `Attempting to join ${data.users.length} initial users to socket room: room:${newRoom.id}`,
+        );
+        for (const userId of data.users) {
+          // Don't try to rejoin the creator
+          if (userId === client.userId) continue;
+
+          const userSockets = this.userSockets.get(userId);
+          if (userSockets && userSockets.length > 0) {
+            // Join all active sockets for this user to the room
+            const joinPromises = userSockets.map((socket) =>
+              socket.join(`room:${newRoom.id}`),
+            );
+            await Promise.all(joinPromises);
+            this.logger.log(
+              `Joined user ${userId} (${userSockets.length} sockets) to socket room: room:${newRoom.id}`,
+            );
+          } else {
+            // User might not be connected, log this but don't fail
+            this.logger.log(
+              `User ${userId} not found or has no active sockets, cannot join to room:${newRoom.id}`,
+            );
+          }
+        }
+      }
+
+      // Return the created room details to the creator
+      return { success: true, room: newRoom };
+    } catch (error) {
+      this.handleError(client, error, 'Create room error:');
+      // Return error structure for WebSocket response
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create room',
+      };
+    }
+  }
+
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('updateRoom')
+  // Permission needs to check against the specific room ID being updated
+  @RequirePermission('CHAT:CHAT_ROOM:UPDATE:$resourceId', {
+    allowOwner: false, // Or true if owners can always update? Define in Voter.
+    resourceIdField: 'roomId', // Field in the message body containing the ID
+    constraintField: 'roomId', // Use roomId also as the constraint for the ability lookup
+  })
+  async handleUpdateRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: UpdateRoomDto & { roomId: number }, // Combine DTO with roomId
+  ): Promise<{ success: boolean; room?: ChatRoom; error?: string }> {
+    try {
+      const { roomId, ...updateData } = data; // Separate roomId from update payload
+      if (!roomId) {
+        throw new WsException('Room ID is required for update');
+      }
+
+      const updatedRoom = await this.chatRoomService.updateRoom(
+        roomId,
+        updateData,
+      );
+
+      // Broadcast the update to all users currently in that room
+      this.server
+        .to(`room:${roomId}`)
+        .emit('roomUpdated', { roomId: updatedRoom.id, ...updateData }); // Send only updated fields
+
+      return { success: true, room: updatedRoom };
+    } catch (error) {
+      this.handleError(client, error, 'Update room error:');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update room',
+      };
+    }
+  }
+
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('deleteRoom')
+  // Permission needs to check against the specific room ID being deleted
+  @RequirePermission('CHAT:CHAT_ROOM:DELETE:$resourceId', {
+    allowOwner: false, // Or true? Define in Voter.
+    resourceIdField: 'roomId', // Field in the message body containing the ID
+    constraintField: 'roomId', // Use roomId also as the constraint for the ability lookup
+  })
+  async handleDeleteRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: number }, // Simple payload with just the ID
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!data.roomId) {
+        throw new WsException('Room ID is required for deletion');
+      }
+
+      await this.chatRoomService.deleteRoom(data.roomId, client.userId);
+
+      // Broadcast the deletion event to the room
+      this.server
+        .to(`room:${data.roomId}`)
+        .emit('roomDeleted', { roomId: data.roomId });
+
+      // Optionally, make all sockets leave the room on the server side
+      this.server.socketsLeave(`room:${data.roomId}`);
+
+      return { success: true };
+    } catch (error) {
+      this.handleError(client, error, 'Delete room error:');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete room',
+      };
     }
   }
 

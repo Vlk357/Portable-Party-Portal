@@ -168,4 +168,23 @@ export class PermissionService {
       throw error;
     }
   }
+
+  async findRoleByName(roleName: string): Promise<Role | null> {
+    try {
+      // Delegate to the repository method
+      const role = await this.permissionRepo.findRoleByName(roleName);
+      if (role) {
+        this.logger.log(`Found role by name: ${roleName}`);
+      } else {
+        this.logger.log(`Role not found by name: ${roleName}`);
+      }
+      return role;
+    } catch (error) {
+      this.logger.error(
+        `Failed to find role by name ${roleName}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
 }
