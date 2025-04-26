@@ -8,8 +8,6 @@ import { Message } from './entities/message.entity';
 import { ChatRoomRepository } from './repositories/chat-room.repository';
 import { ChatRoomService } from './services/chat-room.service';
 import { MessageRepository } from './repositories/message.repository';
-import { MessageVersionRepository } from './repositories/message-version.repository';
-import { MessageReplyRepository } from './repositories/message-reply.repository';
 import { MessageService } from './services/message.service';
 import { ChatRoomUserRepository } from './repositories/chat-room-user.repository';
 import { ConfigModule } from '@nestjs/config';
@@ -27,6 +25,8 @@ import { PermissionRepository } from './repositories/permission.repository';
 import { PermissionGuard } from './guards/permission.guard';
 import { ChatService } from './services/chat.service';
 import { ScheduleModule } from '@nestjs/schedule';
+import { WebSocketAuthMiddleware } from './auth/websocket-auth.middleware';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -59,6 +59,9 @@ import { ScheduleModule } from '@nestjs/schedule';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+    }),
   ],
   controllers: [AppController],
   providers: [
@@ -68,8 +71,6 @@ import { ScheduleModule } from '@nestjs/schedule';
     // Repositories
     ChatRoomRepository,
     MessageRepository,
-    MessageVersionRepository,
-    MessageReplyRepository,
     ChatRoomUserRepository,
     PermissionRepository,
     // Services
@@ -81,6 +82,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     ChatService,
     // Guards
     PermissionGuard,
+    // Middleware
+    WebSocketAuthMiddleware,
   ],
   exports: [
     ChatRoomService,

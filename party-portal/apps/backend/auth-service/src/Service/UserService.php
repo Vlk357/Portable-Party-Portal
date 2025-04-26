@@ -10,6 +10,7 @@ use App\Repository\UserAbilityRepository;
 use App\Repository\UserRepository;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
+use function PHPUnit\Framework\returnArgument;
 
 class UserService
 {
@@ -109,5 +110,12 @@ class UserService
 
         $user->removeAbility($ability);
         $this->userRepository->save($user);
+    }
+
+    /**
+     * @return array<int, array{id: int, username: string}>
+     */
+    public function findUserList(): array {
+        return $this->userRepository->findUserList();
     }
 }

@@ -1,106 +1,122 @@
 services:
-  php:
+  php: # Base PHP image configuration
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     volumes:
-      - ./party-portal/apps/backend:/var/www/apps
-    environment:
-      APP_ENV: dev
+      - ./party-portal/apps/backend:/var/www/apps # Mount backend code
+    # Environment variables needed by the base PHP setup itself, if any
     networks:
       - backend
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway" # For host access from container if needed
 
-
-  auth:
-    extends: php
+  auth: # Auth Service (Symfony) Configuration
+    extends: php # Inherits build, volumes, network from 'php' base
     volumes:
+      # Mount specific service code + JWT keys
       - ./party-portal/apps/backend/auth-service:/var/www/apps/auth
+      # Ensure keys are present here or adjust path
+      - ./party-portal/apps/backend/auth-service/config/jwt:/var/www/apps/auth/config/jwt:ro
     working_dir: /var/www/apps/auth
     environment:
-      XDEBUG_MODE: 'off'
-      APP_ENV: dev
-      DATABASE_URL: ${AUTH_URL}
-      CHAT_SERVICE_ID: ${CHAT_SERVICE_ID}
-      CHAT_SERVICE_SECRET: ${CHAT_SERVICE_SECRET}
+      # --- Framework/Runtime ---
+      APP_ENV: ${SYMFONY_ENV:-dev} # Symfony environment mode
+      APP_SECRET: ${SYMFONY_APP_SECRET} # Symfony application secret
+      # --- Database Connection ---
+      DATABASE_URL: "postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/auth_db?serverVersion=17&charset=utf8" # Constructed URL
+      # --- JWT Configuration ---
+      JWT_PASSPHRASE: ${AUTH_JWT_PASSPHRASE} # Passphrase for private key
+      # --- Service Specific Config ---
+      ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME} # Example admin user
+      ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD} # Example admin password
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
-  frontend-auth:
+  frontend-auth: # Frontend Configuration
     build:
       context: ./party-portal/apps/frontend/auth
       dockerfile: ../../../../docker/node/Dockerfile
     volumes:
       - ./party-portal/apps/frontend/auth:/app
-      - /app/node_modules
+      - /app/node_modules # Cache node_modules
     networks:
       - backend
     environment:
-      - VITE_API_URL=/auth/api
+      # Config specific to the frontend build/runtime
+      - VITE_API_URL=/auth/api # Path to backend API via reverse proxy
 
-
-  chat:
+  chat: # Chat Service (NestJS) Configuration
     build:
       context: ./party-portal/apps/backend/chat-service
       dockerfile: ../../../../docker/node/chat.Dockerfile
     volumes:
       - ./party-portal/apps/backend/chat-service:/app
-      - /app/node_modules
+      - /app/node_modules # Cache node_modules
+      # Mount ONLY the public key from auth service for JWT verification
+      - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/app/config/jwt/public.pem:ro
     environment:
-      - NODE_ENV=development
-      - PORT=3000
-      - AUTH_SERVICE_URL=http://nginx/auth
-      - POSTGRES_USER=${CHAT_USER:-chat_user}
-      - POSTGRES_PASSWORD=${CHAT_PASSWORD}
-      - POSTGRES_DB=${CHAT_DB:-chat_db}
-      - CHAT_SERVICE_ID=${CHAT_SERVICE_ID:-CHAT}
-      - CHAT_SERVICE_SECRET=${CHAT_SERVICE_SECRET}
-      - GENERAL_CHAT_NAME=General
-      - DELETED_MESSAGE_TEXT='This message has been deleted'
+      # --- Framework/Runtime ---
+      NODE_ENV: ${NODE_ENV:-development} # Node.js environment mode
+      PORT: 3000 # Port the service listens on inside the container
+      # --- Database Connection ---
+      POSTGRES_HOST: postgres # Hostname of the postgres service
+      POSTGRES_PORT: 5432 # Port of the postgres service
+      POSTGRES_USER: ${CHAT_DB_USER} # DB User secret from .env
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD} # DB Password secret from .env
+      POSTGRES_DB: chat_db # DB Name (non-secret config)
+      # --- Auth Service API Connection ---
+      AUTH_SERVICE_URL: http://nginx/auth # Internal URL to reach Auth API via reverse proxy
+      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER} # User secret from .env
+      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD} # Password secret from .env
+      # --- JWT Verification ---
+      # Path inside the container where the public key was mounted
+      JWT_PUBLIC_KEY_PATH: /app/config/jwt/public.pem
+      # --- Service Specific Config ---
+      GENERAL_CHAT_NAME: General # Default chat room name
+      DELETED_MESSAGE_TEXT: 'This message has been deleted' # Placeholder text
     networks:
       - backend
     depends_on:
-      - nginx
-      - auth
+      - nginx # Depends on reverse proxy for AUTH_SERVICE_URL
+      - postgres # Depends on database
 
-
-
-  nginx:
+  nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
     ports:
-      - "8080:80"
+      - "8080:80" # Map host port 8080 to container port 80
     volumes:
-      - ./party-portal/apps/backend:/var/www/apps
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d
-    depends_on:
+      # Mount backend code if nginx serves static files directly (less common for APIs)
+      # - ./party-portal/apps/backend:/var/www/apps
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro # Mount nginx config
+    depends_on: # Ensure backend services are started first
       - auth
       - frontend-auth
+      - chat # Add chat if nginx proxies it too
     networks:
       - backend
 
-  postgres:
+  postgres: # Database Service Configuration
     image: postgres:17-alpine
     environment:
-      - POSTGRES_DB=${POSTGRES_ROOT_DB:-postgres}
-      - POSTGRES_USER=${POSTGRES_ROOT_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_ROOT_PASSWORD}
+      # Use root credentials from .env for initial setup/management
+      POSTGRES_DB: postgres # Default DB name, often overridden by init scripts
+      POSTGRES_USER: ${POSTGRES_ROOT_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data # Persist data
+      # Mount init scripts to create databases, users, schemas etc.
       - ./databases/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
-      # - ./databases/auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
       - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
       - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
     ports:
-      - "5433:5432"
+      - "5433:5432" # Map host port 5433 to container port 5432 for external access
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ROOT_USER} -d ${POSTGRES_ROOT_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ROOT_USER}"] # Check root user readiness
       interval: 5s
       timeout: 5s
       retries: 5
@@ -108,8 +124,8 @@ services:
       - backend
 
 networks:
-  backend:
+  backend: # Define the shared network
     driver: bridge
 
 volumes:
-  postgres_data:
+  postgres_data: # Define the persistent volume for postgres

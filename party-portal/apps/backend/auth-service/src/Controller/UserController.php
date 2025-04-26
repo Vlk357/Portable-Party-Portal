@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 // use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 // use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
@@ -44,6 +45,21 @@ class UserController extends AbstractController
             return $this->json($users); // Will automatically use jsonSerialize()
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    #[Route('/list', name: 'api_user_list', methods: ['GET'])]
+    #[IsGranted('AUTH:USER:READ')]
+    public function getUserList(): JsonResponse
+    {
+        try {
+            // Use the new repository method
+            $userList = $this->userService->findUserList();
+            return $this->json($userList);
+        } catch (\Exception $e) {
+            // Log the exception details internally
+            $this->container->get('logger')->error('Failed to get user list: ' . $e->getMessage());
+            return $this->json(['error' => 'Failed to retrieve user list'], 500);
         }
     }
 
@@ -79,6 +95,7 @@ class UserController extends AbstractController
     }
 
     #[Route('', methods: ['POST'])]
+    #[IsGranted('AUTH:USER:CREATE')]
     public function createUser(Request $request): JsonResponse
     {
         try {

@@ -99,4 +99,25 @@ class UserRepository extends AbstractRepository
 
         return $users;
     }
+
+    /**
+     * Fetches a list of users with only their ID and username.
+     * @return array<int, array{id: int, username: string}>
+     */
+    public function findUserList(): array
+    {
+        $qb = $this->entityManager->createQueryBuilder();
+
+        $userList = $qb->select('u')
+        ->from(User::class, 'u')
+        ->select('u.id', 'u.username')
+        // Optionally filter by status if needed, e.g., only active users
+        // ->where('u.status = :status')
+        // ->setParameter('status', UserStatus::ACTIVE)
+        ->orderBy('u.id', 'ASC')
+        ->getQuery()
+        ->getResult(); // Returns an array of arrays
+
+        return $userList;
+    }
 }

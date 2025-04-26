@@ -1,23 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PermissionClientService } from './services/permission.service';
+import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
-export class AppService implements OnModuleInit {
+export class AppService /* Remove OnModuleInit if not used */ {
   private readonly logger = new Logger(AppService.name);
 
-  constructor(private permissionService: PermissionClientService) {}
-  async onModuleInit() {
-    await this.permissionService.refreshPermissions();
-  }
-
-  async OnModuleInit() {
-    try {
-      await this.permissionService.refreshPermissions();
-    } catch (error) {
-      this.logger.error("Couldn't initialize cache: ", error);
-    }
-  }
   getHello(): string {
-    return 'Hello World!';
+    return 'Chat Service is running!'; // More descriptive message
   }
 }

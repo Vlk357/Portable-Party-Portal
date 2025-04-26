@@ -22,20 +22,22 @@ export class PermissionCacheService {
   }
 
   set(key: string, value: boolean): void {
+    const existingEntry = this.cache.get(key); // Get existing entry first
+
     // Clear existing timeout if key exists
-    if (this.cache.has(key)) {
-      clearTimeout(this.cache.get(key).timeoutId);
+    if (existingEntry) {
+      clearTimeout(existingEntry.timeoutId); // Use the fetched entry
     }
-    // Check if we need to evict when at capacity
+    // Check if we need to evict when at capacity and it's a new key
     else if (this.cache.size >= this.MAX_CACHE_SIZE) {
       this.evictOldest();
     }
 
     const expiresAt = Date.now() + this.TTL;
 
-    // Set timeout
+    // Set timeout for deletion
     const timeoutId = setTimeout(() => {
-      this.delete(key);
+      this.delete(key); // Use the key directly
     }, this.TTL);
 
     // Store value with metadata
