@@ -135,20 +135,76 @@ export class PermissionRepository {
     expiresAt?: Date,
   ): Promise<UserRole> {
     try {
-      const userRole = this.userRoleRepo.create({
+      // Check if the user already has this role
+      const existingUserRole = await this.userRoleRepo.findOne({
+        where: {
+          userId: userId,
+          roleId: role.id,
+        },
+      });
+
+      if (existingUserRole) {
+        this.logger.log(
+          `User ${userId} already has role ${role.name} (ID: ${role.id}). Skipping assignment.`,
+        );
+        if (
+          expiresAt !== undefined &&
+          existingUserRole.expiresAt?.getTime() !== expiresAt.getTime()
+        ) {
+          existingUserRole.expiresAt = expiresAt;
+          return await this.userRoleRepo.save(existingUserRole);
+        }
+        return existingUserRole;
+      }
+
+      // User does not have the role, create the new assignment
+      const newUserRole = this.userRoleRepo.create({
         userId,
         role,
         roleId: role.id,
         expiresAt,
       });
 
-      return await this.userRoleRepo.save(userRole);
+      this.logger.log(
+        `Assigning role ${role.name} (ID: ${role.id}) to user ${userId}.`,
+      );
+      return await this.userRoleRepo.save(newUserRole);
     } catch (error) {
       this.logger.error(
-        `Error assigning role to user: ${error instanceof Error ? error.message : String(error)}`,
+        `Error assigning role ${role.id} to user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
       throw error;
+    }
+  }
+
+  /**
+   * Removes a specific role assignment from a user.
+   * @param userId The user ID.
+   * @param roleId The role ID.
+   * @returns True if a role was revoked, false otherwise.
+   */
+  async revokeRoleFromUser(userId: number, roleId: number): Promise<boolean> {
+    try {
+      const result = await this.userRoleRepo.delete({
+        userId: userId,
+        roleId: roleId,
+      });
+      if (result.affected === 0) {
+        this.logger.log(
+          `No UserRole found to revoke for userId: ${userId}, roleId: ${roleId}`,
+        );
+        return false;
+      } else {
+        this.logger.log(`Revoked roleId: ${roleId} from userId: ${userId}`);
+        return true;
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error revoking role ${roleId} from user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error; // Re-throw
     }
   }
 

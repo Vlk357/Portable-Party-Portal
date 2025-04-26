@@ -21,6 +21,9 @@ import { ChatService } from 'src/services/chat.service';
 import { CreateRoomDto } from 'src/dtos/create-room.dto';
 import { ChatRoom } from 'src/entities/chat-room.entity';
 import { UpdateRoomDto } from 'src/dtos/update-room.dto';
+import { ModuleEnum } from 'src/enums/module.enum';
+import { ResourceEnum } from 'src/enums/resource.enum';
+import { ActionEnum } from 'src/enums/action.enum';
 interface AuthenticatedSocket extends Socket {
   userId: number;
 }
@@ -455,6 +458,197 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         roomMessages: {},
         error:
           error instanceof Error ? error.message : 'Failed to get initial data',
+      };
+    }
+  }
+
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('inviteUsersToRoom')
+  @RequirePermission('CHAT:CHAT_ROOM:UPDATE:$resourceId', {
+    allowOwner: false,
+    resourceIdField: 'roomId',
+    constraintField: 'roomId',
+  })
+  async handleInviteUsers(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: number; userIds: number[] },
+  ): Promise<{ success: boolean; error?: string }> {
+    const { roomId, userIds } = data;
+    if (
+      !roomId ||
+      !userIds ||
+      !Array.isArray(userIds) ||
+      userIds.length === 0
+    ) {
+      throw new WsException(
+        'Invalid input: roomId and a non-empty userIds array are required.',
+      );
+    }
+
+    this.logger.log(
+      `User ${client.userId} attempting to invite ${userIds.length} users to room ${roomId}`,
+    );
+    const userRoleName = `CHAT_ROOM_${roomId}_USER`; // Basic user role
+
+    try {
+      const invitePromises = userIds.map(async (userId) => {
+        try {
+          // 1. Assign the basic user role
+          await this.permissionService.assignRole(userId, userRoleName);
+
+          // 2. Add user to the room membership list
+          await this.chatRoomService.addUserToRoom(roomId, userId);
+
+          // 3. Join user's sockets to the room
+          const userSockets = this.userSockets.get(userId);
+          if (userSockets && userSockets.length > 0) {
+            const joinPromises = userSockets.map((socket) =>
+              socket.join(`room:${roomId}`),
+            );
+            await Promise.all(joinPromises);
+            this.logger.log(
+              `Joined invited user ${userId} (${userSockets.length} sockets) to socket room: room:${roomId}`,
+            );
+
+            // 4. Notify the invited user
+            // Fetch room details to send in notification
+            const roomDetails = await this.chatRoomService.getRoom(roomId);
+            if (roomDetails) {
+              this.broadcastToUser(userId, 'addedToRoom', roomDetails);
+            }
+          } else {
+            this.logger.log(
+              `Invited user ${userId} has no active sockets to join to room:${roomId}`,
+            );
+          }
+        } catch (inviteError) {
+          this.logger.error(
+            `Failed to invite user ${userId} to room ${roomId}: ${inviteError instanceof Error ? inviteError.message : String(inviteError)}`,
+          );
+          // Continue processing other users
+        }
+      });
+
+      await Promise.all(invitePromises);
+
+      // Notify the inviter of success
+      return { success: true };
+    } catch (error) {
+      this.handleError(client, error, 'Invite users error:');
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to invite users',
+      };
+    }
+  }
+
+  @UseGuards(PermissionGuard)
+  @SubscribeMessage('removeUsersFromRoom')
+  async handleRemoveUsers(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: number; userIds: number[] },
+  ): Promise<{ success: boolean; error?: string }> {
+    const { roomId, userIds } = data;
+    if (
+      !roomId ||
+      !userIds ||
+      !Array.isArray(userIds) ||
+      userIds.length === 0
+    ) {
+      throw new WsException(
+        'Invalid input: roomId and a non-empty userIds array are required.',
+      );
+    }
+
+    this.logger.log(
+      `User ${client.userId} attempting to remove ${userIds.length} users from room ${roomId}`,
+    );
+
+    // Define the permission needed to remove *other* users
+    const requiredPermission = {
+      module: ModuleEnum.CHAT,
+      resource: ResourceEnum.CHAT_ROOM,
+      action: ActionEnum.UPDATE, // Or DELETE if more specific
+      constraint: roomId.toString(),
+    };
+
+    try {
+      const removePromises = userIds.map(async (userId) => {
+        try {
+          let canRemove = false;
+          // Case 1: User is removing themselves (leaving)
+          if (userId === client.userId) {
+            canRemove = true;
+            this.logger.log(`User ${client.userId} is leaving room ${roomId}`);
+          }
+          // Case 2: User is removing someone else - check permission
+          else {
+            const hasPermission = await this.permissionService.hasPermission(
+              client.userId,
+              requiredPermission.module,
+              requiredPermission.resource,
+              requiredPermission.action,
+              requiredPermission.constraint,
+            );
+            if (hasPermission) {
+              canRemove = true;
+              this.logger.log(
+                `User ${client.userId} has permission to remove user ${userId} from room ${roomId}`,
+              );
+            } else {
+              this.logger.warn(
+                `User ${client.userId} lacks permission to remove user ${userId} from room ${roomId}`,
+              );
+            }
+          }
+
+          // Proceed if allowed
+          if (canRemove) {
+            // 1. Remove user from room membership list
+            await this.chatRoomService.removeUserFromRoom(roomId, userId);
+
+            // 2. Revoke room-specific roles (implement revokeRole in PermissionService/Repo)
+            await this.permissionService.revokeAllRoomRoles(userId, roomId);
+
+            // 3. Make user's sockets leave the room
+            const userSockets = this.userSockets.get(userId);
+            if (userSockets && userSockets.length > 0) {
+              const leavePromises = userSockets.map((socket) =>
+                socket.leave(`room:${roomId}`),
+              );
+              await Promise.all(leavePromises);
+              this.logger.log(
+                `Made user ${userId} (${userSockets.length} sockets) leave socket room: room:${roomId}`,
+              );
+
+              // 4. Notify the removed user
+              this.broadcastToUser(userId, 'removedFromRoom', { roomId });
+            } else {
+              this.logger.log(
+                `User ${userId} to be removed has no active sockets in room:${roomId}`,
+              );
+            }
+          }
+        } catch (removeError) {
+          this.logger.error(
+            `Failed to remove user ${userId} from room ${roomId}: ${removeError instanceof Error ? removeError.message : String(removeError)}`,
+          );
+          // Continue processing other users
+        }
+      });
+
+      await Promise.all(removePromises);
+
+      // Notify the remover of success (even if some removals were skipped due to permissions)
+      return { success: true };
+    } catch (error) {
+      // Handle broader errors (e.g., database connection issues)
+      this.handleError(client, error, 'Remove users error:');
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to remove users',
       };
     }
   }

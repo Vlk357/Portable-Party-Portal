@@ -187,4 +187,98 @@ export class PermissionService {
       return null;
     }
   }
+
+  async revokeRole(userId: number, roleName: string): Promise<void> {
+    try {
+      const role = await this.permissionRepo.findRoleByName(roleName);
+      if (!role) {
+        this.logger.warn(`Cannot revoke role: Role ${roleName} not found.`);
+        return; // Role doesn't exist, nothing to revoke
+      }
+
+      // Call repository method to delete the UserRole entry
+      await this.permissionRepo.revokeRoleFromUser(userId, role.id);
+
+      this.logger.log(`Revoked role ${roleName} from user ${userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke role ${roleName} for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error; // Re-throw
+    }
+  }
+
+  /**
+   * Revokes all standard roles associated with a specific chat room for a given user.
+   * Standard roles are assumed to be CHAT_ROOM_{roomId}_ADMIN, _USER, _READONLY.
+   * @param userId The ID of the user whose roles should be revoked.
+   * @param roomId The ID of the chat room.
+   */
+  async revokeAllRoomRoles(userId: number, roomId: number): Promise<void> {
+    this.logger.log(
+      `Attempting to revoke all room roles for room ${roomId} from user ${userId}`,
+    );
+    const roomRolePrefix = `CHAT_ROOM_${roomId}_`;
+    const standardRoleSuffixes = ['ADMIN', 'USER', 'READONLY'];
+
+    let revokedCount = 0;
+    const errors: Error[] = [];
+
+    for (const suffix of standardRoleSuffixes) {
+      const roleName = `${roomRolePrefix}${suffix}`;
+      try {
+        const role = await this.permissionRepo.findRoleByName(roleName);
+        if (role) {
+          // Role exists, attempt to revoke it from the user
+          const revoked = await this.permissionRepo.revokeRoleFromUser(
+            userId,
+            role.id,
+          );
+          if (revoked) {
+            // Assuming revokeRoleFromUser returns true/false or affected rows > 0
+            this.logger.log(
+              `Successfully revoked role ${roleName} from user ${userId}`,
+            );
+            revokedCount++;
+          } else {
+            this.logger.log(
+              `User ${userId} did not have role ${roleName} to revoke.`,
+            );
+          }
+        } else {
+          // Role itself doesn't exist, log and continue
+          this.logger.warn(`Role ${roleName} does not exist, cannot revoke.`);
+        }
+      } catch (error) {
+        this.logger.error(
+          `Error occurred while trying to revoke role ${roleName} for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        if (error instanceof Error) {
+          errors.push(error);
+        }
+        // Continue trying to revoke other roles even if one fails
+      }
+    }
+
+    if (revokedCount > 0) {
+      this.logger.log(
+        `Finished revoking roles for room ${roomId} from user ${userId}. Revoked ${revokedCount} roles.`,
+      );
+    } else {
+      this.logger.log(
+        `No roles found or revoked for room ${roomId} for user ${userId}.`,
+      );
+    }
+
+    // Optional: Decide how to handle partial failures
+    if (errors.length > 0) {
+      // You could throw a custom aggregate error, or just log that some revocations failed
+      this.logger.error(
+        `Encountered ${errors.length} errors during room role revocation for user ${userId}, room ${roomId}.`,
+      );
+      // throw new Error(`Failed to revoke one or more roles for room ${roomId}. See logs.`);
+    }
+  }
 }
