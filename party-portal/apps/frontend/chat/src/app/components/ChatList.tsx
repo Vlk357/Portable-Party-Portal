@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react'; // Add useRef
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
-import { handleLogout } from '../../utils/apiFetch'; // Corrected path
+import { handleLogout, refreshToken } from '../../utils/apiFetch'; // Corrected path and added refreshToken
 
 // --- Types matching backend initialData ---
 interface BackendRoom {
@@ -71,29 +71,25 @@ export function ChatList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const socketInstanceRef = useRef<Socket | null>(null); // Ref to manage socket instance across renders/effects
+  const socketInstanceRef = useRef<Socket | null>(null);
+  const isRefreshingTokenRef = useRef(false); // Ref to prevent multiple refresh attempts simultaneously
 
   // --- WebSocket Connection Effect ---
   useEffect(() => {
-    // Prevent effect from running again if socket is already connecting/connected by this effect instance
-    // This helps mitigate StrictMode double-invocation issues somewhat, though cleanup is key
     if (socketInstanceRef.current) {
       console.log(
         'ChatList effect: Skipping setup, socket instance already exists in ref.'
       );
-      // If a socket exists, we might still need to ensure listeners are attached,
-      // but for simplicity, we assume the first successful setup is enough.
-      // Or return a no-op cleanup if needed: return () => {};
       return;
     }
 
     console.log('ChatList effect: Starting setup');
-    const token = localStorage.getItem('token');
+    let currentToken = localStorage.getItem('token'); // Use let as it might change after refresh
 
-    if (!token) {
+    if (!currentToken) {
       setError('Authentication token not found.');
       setIsLoading(false);
-      return; // Stop if no token
+      return;
     }
 
     const wsUrl =
@@ -105,29 +101,26 @@ export function ChatList() {
 
     // Create socket instance
     const newSocket = io(wsUrl, {
-      auth: { token: token },
+      auth: { token: currentToken }, // Use currentToken
       transports: ['websocket'],
-      // autoConnect: false, // Consider if manual connection is needed, default is true
-      // reconnectionAttempts: 3, // Example: Limit reconnection attempts
+      reconnection: false, // Disable automatic reconnection initially to manage refresh manually
     });
 
-    // Store the instance in the ref immediately
     socketInstanceRef.current = newSocket;
 
     // --- Event Handlers ---
     newSocket.on('connect', () => {
       console.log('WebSocket connected:', newSocket.id);
-      // Only set state if this is the currently managed socket instance
       if (socketInstanceRef.current === newSocket) {
         setSocket(newSocket);
         setError(null);
-        // Loading will be set to false by initialData or error
+        isRefreshingTokenRef.current = false; // Reset refresh flag on successful connect
       }
     });
 
     newSocket.on('initialData', (data: InitialData) => {
       console.log('Received initialData:', data);
-      if (socketInstanceRef.current !== newSocket) return; // Ignore if stale socket
+      if (socketInstanceRef.current !== newSocket) return;
 
       if (data.success) {
         setRooms(data.rooms);
@@ -139,13 +132,9 @@ export function ChatList() {
       setIsLoading(false);
     });
 
-    newSocket.on('connect_error', (err) => {
-      // Handle connection errors (including auth failures during handshake)
+    newSocket.on('connect_error', async (err) => { // Make handler async
       console.error('WebSocket connection error:', err.message);
-      if (socketInstanceRef.current !== newSocket) return; // Ignore if stale socket
-
-      setError(`Connection failed: ${err.message}`);
-      setIsLoading(false);
+      if (socketInstanceRef.current !== newSocket) return;
 
       const authErrorMessages = [
         'Invalid or expired token',
@@ -153,22 +142,71 @@ export function ChatList() {
         'jwt expired',
         'Unauthorized',
         'Missing authentication token',
-        'Invalid token payload', // Added from backend middleware
-        'No authentication token provided', // Added from backend middleware
+        'Invalid token payload',
+        'No authentication token provided',
       ];
-      if (authErrorMessages.some((msg) => err.message.includes(msg))) {
-        console.log(
-          'WebSocket authentication failed during connection. Logging out.'
-        );
-        handleLogout();
-      }
+      const isAuthError = authErrorMessages.some((msg) =>
+        err.message.includes(msg)
+      );
 
-      // Clean up this specific socket instance if connection fails
-      if (socketInstanceRef.current === newSocket) {
-        socketInstanceRef.current.disconnect();
-        socketInstanceRef.current = null;
+      // --- Refresh Logic ---
+      if (isAuthError && !isRefreshingTokenRef.current) {
+        console.log('Auth error detected, attempting token refresh...');
+        isRefreshingTokenRef.current = true; // Set flag to prevent loops
+        setError('Authentication expired, attempting to refresh...'); // Update UI
+        setIsLoading(true);
+
+        const refreshed = await refreshToken(); // Attempt refresh
+
+        if (refreshed) {
+          console.log('Token refresh successful. Retrying WebSocket connection...');
+          currentToken = localStorage.getItem('token'); // Get the new token
+          if (currentToken && socketInstanceRef.current === newSocket) {
+            // Update the auth options of the existing socket instance
+            newSocket.auth = { token: currentToken };
+            // Attempt to reconnect the *same* socket instance
+            newSocket.connect();
+            // Reset error message, loading state will be handled by connect/error events
+            setError(null);
+          } else {
+             // Should not happen if refresh succeeded, but handle defensively
+             console.error("Failed to get new token after refresh or socket instance changed. Logging out.");
+             handleLogout();
+          }
+          // Note: isRefreshingTokenRef is reset on successful 'connect' or if refresh fails below
+        } else {
+          console.error('Token refresh failed. Logging out.');
+          // handleLogout() might already be called by refreshToken if refresh token is invalid
+          // Check if user is already being redirected before calling again
+          if (localStorage.getItem('refreshToken')) { // Simple check if logout hasn't cleared it yet
+             handleLogout();
+          }
+          setError('Session expired. Please log in again.'); // Set final error
+          setIsLoading(false);
+          isRefreshingTokenRef.current = false; // Reset flag
+          // Clean up this specific socket instance
+          if (socketInstanceRef.current === newSocket) {
+             socketInstanceRef.current.disconnect();
+             socketInstanceRef.current = null;
+          }
+          setSocket(null);
+        }
+      } else if (isAuthError && isRefreshingTokenRef.current) {
+         console.log("Refresh already in progress, ignoring subsequent auth error.");
+         // Avoid infinite loops if refresh succeeds but connection still fails
+      } else {
+        // --- Non-Auth Error Handling ---
+        console.error('Non-authentication connection error.');
+        setError(`Connection failed: ${err.message}`);
+        setIsLoading(false);
+        isRefreshingTokenRef.current = false; // Reset flag if it was somehow set
+        // Clean up this specific socket instance
+        if (socketInstanceRef.current === newSocket) {
+          socketInstanceRef.current.disconnect();
+          socketInstanceRef.current = null;
+        }
+        setSocket(null);
       }
-      setSocket(null); // Ensure socket state is null on connection error
     });
 
     // Generic error handler (for errors *after* connection)
@@ -176,39 +214,51 @@ export function ChatList() {
       const errorMessage =
         typeof errorData === 'string' ? errorData : errorData.message;
       console.error('WebSocket post-connection error:', errorMessage);
-      if (socketInstanceRef.current !== newSocket) return; // Ignore if stale socket
+      if (socketInstanceRef.current !== newSocket) return;
 
-      // Potentially handle specific post-connection errors differently
-      setError(`Chat error: ${errorMessage}`);
-      // Maybe logout on specific critical errors post-connection?
+      // If a post-connection error indicates an auth issue, trigger logout
+      // This might happen if the token expires *between* connection and an operation
+      const postConnectAuthErrors = ['Invalid or expired token', 'Unauthorized'];
+       if (postConnectAuthErrors.some(msg => errorMessage.includes(msg))) {
+           console.error("Post-connection auth error detected. Logging out.");
+           handleLogout();
+           setError('Session expired. Please log in again.');
+       } else {
+           setError(`Chat error: ${errorMessage}`);
+       }
+       // Maybe disconnect? Depends on the error severity
+       // newSocket.disconnect();
     });
 
     newSocket.on('disconnect', (reason) => {
       console.log(`WebSocket disconnected: ${reason}`);
-      // Only update state if the disconnected socket is the one we currently track
       if (socketInstanceRef.current === newSocket) {
-        setError(`Disconnected: ${reason}. Attempting to reconnect...`); // Or provide guidance
-        setIsLoading(false); // Or true if you have auto-reconnect logic
-        setSocket(null); // Clear socket state
-        socketInstanceRef.current = null; // Clear ref as it's disconnected
+         // Avoid showing reconnecting message if logout was triggered
+         if (!error?.includes('Session expired')) {
+            setError(`Disconnected: ${reason}.`);
+         }
+        setIsLoading(false);
+        setSocket(null);
+        socketInstanceRef.current = null;
+        isRefreshingTokenRef.current = false; // Reset flag on disconnect
       }
     });
 
     // --- Cleanup Function ---
     return () => {
       console.log('Running ChatList effect cleanup');
-      // Only disconnect if the ref holds the instance created by *this* effect run
       if (socketInstanceRef.current === newSocket) {
         console.log('Disconnecting WebSocket in cleanup for ID:', newSocket.id);
         socketInstanceRef.current.disconnect();
-        socketInstanceRef.current = null; // Clear the ref
+        socketInstanceRef.current = null;
       } else {
         console.log(
           'Skipping disconnect in cleanup (socket instance mismatch or already null)'
         );
       }
+       isRefreshingTokenRef.current = false; // Ensure flag is reset on unmount
     };
-  }, []); // Empty dependency array ensures this runs on mount/unmount
+  }, []); // Empty dependency array
 
   // --- Filtered Rooms based on Search Term ---
   const filteredRooms = useMemo(() => {
@@ -277,9 +327,11 @@ export function ChatList() {
       {/* Chat List Area */}
       <div className="flex-grow overflow-y-auto">
         {isLoading && (
-          <div className="p-4 text-center text-gray-500">Connecting...</div>
+          <div className="p-4 text-center text-gray-500">{error || 'Connecting...'}</div> // Show refresh message if applicable
         )}
-        {error && <div className="p-4 text-center text-red-500">{error}</div>}
+        {!isLoading && error && !error.includes('refresh') && ( // Don't show refresh message as final error
+          <div className="p-4 text-center text-red-500">{error}</div>
+        )}
         {!isLoading && !error && filteredRooms.length === 0 && (
           <div className="p-4 text-center text-gray-500">No chats found.</div>
         )}
@@ -290,7 +342,6 @@ export function ChatList() {
               return (
                 <li key={room.id} className="border-b border-gray-200">
                   <Link
-                    // Note: Link path uses /chat/:id relative to the basename '/chat-app'
                     to={`/chat/${room.id}`}
                     className="flex items-center p-4 hover:bg-gray-50 transition duration-150 ease-in-out"
                   >

@@ -2,8 +2,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PermissionRepository } from '../repositories/permission.repository';
 import { PermissionCacheService } from './permission-cache.service';
-// import { Ability } from '../entities/ability.entity';
 import { Role } from '../entities/role.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Ability } from 'src/entities/ability.entity';
+import { UserRole } from 'src/entities/user-role.entity';
+import { RoleAbility } from 'src/entities/role-ability.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class PermissionService {
@@ -11,6 +15,14 @@ export class PermissionService {
     private permissionRepo: PermissionRepository,
     private permissionCache: PermissionCacheService,
     private logger: Logger,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
+    @InjectRepository(Ability)
+    private readonly abilityRepository: Repository<Ability>,
+    @InjectRepository(UserRole) // Inject UserRole repository
+    private readonly userRoleRepository: Repository<UserRole>,
+    @InjectRepository(RoleAbility)
+    private readonly roleAbilityRepository: Repository<RoleAbility>,
   ) {}
 
   async hasPermission(
@@ -279,6 +291,47 @@ export class PermissionService {
         `Encountered ${errors.length} errors during room role revocation for user ${userId}, room ${roomId}.`,
       );
       // throw new Error(`Failed to revoke one or more roles for room ${roomId}. See logs.`);
+    }
+  }
+
+  /**
+   * Checks if a user is directly assigned a specific role by name.
+   * @param userId The ID of the user.
+   * @param roleName The name of the role.
+   * @returns A promise resolving to true if the user has the role, false otherwise.
+   */
+  async userHasRole(userId: number, roleName: string): Promise<boolean> {
+    this.logger.debug(`Checking if user ${userId} has role "${roleName}"`);
+    try {
+      // Find the role by name first
+      const role = await this.roleRepository.findOne({
+        where: { name: roleName },
+      });
+      if (!role) {
+        this.logger.warn(
+          `Role "${roleName}" not found during userHasRole check for user ${userId}.`,
+        );
+        return false; // Role doesn't exist, so user can't have it
+      }
+
+      // Check the UserRole join table
+      const count = await this.userRoleRepository.count({
+        where: {
+          userId: userId,
+          roleId: role.id,
+        },
+      });
+
+      const hasRole = count > 0;
+      this.logger.debug(
+        `User ${userId} ${hasRole ? 'has' : 'does not have'} role "${roleName}" (ID: ${role.id})`,
+      );
+      return hasRole;
+    } catch (error) {
+      this.logger.error(
+        `Error checking if user ${userId} has role "${roleName}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false; // Return false on error to prevent accidental permission grants
     }
   }
 }

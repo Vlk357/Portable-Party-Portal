@@ -3,12 +3,14 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  // Remove OnModuleInit if no longer needed
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ChatRoomRepository } from '../repositories/chat-room.repository';
 import { ChatRoom } from '../entities/chat-room.entity';
 import { ChatRoomUserRepository } from '../repositories/chat-room-user.repository';
 import { ServiceError } from 'src/errors/service.error';
-import { RepositoryError } from 'src/errors/repository.error'; // Assuming RepositoryError exists
+import { RepositoryError } from 'src/errors/repository.error';
 import { PermissionService } from './permission.service';
 import { ModuleEnum } from 'src/enums/module.enum';
 import { ResourceEnum } from 'src/enums/resource.enum';
@@ -21,6 +23,7 @@ interface UpdateRoomData {
 }
 
 @Injectable()
+// Remove 'implements OnModuleInit'
 export class ChatRoomService {
   private readonly logger = new Logger(ChatRoomService.name);
 
@@ -28,7 +31,11 @@ export class ChatRoomService {
     private readonly chatRoomRepository: ChatRoomRepository,
     private readonly chatRoomUserRepository: ChatRoomUserRepository,
     private readonly permissionService: PermissionService,
+    private readonly configService: ConfigService,
   ) {}
+
+  // REMOVE onModuleInit method
+  // REMOVE ensureGeneralRoomPermissions method
 
   private handleError(operation: string, error: unknown): never {
     const serviceError =
@@ -51,19 +58,21 @@ export class ChatRoomService {
   }
 
   /**
-   * Sets up the default roles and abilities for a newly created chat room.
+   * Sets up the default roles and abilities for a chat room.
+   * Called by createRoom and explicitly by the seeder for the General room.
+   * Checks for existing roles before creating. Assigns Admin role to creator.
    */
-  private async setupChatRoomPermissions(
+  public async setupChatRoomPermissions(
+    // Changed to public
     roomId: number,
     creatorUserId: number,
   ): Promise<void> {
-    this.logger.log(`Setting up permissions for new room ${roomId}`);
-    const constraint = roomId.toString(); // Use roomId as the constraint
+    this.logger.log(`Setting up permissions for room ${roomId}`);
+    const constraint = roomId.toString();
 
     try {
       // Define abilities required for the room
       const roomAbilities = [
-        // Chat Room Management
         {
           module: ModuleEnum.CHAT,
           resource: ResourceEnum.CHAT_ROOM,
@@ -82,7 +91,6 @@ export class ChatRoomService {
           action: ActionEnum.DELETE,
           constraint,
         },
-        // Message Management within the room
         {
           module: ModuleEnum.CHAT,
           resource: ResourceEnum.MESSAGE,
@@ -108,20 +116,18 @@ export class ChatRoomService {
         {
           name: `CHAT_ROOM_${roomId}_ADMIN`,
           description: `Admin role for Chat Room ${roomId}`,
-          abilities: roomAbilities, // Admin gets all defined abilities
+          abilities: roomAbilities,
         },
         {
           name: `CHAT_ROOM_${roomId}_USER`,
           description: `Basic user role for Chat Room ${roomId}`,
           abilities: [
-            // Can read the room itself
             {
               module: ModuleEnum.CHAT,
               resource: ResourceEnum.CHAT_ROOM,
               action: ActionEnum.READ,
               constraint,
             },
-            // Can read and create messages
             {
               module: ModuleEnum.CHAT,
               resource: ResourceEnum.MESSAGE,
@@ -140,14 +146,12 @@ export class ChatRoomService {
           name: `CHAT_ROOM_${roomId}_READONLY`,
           description: `Read-only role for Chat Room ${roomId}`,
           abilities: [
-            // Can read the room itself
             {
               module: ModuleEnum.CHAT,
               resource: ResourceEnum.CHAT_ROOM,
               action: ActionEnum.READ,
               constraint,
             },
-            // Can read messages
             {
               module: ModuleEnum.CHAT,
               resource: ResourceEnum.MESSAGE,
@@ -158,9 +162,8 @@ export class ChatRoomService {
         },
       ];
 
-      // Create roles (PermissionService.createRole handles finding/creating abilities)
+      // Create roles if they don't exist
       for (const roleData of rolesToCreate) {
-        // Check if role already exists before creating
         const existingRole = await this.permissionService.findRoleByName(
           roleData.name,
         );
@@ -173,28 +176,36 @@ export class ChatRoomService {
           this.logger.log(`Created role: ${roleData.name}`);
         } else {
           this.logger.log(`Role already exists: ${roleData.name}`);
-          // Optionally: Update existing role's abilities if needed
         }
       }
 
-      // Assign the Admin role to the creator
-      await this.permissionService.assignRole(
+      // Assign the Admin role to the creator if they don't have it
+      const adminRoleName = `CHAT_ROOM_${roomId}_ADMIN`;
+      const hasAdminRole = await this.permissionService.userHasRole(
         creatorUserId,
-        `CHAT_ROOM_${roomId}_ADMIN`,
-      );
+        adminRoleName,
+      ); // Assumes implementation exists
+      if (!hasAdminRole) {
+        await this.permissionService.assignRole(creatorUserId, adminRoleName);
+        this.logger.log(
+          `Assigned ADMIN role (${adminRoleName}) for room ${roomId} to user ${creatorUserId}`,
+        );
+      } else {
+        this.logger.log(
+          `User ${creatorUserId} already has ADMIN role (${adminRoleName}) for room ${roomId}. Skipping assignment.`,
+        );
+      }
+
+      // Ensure creator is in the room user list
       await this.addUserToRoom(roomId, creatorUserId);
       this.logger.log(
-        `Added creator ${creatorUserId} to room ${roomId} user list.`,
-      );
-      this.logger.log(
-        `Assigned ADMIN role for room ${roomId} to creator ${creatorUserId}`,
+        `Ensured user ${creatorUserId} is in room ${roomId} user list.`,
       );
     } catch (error) {
       this.logger.error(
         `Failed to set up permissions for room ${roomId}: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
-      // Re-throw the error to be caught by the calling method (createRoom)
       throw new InternalServerErrorException(
         `Failed to setup permissions for room ${roomId}`,
       );
@@ -209,37 +220,36 @@ export class ChatRoomService {
   }): Promise<ChatRoom> {
     let room: ChatRoom | null = null;
     try {
-      // 1. Create the room locally
+      // 1. Create the room entity
       room = await this.chatRoomRepository.create({
+        // Use create method from repository
         name: chatRoomData.name,
         description: chatRoomData.description,
         created_by_user_id: chatRoomData.createdByUserId,
+        // is_general: false, // No is_general flag
       });
 
       if (!room) {
         throw new InternalServerErrorException(
           'Room creation failed unexpectedly.',
-        ); // Use a more specific error
+        );
       }
-
       this.logger.log(
         `Created new chat room locally: ${room.id} - ${room.name}`,
       );
 
-      // 2. Set up permissions within chat-service
+      // 2. Set up permissions (calls the public method above)
       await this.setupChatRoomPermissions(
         room.id,
         chatRoomData.createdByUserId,
       );
 
-      // 4. Add initial users (if provided) and assign USER role
+      // 3. Add initial users (if provided)
       if (chatRoomData.users && chatRoomData.users.length > 0) {
         this.logger.log(
           `Adding ${chatRoomData.users.length} initial users to room ${room.id}`,
         );
-        const userRoleName = `CHAT_ROOM_${room.id}_USER`; // Basic user role
-
-        // Create an array of promises for adding users and assigning roles
+        const userRoleName = `CHAT_ROOM_${room.id}_USER`;
         const addUserPromises = chatRoomData.users
           .filter((userId) => userId !== chatRoomData.createdByUserId)
           .map(async (userId) => {
@@ -255,17 +265,14 @@ export class ChatRoomService {
               );
             }
           });
-
-        // Wait for all addUser operations to complete
         await Promise.all(addUserPromises);
         this.logger.log(
           `Finished processing initial users for room ${room.id}.`,
         );
       }
 
-      return room; // Return the successfully created room
+      return room;
     } catch (error) {
-      // Re-throw the original error using the handler
       this.handleError('create chat room and setup permissions/users', error);
     }
   }
@@ -374,62 +381,57 @@ export class ChatRoomService {
     }
   }
 
-  /*   async ensureGeneralChatExists(chatServiceId: number): Promise<number> {
-    const GENERAL_CHAT_NAME = process.env.GENERAL_CHAT_NAME
-      ? `${process.env.GENERAL_CHAT_NAME}`
-      : 'General';
-
-    try {
-      // Find rooms created by the chat service
-      const existingRooms =
-        await this.chatRoomRepository.findUserCreatedRooms(chatServiceId);
-
-      // Filter to find general chat(s)
-      const generalChats = existingRooms.filter(
-        (room) => room.created_by_user_id === chatServiceId,
-      );
-
-      if (generalChats.length === 0) {
-        // Create general chat if it doesn't exist
-        this.logger.log('Creating general chat room');
-
-        const generalRoom = await this.createRoom({
-          name: GENERAL_CHAT_NAME,
-          description: 'Chat room for all users',
-          createdByUserId: chatServiceId,
-        });
-
-        this.logger.log(`General chat room created with ID: ${generalRoom.id}`);
-        return generalRoom.id;
-
-        // Create permissions for this room would go here
-        // This would be implemented in the PermissionClientService
-      } else if (generalChats.length === 1) {
-        // One general chat exists, which is the expected case
-        this.logger.log(`General chat exists with ID: ${generalChats[0].id}`);
-        return generalChats[0].id;
-      } else {
-        // Multiple general chats exist, which is an error state
-        const ids = generalChats.map((room) => room.id).join(', ');
-        this.logger.error(
-          `Multiple general chat rooms detected with IDs: ${ids}`,
-        );
-        // Keep the system running, but notify admins
-        // You could add a notification service here
-      }
-    } catch (error) {
-      this.logger.error('Failed to ensure general chat exists', error);
-      throw error;
-    }
-    throw Error('General chat existence was not ensured');
-  } */
-
   async getRoom(id: number): Promise<ChatRoom | null> {
     try {
       const room = await this.chatRoomRepository.findById(id);
       return room;
     } catch (error) {
       this.handleError('get chat room', error);
+    }
+  }
+
+  /**
+   * Finds and returns the designated General chat room based on creator ID from config.
+   * @returns The ChatRoom entity for the General room, or null if not found/configured correctly.
+   */
+  async getGeneralRoom(): Promise<ChatRoom | null> {
+    // This logic remains the same, relying on the config for lookup
+    const generalRoomAdminUserId = parseInt(
+      this.configService.get<string>('GENERAL_CHAT_ADMIN_USER_ID', '1'),
+      10,
+    ); // Default to 1 or another appropriate system ID
+
+    if (isNaN(generalRoomAdminUserId)) {
+      this.logger.error(
+        `Invalid GENERAL_CHAT_ADMIN_USER_ID configured. Cannot find General room.`,
+      );
+      return null;
+    }
+
+    try {
+      const potentialGeneralRooms =
+        await this.chatRoomRepository.findUserCreatedRooms(
+          generalRoomAdminUserId,
+        );
+
+      if (potentialGeneralRooms.length === 0) {
+        this.logger.error(
+          `No chat room found created by the designated General Room Admin User (ID: ${generalRoomAdminUserId}). Check seeder and config.`,
+        );
+        return null;
+      }
+
+      if (potentialGeneralRooms.length > 1) {
+        this.logger.warn(
+          `Multiple chat rooms found created by the designated General Room Admin User (ID: ${generalRoomAdminUserId}). Returning the first one found (ID: ${potentialGeneralRooms[0].id}). Ensure only one room is created by this user.`,
+        );
+      }
+      return potentialGeneralRooms[0];
+    } catch (error) {
+      this.logger.error(
+        `Error finding General room by creator ID ${generalRoomAdminUserId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
     }
   }
 }

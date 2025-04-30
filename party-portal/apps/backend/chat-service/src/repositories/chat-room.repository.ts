@@ -34,6 +34,7 @@ export class ChatRoomRepository extends SoftDeleteRepository<ChatRoom> {
     return this.repository
       .createQueryBuilder('room')
       .where('created_by_user_id = :userId', { userId })
+      .andWhere('deleted_at IS NULL')
       .getMany();
   }
 }

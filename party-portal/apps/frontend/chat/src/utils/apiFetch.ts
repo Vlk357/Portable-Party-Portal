@@ -36,19 +36,19 @@ const handleLogout = () => {
 
 // Function to attempt token refresh
 const refreshToken = async (): Promise<boolean> => {
-  const { refreshToken } = getAuthTokens();
-  if (!refreshToken) {
+  const { refreshToken: currentRefreshToken } = getAuthTokens(); // Renamed variable to avoid conflict
+  if (!currentRefreshToken) {
     console.error('No refresh token available.');
     return false;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/refresh`, {
+    const response = await fetch(`${API_BASE_URL}/token/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      body: JSON.stringify({ refresh_token: currentRefreshToken }), // Use renamed variable
     });
 
     if (!response.ok) {
@@ -57,6 +57,11 @@ const refreshToken = async (): Promise<boolean> => {
         response.status,
         await response.text()
       );
+      // If refresh token itself is invalid (e.g., 401/403), logout
+      if (response.status === 401 || response.status === 403) {
+         console.log("Refresh token invalid or expired. Logging out.");
+         handleLogout();
+      }
       return false;
     }
 
@@ -122,7 +127,7 @@ export const apiFetch = async (
   return response;
 };
 
-// Export handleLogout so it can be used elsewhere (like WebSocket error handling)
-export { handleLogout };
+// Export handleLogout AND refreshToken
+export { handleLogout, refreshToken }; // Modified export
 
 export default apiFetch;
