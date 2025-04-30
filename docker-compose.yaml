@@ -30,24 +30,38 @@ services:
       # --- Service Specific Config ---
       ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME} # Example admin user
       ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD} # Example admin password
+      # --- Chat service config
+      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER}
+      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - backend
+    # command: sleep infinity
+    command: >
+      sh -c "
+        composer install --optimize-autoloader &&
+        php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
+        php bin/console app:init-database --no-interaction &&
+        php-fpm
+      "
 
-  frontend-auth: # Frontend Configuration
-    build:
-      context: ./party-portal/apps/frontend/auth
-      dockerfile: ../../../../docker/node/Dockerfile
-    volumes:
-      - ./party-portal/apps/frontend/auth:/app
-      - /app/node_modules # Cache node_modules
-    networks:
-      - backend
-    environment:
-      # Config specific to the frontend build/runtime
-      - VITE_API_URL=/auth/api # Path to backend API via reverse proxy
+  # frontend-auth: # Frontend Configuration
+  #   build:
+  #     context: ./party-portal/apps/frontend/auth
+  #     dockerfile: ../../../../docker/node/Dockerfile
+  #   volumes:
+  #     - ./party-portal/apps/frontend/auth:/app
+  #     - ./node_modules:/app/node_modules
+  #     - ./tsconfig.base.json:/tsconfig.base.json:ro
+  #     # - /app/node_modules # Cache node_modules
+  #   networks:
+  #     - backend
+  #   environment:
+  #     # Config specific to the frontend build/runtime
+  #     - VITE_API_URL=/auth/api # Path to backend API via reverse proxy
+  #   command: sh -c "npm run dev -- --host --port 5173"
 
   chat: # Chat Service (NestJS) Configuration
     build:
@@ -77,12 +91,35 @@ services:
       JWT_PUBLIC_KEY_PATH: /app/config/jwt/public.pem
       # --- Service Specific Config ---
       GENERAL_CHAT_NAME: General # Default chat room name
-      DELETED_MESSAGE_TEXT: 'This message has been deleted' # Placeholder text
+      DELETED_MESSAGE_TEXT: "This message has been deleted" # Placeholder text
     networks:
       - backend
     depends_on:
-      - nginx # Depends on reverse proxy for AUTH_SERVICE_URL
       - postgres # Depends on database
+    command: sh -c "npm run start:dev"
+
+  frontend-chat: # Frontend Chat Configuration
+    build:
+      context: ./party-portal/apps/frontend/chat
+      dockerfile: ../../../../docker/node/Dockerfile
+    volumes:
+      # Mount specific app code - adjust path relative to container WORKDIR if needed
+      - ./party-portal/apps/frontend/chat:/app # /party-portal/apps/frontend/chat
+      - ./node_modules:/app/node_modules
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
+      - ./party-portal/apps/frontend/chat/tsconfig.node.json:/app/tsconfig.node.json:ro
+
+      # - ./package.json:/app/package.json # Mount root package.json
+      # - ./package-lock.json:/app/package-lock.json # Mount root package-lock.json
+    # No working_dir needed here if command specifies path
+    environment:
+      - VITE_CHAT_WEBSOCKET_URL=ws://localhost:8080/chat
+      - VITE_CHAT_API_URL=/chat/api
+      - PORT=5174 # Define port for chat frontend
+    networks:
+      - backend
+    # Command to run the dev server from the correct directory
+    command: sh -c "npm run dev -- --host --port 5174"
 
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
@@ -92,10 +129,12 @@ services:
       # Mount backend code if nginx serves static files directly (less common for APIs)
       # - ./party-portal/apps/backend:/var/www/apps
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro # Mount nginx config
+      - ./party-portal/apps/frontend/auth/dist:/var/www/frontend-auth:ro
     depends_on: # Ensure backend services are started first
       - auth
-      - frontend-auth
-      - chat # Add chat if nginx proxies it too
+      # - frontend-auth
+      - chat
+      - frontend-chat
     networks:
       - backend
 
@@ -106,13 +145,21 @@ services:
       POSTGRES_DB: postgres # Default DB name, often overridden by init scripts
       POSTGRES_USER: ${POSTGRES_ROOT_USER}
       POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+
+      AUTH_DB_USER: ${AUTH_DB_USER}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
+      CHAT_DB_USER: ${CHAT_DB_USER}
+      CHAT_DB_PASSWORD: ${CHAT_DB_PASSWORD}
+      CHAT_DB_NAME: ${CHAT_DB_NAME:-chat_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persist data
       # Mount init scripts to create databases, users, schemas etc.
-      - ./databases/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
-      - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
-      - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
+      - ./databases:/docker-entrypoint-initdb.d
+      # - ./databases/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
+      # - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
+      # - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
     ports:
       - "5433:5432" # Map host port 5433 to container port 5432 for external access
     healthcheck:

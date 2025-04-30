@@ -27,6 +27,8 @@ import { ChatService } from './services/chat.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { WebSocketAuthMiddleware } from './auth/websocket-auth.middleware';
 import { JwtModule } from '@nestjs/jwt';
+import { DatabaseSeederService } from './services/database-seeder.service';
+import { UserCacheService } from './cache/user-cache.service';
 
 @Module({
   imports: [
@@ -37,7 +39,16 @@ import { JwtModule } from '@nestjs/jwt';
       username: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB || 'chat_db',
-      entities: [ChatRoom, ChatRoomUser, Message],
+      entities: [
+        ChatRoom,
+        ChatRoomUser,
+        Message,
+        Ability,
+        Role,
+        UserRole,
+        RoleAbility,
+        UserAbility,
+      ],
       synchronize: process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
     }),
@@ -80,6 +91,8 @@ import { JwtModule } from '@nestjs/jwt';
     PermissionCacheService,
     AuthClientService,
     ChatService,
+    UserCacheService,
+    DatabaseSeederService,
     // Guards
     PermissionGuard,
     // Middleware
@@ -90,6 +103,7 @@ import { JwtModule } from '@nestjs/jwt';
     MessageService,
     PermissionService,
     AuthClientService,
+    UserCacheService,
   ],
 })
 export class AppModule {}

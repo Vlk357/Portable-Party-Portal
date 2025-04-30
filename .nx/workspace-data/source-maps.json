@@ -1,0 +1,290 @@
+{
+  "party-portal/apps/frontend/chat": {
+    "root": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/chat-e2e": {
+    "root": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies.chat": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/chat-e2e/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/gallery": {
+    "root": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/gallery/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/gallery-e2e": {
+    "root": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies.gallery": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/gallery-e2e/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/shell": {
+    "root": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/shell-e2e": {
+    "root": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies.shell": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/shell-e2e/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/video": {
+    "root": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/video-e2e": {
+    "root": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies.video": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/video-e2e/project.json",
+      "nx/core/project-json"
+    ]
+  }
+}

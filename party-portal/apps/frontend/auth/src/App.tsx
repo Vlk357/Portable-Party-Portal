@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
-import type { LoginResponse, ErrorResponse } from './types';
+import type { LoginResponse } from './types/LoginResponse';
+import type { ErrorResponse } from './types/ErrorResponse';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -32,6 +33,7 @@ function App() {
       // Redirect or update UI state
       //TODO: Redirect to {chat, dashboard, ...}
       console.log('Login successful', data);
+      window.location.href = '/chat-app/';
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'An unexpected error occurred'

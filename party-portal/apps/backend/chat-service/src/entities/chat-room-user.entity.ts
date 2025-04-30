@@ -4,13 +4,11 @@ import {
   Column,
   ManyToOne,
   Unique,
-  Check,
 } from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
 
 @Entity()
-@Unique(['chat_room_id', 'user_id', 'joined_at'])
-@Check('left_at IS NULL OR left_by_user_id IS NOT NULL')
+@Unique(['chat_room_id', 'user_id'])
 export class ChatRoomUser {
   @PrimaryGeneratedColumn()
   id: number;

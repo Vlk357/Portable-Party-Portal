@@ -19,6 +19,6 @@ export class RoleAbility {
   @JoinColumn({ name: 'ability_id' })
   ability: Ability;
 
-  @Column({ name: 'expires_at', nullable: true })
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
   expiresAt: Date | null;
 }

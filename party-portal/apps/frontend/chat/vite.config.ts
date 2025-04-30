@@ -7,9 +7,14 @@ import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 export default defineConfig({
   root: __dirname,
   cacheDir: '../../../node_modules/.vite/apps/frontend/chat',
+  base: '/chat-app/',
   server: {
-    port: 4200,
-    host: 'localhost',
+    port: 5174, // Specify the port
+    host: '0.0.0.0', // Listen on all network interfaces within the container
+    // hmr: {
+    //   // Optional: configure HMR port if needed behind proxy
+    //   clientPort: 8080, // Port the browser connects to (Nginx)
+    // },
   },
   preview: {
     port: 4300,

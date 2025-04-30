@@ -9,7 +9,6 @@ import {
 import { ChatRoom } from './chat-room.entity';
 
 @Entity()
-@Check('thread_parent_id IS NULL OR show_in_main IS NOT NULL')
 @Check('deleted_at IS NULL OR deleted_by_user_id IS NOT NULL')
 export class Message {
   @PrimaryGeneratedColumn()

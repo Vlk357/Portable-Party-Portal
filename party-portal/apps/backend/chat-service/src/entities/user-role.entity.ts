@@ -14,6 +14,6 @@ export class UserRole {
   @PrimaryColumn({ name: 'role_id' })
   roleId: number;
 
-  @Column({ name: 'expires_at', nullable: true })
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
   expiresAt: Date | null;
 }

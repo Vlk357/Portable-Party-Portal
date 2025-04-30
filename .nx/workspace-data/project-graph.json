@@ -1,0 +1,162 @@
+{
+  "nodes": {
+    "gallery-e2e": {
+      "name": "gallery-e2e",
+      "type": "e2e",
+      "data": {
+        "root": "party-portal/apps/frontend/gallery-e2e",
+        "name": "gallery-e2e",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "application",
+        "sourceRoot": "apps/frontend/gallery-e2e/src",
+        "implicitDependencies": [
+          "gallery"
+        ],
+        "targets": {},
+        "tags": []
+      }
+    },
+    "shell-e2e": {
+      "name": "shell-e2e",
+      "type": "e2e",
+      "data": {
+        "root": "party-portal/apps/frontend/shell-e2e",
+        "name": "shell-e2e",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "application",
+        "sourceRoot": "apps/frontend/shell-e2e/src",
+        "implicitDependencies": [
+          "shell"
+        ],
+        "targets": {},
+        "tags": []
+      }
+    },
+    "video-e2e": {
+      "name": "video-e2e",
+      "type": "e2e",
+      "data": {
+        "root": "party-portal/apps/frontend/video-e2e",
+        "name": "video-e2e",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "application",
+        "sourceRoot": "apps/frontend/video-e2e/src",
+        "implicitDependencies": [
+          "video"
+        ],
+        "targets": {},
+        "tags": []
+      }
+    },
+    "chat-e2e": {
+      "name": "chat-e2e",
+      "type": "e2e",
+      "data": {
+        "root": "party-portal/apps/frontend/chat-e2e",
+        "name": "chat-e2e",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "application",
+        "sourceRoot": "apps/frontend/chat-e2e/src",
+        "implicitDependencies": [
+          "chat"
+        ],
+        "targets": {},
+        "tags": []
+      }
+    },
+    "gallery": {
+      "name": "gallery",
+      "type": "app",
+      "data": {
+        "root": "party-portal/apps/frontend/gallery",
+        "name": "gallery",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "sourceRoot": "apps/frontend/gallery/src",
+        "projectType": "application",
+        "tags": [],
+        "targets": {},
+        "implicitDependencies": []
+      }
+    },
+    "shell": {
+      "name": "shell",
+      "type": "app",
+      "data": {
+        "root": "party-portal/apps/frontend/shell",
+        "name": "shell",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "sourceRoot": "apps/frontend/shell/src",
+        "projectType": "application",
+        "tags": [],
+        "targets": {},
+        "implicitDependencies": []
+      }
+    },
+    "video": {
+      "name": "video",
+      "type": "app",
+      "data": {
+        "root": "party-portal/apps/frontend/video",
+        "name": "video",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "sourceRoot": "apps/frontend/video/src",
+        "projectType": "application",
+        "tags": [],
+        "targets": {},
+        "implicitDependencies": []
+      }
+    },
+    "chat": {
+      "name": "chat",
+      "type": "app",
+      "data": {
+        "root": "party-portal/apps/frontend/chat",
+        "name": "chat",
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+        "sourceRoot": "apps/frontend/chat/src",
+        "projectType": "application",
+        "tags": [],
+        "targets": {},
+        "implicitDependencies": []
+      }
+    }
+  },
+  "externalNodes": {},
+  "dependencies": {
+    "gallery-e2e": [
+      {
+        "source": "gallery-e2e",
+        "target": "gallery",
+        "type": "implicit"
+      }
+    ],
+    "shell-e2e": [
+      {
+        "source": "shell-e2e",
+        "target": "shell",
+        "type": "implicit"
+      }
+    ],
+    "video-e2e": [
+      {
+        "source": "video-e2e",
+        "target": "video",
+        "type": "implicit"
+      }
+    ],
+    "chat-e2e": [
+      {
+        "source": "chat-e2e",
+        "target": "chat",
+        "type": "implicit"
+      }
+    ],
+    "gallery": [],
+    "shell": [],
+    "video": [],
+    "chat": []
+  },
+  "version": "6.0",
+  "errors": [],
+  "computedAt": 1745929788780
+}

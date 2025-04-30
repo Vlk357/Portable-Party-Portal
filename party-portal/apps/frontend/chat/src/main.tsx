@@ -9,7 +9,7 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/chat-app">
       <App />
     </BrowserRouter>
   </StrictMode>

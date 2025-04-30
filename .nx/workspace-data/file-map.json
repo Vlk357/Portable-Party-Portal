@@ -1,0 +1,1208 @@
+{
+  "version": "6.0",
+  "nxVersion": "20.4.6",
+  "pathMappings": {},
+  "nxJsonPlugins": [],
+  "fileMap": {
+    "projectFileMap": {
+      "gallery-e2e": [
+        {
+          "file": "party-portal/apps/frontend/gallery-e2e/eslint.config.mjs",
+          "hash": "5280302858858144105"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery-e2e/playwright.config.ts",
+          "hash": "16940598749141775952"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery-e2e/project.json",
+          "hash": "8699941604817423860"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery-e2e/src/example.spec.ts",
+          "hash": "16019101014373124625"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery-e2e/tsconfig.json",
+          "hash": "5160412480480743211"
+        }
+      ],
+      "chat": [
+        {
+          "file": "party-portal/apps/frontend/chat/eslint.config.mjs",
+          "hash": "15939497770547279629"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/index.html",
+          "hash": "17870641590177197240"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/project.json",
+          "hash": "13782788720822676250"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/public/favicon.ico",
+          "hash": "9303420814833116677"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/app/app.module.css",
+          "hash": "8887387885984320532"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/app/app.spec.tsx",
+          "hash": "1843221260922281636"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/app/app.tsx",
+          "hash": "12733678002758232271"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/app/components/ChatList.tsx",
+          "hash": "2494729186810084382"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/app/nx-welcome.tsx",
+          "hash": "2348102959109701629"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/assets/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/main.tsx",
+          "hash": "3013053938963327753"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/src/styles.css",
+          "hash": "5195668842064076916"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/tsconfig.app.json",
+          "hash": "7491232085863067300"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/tsconfig.json",
+          "hash": "7240681206697848857"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/tsconfig.spec.json",
+          "hash": "3741829740194282106"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat/vite.config.ts",
+          "hash": "7237793563420628393"
+        }
+      ],
+      "video-e2e": [
+        {
+          "file": "party-portal/apps/frontend/video-e2e/eslint.config.mjs",
+          "hash": "5280302858858144105"
+        },
+        {
+          "file": "party-portal/apps/frontend/video-e2e/playwright.config.ts",
+          "hash": "18348771615583380182"
+        },
+        {
+          "file": "party-portal/apps/frontend/video-e2e/project.json",
+          "hash": "11140435489247932950"
+        },
+        {
+          "file": "party-portal/apps/frontend/video-e2e/src/example.spec.ts",
+          "hash": "16019101014373124625"
+        },
+        {
+          "file": "party-portal/apps/frontend/video-e2e/tsconfig.json",
+          "hash": "5160412480480743211"
+        }
+      ],
+      "chat-e2e": [
+        {
+          "file": "party-portal/apps/frontend/chat-e2e/eslint.config.mjs",
+          "hash": "5280302858858144105"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat-e2e/playwright.config.ts",
+          "hash": "16018332349588874056"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat-e2e/project.json",
+          "hash": "19010061604909380"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat-e2e/src/example.spec.ts",
+          "hash": "16019101014373124625"
+        },
+        {
+          "file": "party-portal/apps/frontend/chat-e2e/tsconfig.json",
+          "hash": "5160412480480743211"
+        }
+      ],
+      "shell": [
+        {
+          "file": "party-portal/apps/frontend/shell/eslint.config.mjs",
+          "hash": "15939497770547279629"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/index.html",
+          "hash": "14380390942840309832"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/project.json",
+          "hash": "535611127900841744"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/public/favicon.ico",
+          "hash": "9303420814833116677"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/app/app.module.css",
+          "hash": "8887387885984320532"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/app/app.spec.tsx",
+          "hash": "12875879617446338280"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/app/app.tsx",
+          "hash": "11459428703873593550"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/app/nx-welcome.tsx",
+          "hash": "2348102959109701629"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/assets/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/main.tsx",
+          "hash": "6494962159756833686"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/src/styles.css",
+          "hash": "5195668842064076916"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/tsconfig.app.json",
+          "hash": "7491232085863067300"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/tsconfig.json",
+          "hash": "7240681206697848857"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/tsconfig.spec.json",
+          "hash": "3741829740194282106"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell/vite.config.ts",
+          "hash": "8265569965843639876"
+        }
+      ],
+      "video": [
+        {
+          "file": "party-portal/apps/frontend/video/eslint.config.mjs",
+          "hash": "15939497770547279629"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/index.html",
+          "hash": "3425156076532226201"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/project.json",
+          "hash": "13240967136853475734"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/public/favicon.ico",
+          "hash": "9303420814833116677"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/app/app.module.css",
+          "hash": "8887387885984320532"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/app/app.spec.tsx",
+          "hash": "12330051037241496765"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/app/app.tsx",
+          "hash": "4655556597711008973"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/app/nx-welcome.tsx",
+          "hash": "2348102959109701629"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/assets/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/main.tsx",
+          "hash": "6494962159756833686"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/src/styles.css",
+          "hash": "5195668842064076916"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/tsconfig.app.json",
+          "hash": "7491232085863067300"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/tsconfig.json",
+          "hash": "7240681206697848857"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/tsconfig.spec.json",
+          "hash": "3741829740194282106"
+        },
+        {
+          "file": "party-portal/apps/frontend/video/vite.config.ts",
+          "hash": "3040370164202392457"
+        }
+      ],
+      "gallery": [
+        {
+          "file": "party-portal/apps/frontend/gallery/eslint.config.mjs",
+          "hash": "15939497770547279629"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/index.html",
+          "hash": "911290401318239502"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/project.json",
+          "hash": "18337665683020989942"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/public/favicon.ico",
+          "hash": "9303420814833116677"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/app/app.module.css",
+          "hash": "8887387885984320532"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/app/app.spec.tsx",
+          "hash": "13107805831835869310"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/app/app.tsx",
+          "hash": "7524772149070546920"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/app/nx-welcome.tsx",
+          "hash": "2348102959109701629"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/assets/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/main.tsx",
+          "hash": "6494962159756833686"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/src/styles.css",
+          "hash": "5195668842064076916"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/tsconfig.app.json",
+          "hash": "7491232085863067300"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/tsconfig.json",
+          "hash": "7240681206697848857"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/tsconfig.spec.json",
+          "hash": "3741829740194282106"
+        },
+        {
+          "file": "party-portal/apps/frontend/gallery/vite.config.ts",
+          "hash": "9405379956111793283"
+        }
+      ],
+      "shell-e2e": [
+        {
+          "file": "party-portal/apps/frontend/shell-e2e/eslint.config.mjs",
+          "hash": "5280302858858144105"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell-e2e/playwright.config.ts",
+          "hash": "16121087286505576952"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell-e2e/project.json",
+          "hash": "2126309929095007318"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell-e2e/src/example.spec.ts",
+          "hash": "16019101014373124625"
+        },
+        {
+          "file": "party-portal/apps/frontend/shell-e2e/tsconfig.json",
+          "hash": "5160412480480743211"
+        }
+      ]
+    },
+    "nonProjectFiles": [
+      {
+        "file": ".env.example",
+        "hash": "17400870010908351431"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "6009745988975286618"
+      },
+      {
+        "file": "README.md",
+        "hash": "8707203786040056876"
+      },
+      {
+        "file": "composer.json",
+        "hash": "16291227405548325123"
+      },
+      {
+        "file": "composer.lock",
+        "hash": "6543113111703026443"
+      },
+      {
+        "file": "config_backup/.env.dev",
+        "hash": "2282249501939178214"
+      },
+      {
+        "file": "config_backup/cache.yaml",
+        "hash": "16106074588961410566"
+      },
+      {
+        "file": "config_backup/doctrine.yaml",
+        "hash": "4398420288606667130"
+      },
+      {
+        "file": "config_backup/framework.yaml",
+        "hash": "17140226147922424649"
+      },
+      {
+        "file": "config_backup/lexik_jwt_authentication.yaml",
+        "hash": "14511699598921650489"
+      },
+      {
+        "file": "config_backup/postgres-init.sql",
+        "hash": "1018545263143900246"
+      },
+      {
+        "file": "config_backup/routes.yaml",
+        "hash": "2220918452933704969"
+      },
+      {
+        "file": "config_backup/routing.yaml",
+        "hash": "1661625581710846988"
+      },
+      {
+        "file": "config_backup/security.yaml",
+        "hash": "4070581671986423908"
+      },
+      {
+        "file": "config_backup/services.yaml",
+        "hash": "9414006072172271731"
+      },
+      {
+        "file": "databases/auth-service/init.sql",
+        "hash": "8829317072603541589"
+      },
+      {
+        "file": "databases/auth-service/migrations/001_initial_schema.sql",
+        "hash": "13629710205035708396"
+      },
+      {
+        "file": "databases/auth-service/seeds/001_default_roles.sql",
+        "hash": "9286505898802568123"
+      },
+      {
+        "file": "databases/chat-service/init.sql",
+        "hash": "15993380538625847305"
+      },
+      {
+        "file": "databases/postgres-init.sh",
+        "hash": "8007932722100787966"
+      },
+      {
+        "file": "devcontainer.json",
+        "hash": "15301515196982958209"
+      },
+      {
+        "file": "diagrams/auth_db.puml",
+        "hash": "15618067186521084323"
+      },
+      {
+        "file": "diagrams/chat_db.puml",
+        "hash": "2083046474067132610"
+      },
+      {
+        "file": "docker-compose.yaml",
+        "hash": "10946394563590028702"
+      },
+      {
+        "file": "docker/nginx/conf.d/default.conf",
+        "hash": "8882583272949371002"
+      },
+      {
+        "file": "docker/node/Dockerfile",
+        "hash": "1773551895479340244"
+      },
+      {
+        "file": "docker/node/chat.Dockerfile",
+        "hash": "18078008364276400722"
+      },
+      {
+        "file": "docker/php/Dockerfile",
+        "hash": "14547268619280860821"
+      },
+      {
+        "file": "nx.json",
+        "hash": "7909284089927788301"
+      },
+      {
+        "file": "package.json",
+        "hash": "14694197166229027504"
+      },
+      {
+        "file": "party-portal/.editorconfig",
+        "hash": "5443105041930014821"
+      },
+      {
+        "file": "party-portal/.gitignore",
+        "hash": "17737885269298436116"
+      },
+      {
+        "file": "party-portal/.prettierignore",
+        "hash": "14688272390704683536"
+      },
+      {
+        "file": "party-portal/.prettierrc",
+        "hash": "16267754514737964994"
+      },
+      {
+        "file": "party-portal/README.md",
+        "hash": "12800956438334467359"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/.env.test",
+        "hash": "8499304905555484034"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/.gitignore",
+        "hash": "9730172787050697941"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/bin/console",
+        "hash": "10472385722809525218"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/bin/phpunit",
+        "hash": "8792942040275893079"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/compose.override.yaml",
+        "hash": "14433196581825946438"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/compose.yaml",
+        "hash": "2736372727236541521"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/composer.json",
+        "hash": "1027528906794192926"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/composer.lock",
+        "hash": "8641026827876012269"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/bundles.php",
+        "hash": "9638946247104894796"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/cache.yaml",
+        "hash": "16106074588961410566"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/debug.yaml",
+        "hash": "8057140699656317186"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/doctrine.yaml",
+        "hash": "13631879395135764435"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/doctrine_migrations.yaml",
+        "hash": "16761131062488772080"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/framework.yaml",
+        "hash": "8821344172284408627"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/gesdinet_jwt_refresh_token.yaml",
+        "hash": "6678053391241124726"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/lexik_jwt_authentication.yaml",
+        "hash": "11258217170276014148"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/routing.yaml",
+        "hash": "1661625581710846988"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/security.yaml",
+        "hash": "4618289631310910347"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/packages/validator.yaml",
+        "hash": "7114289414821993845"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/preload.php",
+        "hash": "2133571642956139257"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/routes.yaml",
+        "hash": "3042631267231357344"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/routes/framework.yaml",
+        "hash": "10638836757559741604"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/routes/gesdinet_jwt_refresh_token.yaml",
+        "hash": "5105541779593057659"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/routes/security.yaml",
+        "hash": "15750044107750103535"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/config/services.yaml",
+        "hash": "11862224671875289630"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/migrations/.gitignore",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/migrations/Version20250429072828.php",
+        "hash": "18403709268624644366"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/phpcs.xml.dist",
+        "hash": "8541986024410495968"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/phpstan.dist.neon",
+        "hash": "8984404483066429499"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/phpunit.xml.dist",
+        "hash": "7707347010652135522"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/public/index.php",
+        "hash": "4985649622961797890"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Command/GenerateEntitiesCommand.php",
+        "hash": "5913984276094147231"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Command/InitDatabaseCommand.php",
+        "hash": "14937121772694474931"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Command/InstallAuditTriggersCommand.php",
+        "hash": "9426907171666499971"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Command/SetupDatabaseCommand.php",
+        "hash": "9913826298316832834"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Controller/AbilityController.php",
+        "hash": "5377881085010150341"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Controller/HealthController.php",
+        "hash": "10316198291546135511"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Controller/PermissionController.php",
+        "hash": "10000830679467289055"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Controller/SecurityController.php",
+        "hash": "16164735450141556223"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Controller/UserController.php",
+        "hash": "16202042652577050401"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/AbilityForServicesDTO.php",
+        "hash": "18369050513663806344"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/CreateAbilityDTO.php",
+        "hash": "7719758682181014383"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/CreateUserDTO.php",
+        "hash": "5953908938376670123"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/LoginDTO.php",
+        "hash": "10795804103251452822"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/ModulePermissionsDTO.php",
+        "hash": "7101474335165226885"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/RoleForServicesDTO.php",
+        "hash": "12329938688061212529"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/UpdateAbilityDTO.php",
+        "hash": "12216400321225749513"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/DTO/UserForServicesDTO.php",
+        "hash": "11885607269207074965"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/Ability.php",
+        "hash": "12789843376355316334"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/EntityInterface.php",
+        "hash": "13986644651000392346"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/LoginLog.php",
+        "hash": "3026457945826696049"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/RefreshToken.php",
+        "hash": "17500373485455191022"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/Role.php",
+        "hash": "14238625827116579308"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/RoleAbility.php",
+        "hash": "5291952399671108787"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/User.php",
+        "hash": "13859816867012307883"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/UserAbility.php",
+        "hash": "10179400961966951151"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Entity/UserRole.php",
+        "hash": "4585642342739953765"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Enum/ActionEnum.php",
+        "hash": "10004680488583818611"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Enum/ModuleEnum.php",
+        "hash": "15778735896747735571"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Enum/UserStatus.php",
+        "hash": "9869972458173595507"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Exception/DTOValidationException.php",
+        "hash": "5029957901383641658"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Exception/EntityNotFoundException.php",
+        "hash": "18320956445416998332"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Exception/PersistenceException.php",
+        "hash": "14122416206673858228"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Exception/ValidationException.php",
+        "hash": "8025254464779086005"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Kernel.php",
+        "hash": "231445180872855469"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/AbilityRepository.php",
+        "hash": "10317803989369651859"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/AbstractRepository.php",
+        "hash": "7305609851401851791"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/RepositoryInterface.php",
+        "hash": "8693780738342063252"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/RoleRepository.php",
+        "hash": "3257597122085823460"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/UserAbilityRepository.php",
+        "hash": "8812496349853612542"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Repository/UserRepository.php",
+        "hash": "18111426651461618374"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Security/AbilityVoter.php",
+        "hash": "17284432460595774516"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/DatabaseService.php",
+        "hash": "18103855281685461245"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/PasswordService.php",
+        "hash": "17706370718756672259"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/PermissionService.php",
+        "hash": "2576497115337434831"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/ServiceCredentialsManager.php",
+        "hash": "18287809556967408743"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/UserService.php",
+        "hash": "3797167130111827113"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Service/UserValidationService.php",
+        "hash": "3662766026758510333"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Validator/Constraints/ComplexPassword.php",
+        "hash": "5754352517723126194"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/Validator/Constraints/ComplexPasswordValidator.php",
+        "hash": "15293382408937508903"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/src/sql/audit_triggers.sql",
+        "hash": "15161745799726162112"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/symfony.lock",
+        "hash": "2419025247501785354"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/tests/Unit/Entity/UserTest.php",
+        "hash": "15611264770621109517"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/tests/api/curl.sh",
+        "hash": "14576200417616354942"
+      },
+      {
+        "file": "party-portal/apps/backend/auth-service/tests/bootstrap.php",
+        "hash": "9428648436228974326"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/.gitignore",
+        "hash": "12634402967133909834"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/.prettierrc",
+        "hash": "4808572120966128913"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/README.md",
+        "hash": "15638605504036519380"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/config/jwt/public.pem",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/eslint.config.mjs",
+        "hash": "13183347058815926503"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/nest-cli.json",
+        "hash": "789240945379598733"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/package-lock.json",
+        "hash": "5506240279998669596"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/package.json",
+        "hash": "13601737626069786844"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/app.controller.spec.ts",
+        "hash": "2727664763654384995"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/app.controller.ts",
+        "hash": "4552329938751326480"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/app.module.ts",
+        "hash": "2077093876058152989"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/app.service.ts",
+        "hash": "15627172643551019601"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/auth/auth.module.ts",
+        "hash": "9299108522399318908"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/auth/websocket-auth.middleware.ts",
+        "hash": "209846348698226915"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/cache/user-cache.service.ts",
+        "hash": "6637080025418895537"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/dtos/create-room.dto.ts",
+        "hash": "4657776091924938423"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/dtos/update-room.dto.ts",
+        "hash": "15676695724361904466"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/ability.entity.ts",
+        "hash": "18334267450525270197"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/chat-room-user.entity.ts",
+        "hash": "4663026125258198759"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/chat-room.entity.ts",
+        "hash": "14020960517893837008"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/message.entity.ts",
+        "hash": "3475532145034888321"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/role-ability.entity.ts",
+        "hash": "6262047447344487406"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/role.entity.ts",
+        "hash": "18351930253902502314"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/user-ability.entity.ts",
+        "hash": "6990328030972178135"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/entities/user-role.entity.ts",
+        "hash": "17921284884913811289"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/enums/action.enum.ts",
+        "hash": "4684671150269720389"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/enums/module.enum.ts",
+        "hash": "9387738077361928299"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/enums/resource.enum.ts",
+        "hash": "10012108692328589939"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/authentication.error.ts",
+        "hash": "12998704937557080822"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/chat.error.ts",
+        "hash": "5912023231833202227"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/delivery-status.error.ts",
+        "hash": "5498252479141730852"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/repository.error.ts",
+        "hash": "5202198756520389009"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/service.error.ts",
+        "hash": "16112327341763897237"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/errors/validation.error.ts",
+        "hash": "10850257446120601333"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/filters/ws-exception.filter.ts",
+        "hash": "4895791054398878767"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/gateways/chat.gateway.ts",
+        "hash": "11877517200104510878"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/guards/permission.guard.ts",
+        "hash": "2827896041491159237"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/ability-dto.interface.ts",
+        "hash": "4174626131420764936"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/ability.interface.ts",
+        "hash": "16508814415133794517"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/has-id.interface.ts",
+        "hash": "9861891037625155476"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/role-dto.interface.ts",
+        "hash": "1510344049771628114"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/role.interface.ts",
+        "hash": "18146638821024342536"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/service-permissions.interface.ts",
+        "hash": "17795456089488546664"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/soft-deletable.interface.ts",
+        "hash": "15348186876444980508"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/token-response.interface.ts",
+        "hash": "11419808605871290252"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/user-dto.interface.ts",
+        "hash": "17879167516999848295"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/interfaces/user-permission.interface.ts",
+        "hash": "17296127417750787956"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/main.ts",
+        "hash": "12872256721437642272"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/base.repository.ts",
+        "hash": "18012475206642833610"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/chat-room-user.repository.ts",
+        "hash": "12106778328841703444"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/chat-room.repository.ts",
+        "hash": "2954202329893940829"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/composite-key.repository.ts",
+        "hash": "11489222583465419032"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/message.repository.ts",
+        "hash": "15465074154842290508"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/permission.repository.ts",
+        "hash": "16308344721305183602"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/repositories/soft-delete.repository.ts",
+        "hash": "7924916993264118295"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/auth-client.service.ts",
+        "hash": "12196784058292631473"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/chat-room.service.ts",
+        "hash": "8503367417367960205"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/chat.service.ts",
+        "hash": "12414644493146981822"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/database-seeder.service.ts",
+        "hash": "15740898762434958707"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/message.service.ts",
+        "hash": "11046030642951218547"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/permission-cache.service.ts",
+        "hash": "11113466773091780930"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/services/permission.service.ts",
+        "hash": "11315639924991708154"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/src/tasks/permission-cleanup.service.ts",
+        "hash": "17423173953458714466"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/test/app.e2e-spec.ts",
+        "hash": "7164584812487523395"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/test/jest-e2e.json",
+        "hash": "7570273541430074424"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/tsconfig.build.json",
+        "hash": "276845246908739715"
+      },
+      {
+        "file": "party-portal/apps/backend/chat-service/tsconfig.json",
+        "hash": "2524085877700827349"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/.gitignore",
+        "hash": "13046175384202504187"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/README.md",
+        "hash": "6831436746312197211"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/eslint.config.js",
+        "hash": "16145672096969245511"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/index.html",
+        "hash": "4025202329384162906"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/package-lock.json",
+        "hash": "15637589356088316943"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/package.json",
+        "hash": "13265489860904526161"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/public/vite.svg",
+        "hash": "16046085400642193116"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/App.css",
+        "hash": "3739391659270974612"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/App.tsx",
+        "hash": "4615040911945698405"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/assets/react.svg",
+        "hash": "16069471864800376455"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/index.css",
+        "hash": "1112171730076044364"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/main.tsx",
+        "hash": "11038211546439381838"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/types/ErrorResponse.ts",
+        "hash": "4116286699429611178"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/types/LoginResponse.ts",
+        "hash": "13952208030389509699"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/src/vite-env.d.ts",
+        "hash": "12946363841406869089"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/tsconfig.app.json",
+        "hash": "2323919910019125824"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/tsconfig.json",
+        "hash": "14599338484690009070"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/tsconfig.node.json",
+        "hash": "703295692489528731"
+      },
+      {
+        "file": "party-portal/apps/frontend/auth/vite.config.ts",
+        "hash": "256854246733469389"
+      },
+      {
+        "file": "party-portal/eslint.config.mjs",
+        "hash": "3462096019013144053"
+      },
+      {
+        "file": "party-portal/nx.json",
+        "hash": "3164845251595496717"
+      },
+      {
+        "file": "party-portal/package-lock.json",
+        "hash": "13752740265083023606"
+      },
+      {
+        "file": "party-portal/package.json",
+        "hash": "15140298785106871602"
+      },
+      {
+        "file": "party-portal/tailwind.config.js",
+        "hash": "4966619567533659587"
+      },
+      {
+        "file": "party-portal/tsconfig.base.json",
+        "hash": "16936441711144470533"
+      },
+      {
+        "file": "party-portal/tsconfig.json",
+        "hash": "771047706739469355"
+      },
+      {
+        "file": "party-portal/vitest.workspace.ts",
+        "hash": "14023491222425291751"
+      }
+    ]
+  }
+}

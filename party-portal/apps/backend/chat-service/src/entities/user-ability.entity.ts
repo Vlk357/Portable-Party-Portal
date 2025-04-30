@@ -14,6 +14,6 @@ export class UserAbility {
   @PrimaryColumn({ name: 'ability_id' })
   abilityId: number;
 
-  @Column({ name: 'expires_at', nullable: true })
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
   expiresAt: Date | null;
 }

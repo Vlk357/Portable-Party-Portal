@@ -9,10 +9,25 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
+// Interfaces based on the example response
 interface UserListItem {
   id: number;
   username: string;
 }
+
+interface LoginResponse {
+  token: string;
+  refresh_token: string;
+  refresh_token_expiration: number; // Unix timestamp
+}
+
+interface RefreshResponse {
+  token: string;
+  refresh_token: string;
+}
+
+// Helper function for async delay
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Injectable()
 export class UserCacheService
@@ -21,73 +36,124 @@ export class UserCacheService
   private readonly logger = new Logger(UserCacheService.name);
   private userMap: Map<number, string> = new Map(); // Cache: ID -> Username
   private readonly authUrl: string;
-  private readonly authHeader: string;
+  private readonly serviceUsername: string;
+  private readonly servicePassword: string;
+  private jwtToken: string | null = null;
+  private refreshToken: string | null = null;
+  private isRefreshing = false; // Simple lock to prevent concurrent refreshes
   private readonly cacheInterval: number;
-  private intervalRef: NodeJS.Timeout | null = null; // To store interval reference
+  private intervalRef: NodeJS.Timeout | null = null;
+
+  // Retry configuration for initial login
+  private readonly INITIAL_LOGIN_MAX_RETRIES = 5;
+  private readonly INITIAL_LOGIN_RETRY_DELAY_MS = 3000; // 3 seconds
 
   constructor(private readonly httpService: HttpService) {
-    // Read directly from process.env
-    this.authUrl = process.env.AUTH_SERVICE_URL || 'http://nginx/auth';
-    const user = process.env.CHAT_SERVICE_AUTH_USER;
-    const pass = process.env.CHAT_SERVICE_AUTH_PASSWORD;
+    // Read configuration from environment variables
+    this.authUrl = process.env.AUTH_SERVICE_URL || 'http://nginx/auth'; // Adjust if needed (e.g., http://auth)
+    const user = process.env.CHAT_SERVICE_API_USER; // Read into temporary variable
+    const pass = process.env.CHAT_SERVICE_API_PASSWORD; // Read into temporary variable
     const intervalMsString = process.env.USER_CACHE_INTERVAL_MS;
 
-    // Basic validation
-    if (!this.authUrl) {
-      throw new Error('AUTH_SERVICE_URL environment variable is not set.');
-    }
-    if (!user) {
-      throw new Error(
-        'CHAT_SERVICE_AUTH_USER environment variable is not set.',
-      );
-    }
-    if (!pass) {
-      throw new Error(
-        'CHAT_SERVICE_AUTH_PASSWORD environment variable is not set.',
-      );
-    }
+    // --- Validation (Essential) ---
+    if (!this.authUrl) throw new Error('AUTH_SERVICE_URL not set.');
+    if (!user) throw new Error('CHAT_SERVICE_API_USER not set.'); // Validate temp variable
+    if (!pass) throw new Error('CHAT_SERVICE_API_PASSWORD not set.'); // Validate temp variable
+    // --- End Validation ---
 
-    // Encode credentials for Basic Authentication
-    const token = Buffer.from(`${user}:${pass}`, 'utf8').toString('base64');
-    this.authHeader = `Basic ${token}`;
+    // Assign validated values to properties AFTER validation
+    this.serviceUsername = user;
+    this.servicePassword = pass;
 
-    // Parse and validate interval, provide a default
-    const defaultInterval = 30 * 60 * 1000; // 30 minutes
+    // --- Interval setup (Keep as before) ---
+    const defaultInterval = 30 * 60 * 1000; // 30 minutes default
     this.cacheInterval = intervalMsString
       ? parseInt(intervalMsString, 10)
       : defaultInterval;
-    if (isNaN(this.cacheInterval) || this.cacheInterval < 5000) {
-      // Ensure minimum 5 seconds
+    if (isNaN(this.cacheInterval) || this.cacheInterval < 10000) {
+      // Min 10s
       this.logger.warn(
-        `Invalid or too small USER_CACHE_INTERVAL_MS. Using default: ${defaultInterval}ms`,
+        `Invalid USER_CACHE_INTERVAL_MS. Using default: ${defaultInterval}ms`,
       );
       this.cacheInterval = defaultInterval;
     }
-
     this.logger.log(`User cache interval set to ${this.cacheInterval}ms`);
+    // --- End Interval setup ---
   }
 
-  // Lifecycle hook to load cache on startup
+  // --- Lifecycle Hooks ---
   async onModuleInit() {
-    this.logger.log('Initializing user cache...');
-    await this.updateCache();
+    this.logger.log('Initializing user cache - attempting initial login...');
+    let loggedIn = false;
+    let attempts = 0;
+
+    while (!loggedIn && attempts < this.INITIAL_LOGIN_MAX_RETRIES) {
+      attempts++;
+      this.logger.log(
+        `Initial login attempt ${attempts}/${this.INITIAL_LOGIN_MAX_RETRIES}...`,
+      );
+      try {
+        loggedIn = await this.login();
+        if (loggedIn) {
+          this.logger.log('Initial login successful.');
+          await this.updateCache(); // Perform initial cache load if login succeeded
+        } else {
+          // login() returned false but didn't throw (e.g., 401 Unauthorized) - no point retrying this specific error
+          this.logger.error(
+            'Initial login failed with non-retryable error (e.g., bad credentials). Cache will not be populated initially.',
+          );
+          break; // Exit the retry loop
+        }
+      } catch (error) {
+        // Check if it's a potentially temporary error (like 502, 503, 504, connection refused)
+        const isRetryable =
+          error instanceof AxiosError &&
+          (!error.response || // Network error (connection refused, DNS, etc.)
+            (error.response.status >= 500 && error.response.status <= 504)); // Server/Gateway errors
+
+        if (isRetryable && attempts < this.INITIAL_LOGIN_MAX_RETRIES) {
+          this.logger.warn(
+            `Initial login attempt ${attempts} failed with retryable error (${error instanceof Error ? error.message : String(error)}). Retrying in ${this.INITIAL_LOGIN_RETRY_DELAY_MS / 1000}s...`,
+          );
+          await delay(this.INITIAL_LOGIN_RETRY_DELAY_MS);
+        } else {
+          // Non-retryable error or max retries reached
+          this.logger.error(
+            `Initial login failed after ${attempts} attempts. Cache will not be populated initially. Last error: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          // Log the original error from login() if it exists and wasn't logged deeply enough
+          if (
+            !(error instanceof AxiosError && error.response?.status === 401)
+          ) {
+            // Avoid double logging 401s
+            this.logAuthError(
+              'Final initial login attempt failed',
+              error,
+              `${this.authUrl}/api/login`,
+            );
+          }
+          break; // Exit the retry loop
+        }
+      }
+    }
+
+    if (!loggedIn && attempts >= this.INITIAL_LOGIN_MAX_RETRIES) {
+      this.logger.error(
+        `Initial login failed after exhausting all ${this.INITIAL_LOGIN_MAX_RETRIES} retries. Cache will not be populated initially.`,
+      );
+    }
   }
 
-  // Remove @Interval decorator if using dynamic interval below
-
-  // Set the interval dynamically after bootstrap
   onApplicationBootstrap() {
     this.logger.log(
       `Setting up dynamic interval for user cache update (${this.cacheInterval}ms)`,
     );
-    // Clear previous interval if exists (e.g., during hot-reloads)
-    if (this.intervalRef) {
-      clearInterval(this.intervalRef);
-    }
+    if (this.intervalRef) clearInterval(this.intervalRef);
 
+    // Use void operator to ignore the promise returned by updateCache inside the callback
     this.intervalRef = setInterval(() => {
-      this.updateCache().catch((err) => {
-        // Log errors specifically from the interval execution that weren't caught inside updateCache
+      void this.updateCache().catch((err) => {
+        // Add void here
         this.logger.error(
           `Unhandled error during scheduled cache update: ${err instanceof Error ? err.message : String(err)}`,
           err instanceof Error ? err.stack : undefined,
@@ -96,33 +162,175 @@ export class UserCacheService
     }, this.cacheInterval);
   }
 
-  // Optional: Clear interval on shutdown
   onModuleDestroy() {
     if (this.intervalRef) {
       this.logger.log('Clearing user cache update interval.');
       clearInterval(this.intervalRef);
     }
   }
+  // --- End Lifecycle Hooks ---
 
+  // --- Authentication Methods ---
+  private async login(): Promise<boolean> {
+    const loginEndpoint = `${this.authUrl}/api/login`; // Use the correct login path
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<LoginResponse>(
+          loginEndpoint,
+          {
+            username: this.serviceUsername,
+            password: this.servicePassword,
+          },
+          { timeout: 15000 }, // Increased timeout for login
+        ),
+      );
+
+      if (
+        response.status === 200 &&
+        response.data?.token &&
+        response.data?.refresh_token
+      ) {
+        this.jwtToken = response.data.token;
+        this.refreshToken = response.data.refresh_token;
+        return true;
+      } else {
+        this.logger.error(
+          `Service login failed. Status: ${response.status}. Data: ${JSON.stringify(response.data)}`,
+        );
+        this.clearTokens();
+        return false; // Indicate non-exception failure (e.g., 401)
+      }
+    } catch (error) {
+      // Don't log generic error here, let the caller (onModuleInit) handle logging based on retry logic
+      this.clearTokens();
+      // Re-throw the error so the caller knows an exception occurred
+      throw error;
+    }
+  }
+
+  private async refreshTokens(): Promise<boolean> {
+    if (!this.refreshToken) {
+      this.logger.warn('Cannot refresh tokens: No refresh token available.');
+      return false;
+    }
+    if (this.isRefreshing) {
+      this.logger.warn('Token refresh already in progress. Skipping.');
+      return false; // Or wait for the existing refresh to complete
+    }
+
+    this.isRefreshing = true;
+    const refreshEndpoint = `${this.authUrl}/api/token/refresh`;
+    this.logger.log(`Attempting to refresh tokens at ${refreshEndpoint}`);
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<RefreshResponse>(
+          refreshEndpoint,
+          { refresh_token: this.refreshToken },
+          { timeout: 10000 },
+        ),
+      );
+
+      if (
+        response.status === 200 &&
+        response.data?.token &&
+        response.data?.refresh_token
+      ) {
+        this.jwtToken = response.data.token;
+        this.refreshToken = response.data.refresh_token;
+        this.logger.log('Token refresh successful. New tokens stored.');
+        this.isRefreshing = false;
+        return true;
+      } else {
+        this.logger.error(
+          `Token refresh failed. Status: ${response.status}. Data: ${JSON.stringify(response.data)}`,
+        );
+        // If refresh fails (e.g., refresh token expired), force re-login next time
+        this.clearTokens();
+        this.isRefreshing = false;
+        return false;
+      }
+    } catch (error) {
+      this.logAuthError('Token refresh failed', error, refreshEndpoint);
+      // Assume refresh token is invalid, clear all tokens to force re-login
+      this.clearTokens();
+      this.isRefreshing = false;
+      return false;
+    }
+  }
+
+  /** Ensures a valid JWT is available, attempting refresh or login if necessary. */
+  private async ensureValidToken(): Promise<boolean> {
+    if (this.jwtToken) {
+      // Basic check: token exists. Could add expiry check here if needed.
+      return true;
+    }
+
+    this.logger.warn('No valid JWT token found. Attempting recovery...');
+
+    // Try refreshing first if possible
+    if (this.refreshToken) {
+      const refreshed = await this.refreshTokens();
+      if (refreshed) return true;
+      // If refresh failed, fall through to login
+      this.logger.warn('Token refresh failed. Attempting full login.');
+    } else {
+      this.logger.warn('No refresh token available. Attempting full login.');
+    }
+
+    // Attempt full login as a last resort
+    // Note: This login call within ensureValidToken does NOT have the retry logic.
+    // The retry logic is primarily for the *initial* startup sequence in onModuleInit.
+    // If ensureValidToken fails here, subsequent calls might retry if the root cause was temporary.
+    try {
+      const loggedIn = await this.login();
+      return loggedIn;
+    } catch (error) {
+      // Log the error from this specific login attempt if needed
+      this.logAuthError(
+        'Login attempt within ensureValidToken failed',
+        error,
+        `${this.authUrl}/api/login`,
+      );
+      return false;
+    }
+  }
+
+  private clearTokens(): void {
+    this.jwtToken = null;
+    this.refreshToken = null;
+  }
+  // --- End Authentication Methods ---
+
+  // --- Cache Update Logic ---
   async updateCache(): Promise<void> {
-    this.logger.log('Attempting to update user cache...');
-    const endpoint = `${this.authUrl}/user/list`; // Target the new endpoint
+    // Ensure we have a valid token before proceeding
+    const hasToken = await this.ensureValidToken();
+    if (!hasToken) {
+      this.logger.error(
+        'Cannot update cache: Failed to obtain a valid authentication token.',
+      );
+      return; // Abort update if no token could be obtained
+    }
+
+    this.logger.log('Attempting to update user cache using JWT...');
+    const endpoint = `${this.authUrl}/api/user/list`; // Ensure this endpoint exists
 
     try {
       const response = await firstValueFrom(
         this.httpService.get<UserListItem[]>(endpoint, {
           headers: {
-            Authorization: this.authHeader,
+            Authorization: `Bearer ${this.jwtToken}`, // Use JWT
             Accept: 'application/json',
           },
-          timeout: 10000, // Example timeout: 10 seconds
+          timeout: 10000,
         }),
       );
 
+      // --- Process successful response (Keep as before) ---
       if (response.status === 200 && Array.isArray(response.data)) {
         const newUserMap = new Map<number, string>();
         for (const user of response.data) {
-          // Basic validation of received data
           if (
             typeof user?.id === 'number' &&
             typeof user?.username === 'string'
@@ -134,9 +342,7 @@ export class UserCacheService
             );
           }
         }
-
-        // Atomically replace the map
-        this.userMap = newUserMap;
+        this.userMap = newUserMap; // Atomic update
         this.logger.log(
           `User cache updated successfully with ${this.userMap.size} users.`,
         );
@@ -144,42 +350,69 @@ export class UserCacheService
         this.logger.error(
           `Failed to update user cache. Auth service responded with status ${response.status}. Data: ${JSON.stringify(response.data)}`,
         );
-        // Keep stale cache on non-200 response
       }
+      // --- End Process successful response ---
     } catch (error) {
-      // Keep stale cache on error
-      if (error instanceof AxiosError) {
-        this.logger.error(
-          `Error updating user cache (AxiosError): ${error.message}. Status: ${error.response?.status}. Endpoint: ${endpoint}`,
-          error.stack,
+      // --- Error Handling ---
+      if (error instanceof AxiosError && error.response?.status === 401) {
+        // Unauthorized - Token likely expired or invalid
+        this.logger.warn(
+          'Received 401 Unauthorized during cache update. Clearing JWT token to force refresh/login on next attempt.',
         );
-      } else if (error instanceof Error) {
-        this.logger.error(
-          `Error updating user cache: ${error.message}. Endpoint: ${endpoint}`,
-          error.stack,
-        );
+        this.jwtToken = null; // Clear only JWT, keep refresh token to attempt refresh
       } else {
-        this.logger.error(
-          `Unknown error updating user cache. Endpoint: ${endpoint}`,
-          error,
-        );
+        // Log other errors
+        this.logAuthError('Error updating user cache', error, endpoint);
       }
       this.logger.warn('User cache update failed. Keeping stale data.');
+      // --- End Error Handling ---
+    }
+  }
+  // --- End Cache Update Logic ---
+
+  // --- Utility and Public Methods ---
+  private logAuthError(
+    message: string,
+    error: unknown,
+    endpoint: string,
+  ): void {
+    if (error instanceof AxiosError) {
+      this.logger.error(
+        `${message} (AxiosError): ${error.message}. Status: ${error.response?.status}. Endpoint: ${endpoint}`,
+        error.stack, // Include stack trace for Axios errors too
+      );
+    } else if (error instanceof Error) {
+      this.logger.error(
+        `${message}: ${error.message}. Endpoint: ${endpoint}`,
+        error.stack,
+      );
+    } else {
+      this.logger.error(
+        `${message} (Unknown Error). Endpoint: ${endpoint}`,
+        error,
+      );
     }
   }
 
-  /**
-   * Gets the username for a given user ID from the cache.
-   * Returns undefined if the user is not found in the cache.
-   */
   getUsernameById(id: number): string | undefined {
     return this.userMap.get(id);
   }
 
-  /**
-   * Gets a read-only copy of the entire user cache map.
-   */
   getUserMap(): ReadonlyMap<number, string> {
     return this.userMap;
   }
+
+  /** Checks if the service has successfully logged in (has a JWT token). */
+  isReady(): boolean {
+    // Consider adding a check if the userMap has been populated at least once?
+    // return !!this.jwtToken && this.userMap.size > 0;
+    return !!this.jwtToken;
+  }
+
+  /** Returns the username configured for this service. */
+  getServiceUsername(): string {
+    return this.serviceUsername;
+  }
+
+  // --- End Utility and Public Methods ---
 }

@@ -17,13 +17,13 @@ export class Ability {
   @Column({ type: 'enum', enum: ResourceEnum })
   resource: ResourceEnum;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   resourceConstraint: number | null;
 
   @Column({ type: 'enum', enum: ActionEnum })
   action: ActionEnum;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   description: string | null;
 
   @Column({
