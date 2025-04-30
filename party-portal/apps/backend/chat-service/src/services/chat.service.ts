@@ -49,7 +49,7 @@ export class ChatService {
             // Get latest messages (limited to 20 for initial load)
             const messages = await this.messageService.getRoomMessages(
               room.id,
-              20,
+              10,
             );
 
             // Store messages in response

@@ -374,7 +374,7 @@ export class ChatRoomService {
     }
   }
 
-  async ensureGeneralChatExists(chatServiceId: number): Promise<number> {
+  /*   async ensureGeneralChatExists(chatServiceId: number): Promise<number> {
     const GENERAL_CHAT_NAME = process.env.GENERAL_CHAT_NAME
       ? `${process.env.GENERAL_CHAT_NAME}`
       : 'General';
@@ -422,7 +422,7 @@ export class ChatRoomService {
       throw error;
     }
     throw Error('General chat existence was not ensured');
-  }
+  } */
 
   async getRoom(id: number): Promise<ChatRoom | null> {
     try {

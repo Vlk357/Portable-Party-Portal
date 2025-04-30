@@ -16,43 +16,35 @@ export class WebSocketAuthMiddleware {
 
   constructor(private readonly jwtService: JwtService) {}
 
-  authenticate(client: Socket): Promise<number> {
-    return Promise.resolve().then(() => {
-      // Get token from handshake
-      const authToken = this.getAuthToken(client);
+  async authenticate(client: Socket): Promise<number> {
+    await Promise.resolve();
+    // Get token from handshake
+    const authToken = this.getAuthToken(client);
+    if (!authToken) {
+      this.logger.warn('No authentication token provided');
+      throw new WsException('No authentication token provided');
+    }
+    // Verify the JWT token with proper typing
+    const decodedToken = this.jwtService.verify<JwtPayload>(authToken);
+    // Check if token is valid
+    if (!decodedToken) {
+      this.logger.warn('Token verification failed');
+      throw new WsException('Invalid token');
+    }
 
-      if (!authToken) {
-        this.logger.warn('No authentication token provided');
-        throw new WsException('No authentication token provided');
-      }
-
-      // Verify the JWT token with proper typing
-      const decodedToken = this.jwtService.verify<JwtPayload>(authToken);
-
-      // Check if token is valid
-      if (!decodedToken) {
-        this.logger.warn('Token verification failed');
-        throw new WsException('Invalid token');
-      }
-
-      // Validate payload structure
-      if (!this.hasValidSub(decodedToken)) {
-        this.logger.warn('Invalid token payload structure');
-        throw new WsException('Invalid token payload');
-      }
-
-      // Convert user ID to number safely
-      const userId = this.extractUserId(decodedToken.sub);
-
-      if (isNaN(userId)) {
-        this.logger.warn(
-          `Invalid user ID in token: ${String(decodedToken.sub)}`,
-        );
-        throw new WsException('Invalid user ID in token');
-      }
-
-      return userId;
-    });
+    this.logger.log(decodedToken);
+    // Validate payload structure
+    if (!this.hasValidSub(decodedToken)) {
+      this.logger.warn('Invalid token payload structure');
+      throw new WsException('Invalid token payload');
+    }
+    // Convert user ID to number safely
+    const userId = this.extractUserId(decodedToken.sub);
+    if (isNaN(userId)) {
+      this.logger.warn(`Invalid user ID in token: ${String(decodedToken.sub)}`);
+      throw new WsException('Invalid user ID in token');
+    }
+    return userId;
   }
 
   private getAuthToken(client: Socket): string | undefined {

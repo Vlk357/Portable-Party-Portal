@@ -1,1 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
+@import "tailwindcss/preflight";
+@tailwind utilities;
+@tailwind utilities;
+
+/* Your other global styles can go below */
+body {
+  /* Example global style */
+  font-family: sans-serif;
+}

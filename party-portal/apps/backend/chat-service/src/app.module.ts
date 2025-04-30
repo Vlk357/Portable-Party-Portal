@@ -10,7 +10,7 @@ import { ChatRoomService } from './services/chat-room.service';
 import { MessageRepository } from './repositories/message.repository';
 import { MessageService } from './services/message.service';
 import { ChatRoomUserRepository } from './repositories/chat-room-user.repository';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config'; // Import ConfigService
 import { HttpModule } from '@nestjs/axios';
 import { PermissionService } from './services/permission.service';
 import { AuthClientService } from './services/auth-client.service';
@@ -29,6 +29,8 @@ import { WebSocketAuthMiddleware } from './auth/websocket-auth.middleware';
 import { JwtModule } from '@nestjs/jwt';
 import { DatabaseSeederService } from './services/database-seeder.service';
 import { UserCacheService } from './cache/user-cache.service';
+import * as fs from 'fs'; // Import fs
+import * as path from 'path'; // Import path
 
 @Module({
   imports: [
@@ -70,8 +72,31 @@ import { UserCacheService } from './cache/user-cache.service';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
+    JwtModule.registerAsync({
+      imports: [ConfigModule], // Make ConfigService available
+      useFactory: (configService: ConfigService) => {
+        const publicKeyPath = configService.get<string>('JWT_PUBLIC_KEY_PATH');
+        if (!publicKeyPath) {
+          throw new Error('JWT_PUBLIC_KEY_PATH environment variable not set.');
+        }
+        const absolutePath = path.resolve(publicKeyPath);
+        try {
+          const publicKey = fs.readFileSync(absolutePath, 'utf8'); // Synchronous read
+          return {
+            publicKey: publicKey,
+            verifyOptions: { algorithms: ['RS256'] }, // Specify algorithm for verification
+          };
+        } catch (error) {
+          console.error(
+            `Error reading JWT public key from ${absolutePath}:`,
+            error,
+          );
+          throw new Error(
+            `Could not read JWT public key file at ${absolutePath}`,
+          );
+        }
+      },
+      inject: [ConfigService], // Inject ConfigService
     }),
   ],
   controllers: [AppController],
@@ -104,6 +129,9 @@ import { UserCacheService } from './cache/user-cache.service';
     PermissionService,
     AuthClientService,
     UserCacheService,
+    // --- Export JwtModule if needed by other modules ---
+    JwtModule,
+    WebSocketAuthMiddleware, // Export middleware if needed elsewhere
   ],
 })
 export class AppModule {}
