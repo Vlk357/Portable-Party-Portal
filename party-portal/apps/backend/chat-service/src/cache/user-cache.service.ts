@@ -8,6 +8,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
+import { WebSocketAuthMiddleware } from 'src/auth/websocket-auth.middleware';
 
 // Interfaces based on the example response
 interface UserListItem {
@@ -43,12 +44,16 @@ export class UserCacheService
   private isRefreshing = false; // Simple lock to prevent concurrent refreshes
   private readonly cacheInterval: number;
   private intervalRef: NodeJS.Timeout | null = null;
+  private serviceUserId: number | null = null; // Add a property to store the ID
 
   // Retry configuration for initial login
-  private readonly INITIAL_LOGIN_MAX_RETRIES = 5;
-  private readonly INITIAL_LOGIN_RETRY_DELAY_MS = 3000; // 3 seconds
+  private readonly INITIAL_LOGIN_MAX_RETRIES = 10;
+  private readonly INITIAL_LOGIN_RETRY_DELAY_MS = 5000;
 
-  constructor(private readonly httpService: HttpService) {
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly authMiddleware: WebSocketAuthMiddleware,
+  ) {
     // Read configuration from environment variables
     this.authUrl = process.env.AUTH_SERVICE_URL || 'http://nginx/auth'; // Adjust if needed (e.g., http://auth)
     const user = process.env.CHAT_SERVICE_API_USER; // Read into temporary variable
@@ -96,6 +101,22 @@ export class UserCacheService
         loggedIn = await this.login();
         if (loggedIn) {
           this.logger.log('Initial login successful.');
+          if (this.jwtToken) {
+            const extractedId = this.authMiddleware.getUserIdFromToken(
+              this.jwtToken,
+            );
+            if (extractedId !== null) {
+              this.serviceUserId = extractedId;
+              this.logger.log(
+                `Successfully extracted service user ID from initial JWT: ${this.serviceUserId}`,
+              );
+            } else {
+              // Log error if extraction failed despite having a token
+              this.logger.error(
+                'Initial login succeeded, but failed to extract user ID from the JWT.',
+              );
+            }
+          }
           await this.updateCache(); // Perform initial cache load if login succeeded
         } else {
           // login() returned false but didn't throw (e.g., 401 Unauthorized) - no point retrying this specific error
@@ -412,6 +433,21 @@ export class UserCacheService
   /** Returns the username configured for this service. */
   getServiceUsername(): string {
     return this.serviceUsername;
+  }
+
+  /**
+   * Returns the cached ID of the service user used by this service instance.
+   * Returns null if the service hasn't logged in successfully or couldn't find its own ID yet.
+   */
+  public getServiceUserId(): number | null {
+    // Ensure this is called only after the service is likely initialized and logged in.
+    // The null check handles cases where the ID hasn't been found/cached yet.
+    if (this.serviceUserId === null) {
+      this.logger.warn(
+        'getServiceUserId() called but serviceUserId is null. Cache might not be ready or ID not found.',
+      );
+    }
+    return this.serviceUserId;
   }
 
   // --- End Utility and Public Methods ---

@@ -83,17 +83,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      // Authenticate the socket connection
       const userId = await this.wsAuthMiddleware.authenticate(client);
-
-      // Setup user connection with authenticated ID
       const authClient = this.setupUserConnection(client, userId);
 
-      // Get rooms the user has permission to access
+      // Get rooms the user has permission to access initially
       const permittedRooms =
         await this.chatService.getUserPermittedRooms(userId);
+      const permittedRoomIds = permittedRooms.map((room) => room.roomId);
 
-      await this.ensureUserInGeneralChat(permittedRooms, userId);
+      // Call the service method to ensure membership in the General room
+      const generalRoomId =
+        await this.chatRoomService.ensureUserMembershipInGeneralRoom(
+          userId,
+          permittedRoomIds, // Pass only the IDs
+        );
+
+      // If the user was added to the General room, ensure the socket joins it
+      if (generalRoomId && !permittedRoomIds.includes(generalRoomId)) {
+        this.logger.log(
+          `Joining user ${userId} (socket ${authClient.id}) to newly added General room ${generalRoomId}`,
+        );
+        await authClient.join(`room:${generalRoomId}`);
+        // Optionally, add the general room to the permittedRooms list if needed later
+        // permittedRooms.push({ roomId: generalRoomId /* add other fields if needed */ });
+      }
 
       // Join all permitted rooms
       for (const room of permittedRooms) {
@@ -132,57 +145,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Send the appropriate error message to the client
       client.emit('error', { message: errorMessage });
       client.disconnect();
-    }
-  }
-  async ensureUserInGeneralChat(
-    permittedRooms: { roomId: number }[],
-    userId: number,
-  ) {
-    const generalRoom = await this.chatRoomService.getRoom(1);
-    if (!generalRoom) {
-      this.logger.error(
-        `Critical: General room (room with id 1) not found. Cannot ensure user membership.`,
-      );
-    }
-
-    if (generalRoom) {
-      const isMemberOfGeneral = permittedRooms.some(
-        (room) => room.roomId === generalRoom.id,
-      );
-
-      if (!isMemberOfGeneral) {
-        this.logger.log(
-          `User ${userId} is not in General room (${generalRoom.id}). Adding...`,
-        );
-        try {
-          // Add user to room membership in DB
-          await this.chatRoomService.addUserToRoom(generalRoom.id, userId);
-
-          // Assign the basic role for the general room
-          const generalRoomRoleName = `CHAT_ROOM_${generalRoom.id}_USER`;
-          await this.permissionService.assignRole(userId, generalRoomRoleName);
-          this.logger.log(
-            `Assigned role ${generalRoomRoleName} to user ${userId}`,
-          );
-
-          // Add general room to the list for joining socket room
-          // Fetch the room details again or construct a minimal object
-          // Assuming getUserPermittedRooms returns objects with at least roomId
-          permittedRooms.push({
-            roomId: generalRoom.id /*, add other fields if needed */,
-          });
-        } catch (addError) {
-          this.logger.error(
-            `Failed to add user ${userId} to General room ${generalRoom.id}: ${addError instanceof Error ? addError.message : String(addError)}`,
-          );
-          // Decide how to proceed: disconnect, or continue without general room?
-          // For now, log and continue. The user might lack permissions later.
-        }
-      }
-    } else {
-      this.logger.warn(
-        `Skipping General room check for user ${userId} as the room was not found.`,
-      );
     }
   }
 

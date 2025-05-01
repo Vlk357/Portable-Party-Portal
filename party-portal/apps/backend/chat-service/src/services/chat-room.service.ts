@@ -15,6 +15,7 @@ import { PermissionService } from './permission.service';
 import { ModuleEnum } from 'src/enums/module.enum';
 import { ResourceEnum } from 'src/enums/resource.enum';
 import { ActionEnum } from 'src/enums/action.enum';
+import { UserCacheService } from 'src/cache/user-cache.service';
 
 // Define the structure for update data if not using DTOs directly in service
 interface UpdateRoomData {
@@ -32,6 +33,7 @@ export class ChatRoomService {
     private readonly chatRoomUserRepository: ChatRoomUserRepository,
     private readonly permissionService: PermissionService,
     private readonly configService: ConfigService,
+    private readonly userCacheService: UserCacheService,
   ) {}
 
   // REMOVE onModuleInit method
@@ -396,12 +398,16 @@ export class ChatRoomService {
    */
   async getGeneralRoom(): Promise<ChatRoom | null> {
     // This logic remains the same, relying on the config for lookup
-    const generalRoomAdminUserId = parseInt(
-      this.configService.get<string>('GENERAL_CHAT_ADMIN_USER_ID', '1'),
-      10,
-    ); // Default to 1 or another appropriate system ID
+    const serviceUserId = this.userCacheService.getServiceUserId();
 
-    if (isNaN(generalRoomAdminUserId)) {
+    if (serviceUserId === null) {
+      this.logger.error(
+        `Cannot find General room: Service user ID is not available from UserCacheService. Cache might not be ready or login failed.`,
+      );
+      return null; // Cannot proceed without the ID
+    }
+
+    if (isNaN(serviceUserId)) {
       this.logger.error(
         `Invalid GENERAL_CHAT_ADMIN_USER_ID configured. Cannot find General room.`,
       );
@@ -410,28 +416,109 @@ export class ChatRoomService {
 
     try {
       const potentialGeneralRooms =
-        await this.chatRoomRepository.findUserCreatedRooms(
-          generalRoomAdminUserId,
-        );
+        await this.chatRoomRepository.findUserCreatedRooms(serviceUserId);
 
       if (potentialGeneralRooms.length === 0) {
         this.logger.error(
-          `No chat room found created by the designated General Room Admin User (ID: ${generalRoomAdminUserId}). Check seeder and config.`,
+          `No chat room found created by the designated General Room Admin User (ID: ${serviceUserId}). Check seeder and config.`,
         );
         return null;
       }
 
       if (potentialGeneralRooms.length > 1) {
         this.logger.warn(
-          `Multiple chat rooms found created by the designated General Room Admin User (ID: ${generalRoomAdminUserId}). Returning the first one found (ID: ${potentialGeneralRooms[0].id}). Ensure only one room is created by this user.`,
+          `Multiple chat rooms found created by the designated General Room Admin User (ID: ${serviceUserId}). Returning the first one found (ID: ${potentialGeneralRooms[0].id}). Ensure only one room is created by this user.`,
         );
       }
       return potentialGeneralRooms[0];
     } catch (error) {
       this.logger.error(
-        `Error finding General room by creator ID ${generalRoomAdminUserId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding General room by creator ID ${serviceUserId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return null;
+    }
+  }
+
+  /**
+   * Ensures a user is a member of the designated General chat room.
+   * If the user is not a member, they are added and assigned the basic USER role.
+   * This method relies on getGeneralRoom() to identify the correct room.
+   *
+   * @param userId The ID of the user to check and potentially add.
+   * @param currentPermittedRoomIds A list of room IDs the user already has access to.
+   * @returns The ID of the General room if found and the user is now a member, otherwise null.
+   */
+  async ensureUserMembershipInGeneralRoom(
+    userId: number,
+    currentPermittedRoomIds: number[] = [],
+  ): Promise<number | null> {
+    const generalRoom = await this.getGeneralRoom(); // Use the correct lookup method
+
+    if (!generalRoom) {
+      this.logger.error(
+        `Critical: General room could not be found based on creator ID. Cannot ensure user ${userId} membership. Check service logs and configuration.`,
+      );
+      return null; // Indicate failure or room not found
+    }
+
+    let permittedIdsToCheck: number[];
+    if (currentPermittedRoomIds && currentPermittedRoomIds.length > 0) {
+      permittedIdsToCheck = currentPermittedRoomIds;
+      this.logger.debug(`Using provided permitted room IDs for user ${userId}`);
+    } else {
+      this.logger.debug(`Fetching permitted room IDs for user ${userId}`);
+      try {
+        const rooms = await this.getRoomsForUser(userId); // Await the promise
+        permittedIdsToCheck = rooms.map((room) => room.id); // Map ChatRoom[] to number[]
+      } catch (fetchError) {
+        this.logger.error(
+          `Failed to fetch rooms for user ${userId} to check General room membership: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
+        );
+        // Decide how to handle - maybe return null or throw? Returning null for now.
+        return null;
+      }
+    }
+
+    const isMemberOfGeneral = permittedIdsToCheck.includes(generalRoom.id);
+
+    if (!isMemberOfGeneral) {
+      this.logger.log(
+        `User ${userId} is not in General room (${generalRoom.id}). Adding...`,
+      );
+      try {
+        // Add user to room membership in DB
+        await this.addUserToRoom(generalRoom.id, userId);
+
+        // Assign the basic role for the general room
+        const generalRoomRoleName = `CHAT_ROOM_${generalRoom.id}_USER`;
+        // Check if user already has the role before assigning (optional but good practice)
+        const hasRole = await this.permissionService.userHasRole(
+          userId,
+          generalRoomRoleName,
+        );
+        if (!hasRole) {
+          await this.permissionService.assignRole(userId, generalRoomRoleName);
+          this.logger.log(
+            `Assigned role ${generalRoomRoleName} to user ${userId}`,
+          );
+        } else {
+          this.logger.log(
+            `User ${userId} already has role ${generalRoomRoleName}. Skipping assignment.`,
+          );
+        }
+
+        // Return the room ID so the gateway knows to join the socket
+        return generalRoom.id;
+      } catch (addError) {
+        this.logger.error(
+          `Failed to add user ${userId} to General room ${generalRoom.id}: ${addError instanceof Error ? addError.message : String(addError)}`,
+        );
+        // Return null on failure to add
+        return null;
+      }
+    } else {
+      // User is already a member, return the room ID for consistency
+      return generalRoom.id;
     }
   }
 }

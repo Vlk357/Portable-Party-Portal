@@ -91,4 +91,58 @@ export class WebSocketAuthMiddleware {
     }
     return sub;
   }
+
+  /**
+   * Decodes a JWT token string and extracts the user ID from the 'sub' claim.
+   * Does not verify the token's signature or expiration.
+   * Logs warnings/errors if decoding fails or the 'sub' claim is invalid/missing.
+   *
+   * @param jwtToken The JWT token string.
+   * @returns The user ID as a number, or null if extraction fails.
+   */
+  public getUserIdFromToken(jwtToken: string): number | null {
+    try {
+      // Decode the token string into a payload object
+      // Assign to 'unknown' first to satisfy ESLint
+      const decoded: unknown = this.jwtService.decode(jwtToken);
+
+      // Check if decoding resulted in a non-null object
+      if (typeof decoded !== 'object' || decoded === null) {
+        this.logger.warn(
+          'Failed to decode token or token is not an object payload.',
+        );
+        return null;
+      }
+
+      // Now that we know it's an object, pass it to the validator
+      // hasValidSub already performs the necessary checks
+      if (!this.hasValidSub(decoded)) {
+        this.logger.warn(
+          "Provided token payload is missing or has invalid 'sub' claim.",
+        );
+        return null;
+      }
+
+      // If hasValidSub passed, 'decoded' is now narrowed to JwtPayload
+      // Extract the user ID from the 'sub' claim
+      const userId = this.extractUserId(decoded.sub);
+
+      // Check if the extraction resulted in a valid number
+      if (isNaN(userId)) {
+        this.logger.warn(
+          `Extracted 'sub' claim from provided token is not a valid number: ${decoded.sub}`,
+        );
+        return null;
+      }
+
+      // Return the valid user ID
+      return userId;
+    } catch (error) {
+      // Log any errors during the decoding process
+      this.logger.error(
+        `Failed to decode provided JWT token: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  }
 }
