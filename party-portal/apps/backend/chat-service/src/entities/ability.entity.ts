@@ -1,5 +1,11 @@
 // src/entities/ability.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  Index,
+} from 'typeorm';
 import { ActionEnum } from '../enums/action.enum';
 import { ModuleEnum } from '../enums/module.enum';
 import { UserAbility } from './user-ability.entity';
@@ -7,6 +13,23 @@ import { RoleAbility } from './role-ability.entity';
 import { ResourceEnum } from 'src/enums/resource.enum';
 
 @Entity('abilities')
+@Index(
+  'UQ_ability_module_resource_action_constraint_not_null', // Explicit index name
+  ['module', 'resource', 'action', 'resourceConstraint'],
+  {
+    unique: true,
+    where: '"resourceConstraint" IS NOT NULL', // Partial index condition
+  },
+)
+// Index for null constraints: Ensures uniqueness when resourceConstraint is NULL
+@Index(
+  'UQ_ability_module_resource_action_constraint_null', // Explicit index name
+  ['module', 'resource', 'action'], // resourceConstraint is implicitly NULL here
+  {
+    unique: true,
+    where: '"resourceConstraint" IS NULL', // Partial index condition
+  },
+)
 export class Ability {
   @PrimaryGeneratedColumn()
   id: number;
