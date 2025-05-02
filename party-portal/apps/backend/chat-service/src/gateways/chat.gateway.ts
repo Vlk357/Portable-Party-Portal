@@ -186,7 +186,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @RequirePermission('CHAT:MESSAGE:CREATE:$resourceId', {
     allowOwner: false,
     resourceIdField: undefined,
-    constraintField: 'chatRoomId',
+    constraintField: 'roomId',
   })
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
