@@ -38,20 +38,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     )]
     private string $username;
 
-    #[ORM\Column(name: 'password_hash', length: 60)]
     #[Assert\NotBlank(groups: ['password_validation'])]
     #[Assert\Length(
         min: 8,
-        max: 72, // BCrypt maximum
+        max: 72,
         minMessage: 'Password must be at least {{ limit }} characters long',
         maxMessage: 'Password cannot be longer than {{ limit }} characters',
         groups: ['password_validation']
     )]
-    #[Assert\Callback([self::class, 'validatePasswordComplexity'], groups: ['password_validation'])]
+    #[ComplexPassword(groups: ['password_validation'])]
+    private ?string $plainPassword;
+
+    #[ORM\Column(name: 'password_hash', length: 60)]
     private string $password;
 
     #[ORM\Column(type: 'string', enumType: UserStatus::class)]
-    private UserStatus $status = UserStatus::PENDING_ACTIVATION;
+    private UserStatus $status = UserStatus::ACTIVE;
 
     #[ORM\Column(
         name: 'created_at',
@@ -80,12 +82,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     public function __construct(
         string $username,
         string $password,
-        UserStatus $status = UserStatus::PENDING_ACTIVATION,
+        UserStatus $status = UserStatus::ACTIVE,
         $roles = [],
         $abilities = []
     ) {
         $this->setUsername($username);
-        $this->setPassword($password);
+        $this->setPlainPassword($password);
         $this->setStatus($status);
         $this->userRoles = new ArrayCollection();
         foreach ($roles as $role) {
@@ -95,6 +97,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         foreach ($abilities as $ability) {
             $this->addAbility($ability);
         }
+
+        $this->createdAt = new \DateTimeImmutable();
     }
 
     public function getUserIdentifier(): string
@@ -240,7 +244,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
 
     public function eraseCredentials(): void
     {
-        // If you store any temporary, sensitive data on the user, clear it here
+        $this->plainPassword = null;
     }
 
     // Getters and setters
@@ -260,11 +264,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
         return $this;
     }
 
-    public function setPassword(string $password): self
+    public function hashPassword(): self
     {
-        $this->password = PasswordService::hashPassword($this, $password);
+        if ($this->plainPassword !== null) {
+            $this->password = PasswordService::hashPassword($this, $this->plainPassword);
+            $this->eraseCredentials();
+        }
         return $this;
     }
+
     public function getStatus(): UserStatus
     {
         return $this->status;
@@ -285,6 +293,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     {
         $this->createdAt = $createdAt;
 
+        return $this;
+    }
+
+    public function getPlainPassword(): ?string
+    {
+        return $this->plainPassword;
+    }
+
+    public function setPlainPassword(string $plainPassword): self
+    {
+        $this->plainPassword = $plainPassword;
         return $this;
     }
 

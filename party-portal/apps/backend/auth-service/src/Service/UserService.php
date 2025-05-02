@@ -10,6 +10,7 @@ use App\Repository\UserAbilityRepository;
 use App\Repository\UserRepository;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
+
 use function PHPUnit\Framework\returnArgument;
 
 class UserService
@@ -57,6 +58,7 @@ class UserService
 
         $user = new User($username, $password, $status, $roles, $abilities);
         $this->validator->validateUser($user, ['Default', 'password_validation']);
+        $user->hashPassword();
 
         return $this->userRepository->save($user);
     }
@@ -115,7 +117,8 @@ class UserService
     /**
      * @return array<int, array{id: int, username: string}>
      */
-    public function findUserList(): array {
+    public function findUserList(): array
+    {
         return $this->userRepository->findUserList();
     }
 }

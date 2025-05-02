@@ -19,7 +19,7 @@ class CreateUserDTO implements \JsonSerializable
     public function __construct(
         public readonly string $username,
         public readonly string $password,
-        public readonly UserStatus $status = UserStatus::PENDING_ACTIVATION,
+        public readonly UserStatus $status = UserStatus::ACTIVE,
         public readonly array $roles = [],
         public readonly array $abilities = []
     ) {
@@ -68,7 +68,7 @@ class CreateUserDTO implements \JsonSerializable
         }
 
         // Handle optional status
-        $status = UserStatus::PENDING_ACTIVATION;
+        $status = UserStatus::ACTIVE;
         if (isset($data['status']) && is_string($data['status'])) {
             try {
                 $status = UserStatus::from($data['status']);

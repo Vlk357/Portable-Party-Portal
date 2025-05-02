@@ -57,8 +57,6 @@ class UserController extends AbstractController
             $userList = $this->userService->findUserList();
             return $this->json($userList);
         } catch (\Exception $e) {
-            // Log the exception details internally
-            $this->container->get('logger')->error('Failed to get user list: ' . $e->getMessage());
             return $this->json(['error' => 'Failed to retrieve user list'], 500);
         }
     }

@@ -108,16 +108,20 @@ class UserRepository extends AbstractRepository
     {
         $qb = $this->entityManager->createQueryBuilder();
 
-        $userList = $qb->select('u')
-        ->from(User::class, 'u')
-        ->select('u.id', 'u.username')
-        // Optionally filter by status if needed, e.g., only active users
-        // ->where('u.status = :status')
-        // ->setParameter('status', UserStatus::ACTIVE)
-        ->orderBy('u.id', 'ASC')
-        ->getQuery()
-        ->getResult(); // Returns an array of arrays
+        $queryResult = $qb->select('u.id', 'u.username') // Select specific fields
+            ->from(User::class, 'u')
+            // ->where('u.status = :status') // Optional filter
+            // ->setParameter('status', UserStatus::ACTIVE)
+            ->orderBy('u.id', 'ASC')
+            ->getQuery()
+            ->getResult(); // Returns an array of arrays like [['id' => 1, 'username' => '...'], ...]
 
-        return $userList;
+        /**
+         * Assert the type for PHPStan.
+         * @var array<int, array{id: int, username: string}> $userList
+         */
+        $userList = $queryResult;
+
+        return $userList; // Line 121 (or adjusted line number)
     }
 }

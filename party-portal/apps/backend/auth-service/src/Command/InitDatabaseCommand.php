@@ -71,7 +71,8 @@ class InitDatabaseCommand extends Command
 
                 $this->em->persist($admin);
             }
-            $admin->setPassword($adminPassword);
+            $admin->setPlainPassword($adminPassword);
+            $admin->hashPassword();
             $this->em->flush();
 
             $existingAbilities = $this->em->getRepository(Ability::class)->findBy([
@@ -263,10 +264,12 @@ class InitDatabaseCommand extends Command
             if (!$chatUser) {
                 $io->note('Creating chat service user...');
                 $chatUser = new User($chatUsername, $chatPassword);
+                $chatUser->hashPassword();
                 $chatUser->setStatus(UserStatus::ACTIVE);
                 $this->em->persist($chatUser);
             }
-            $chatUser->setPassword($chatPassword);
+            $chatUser->setPlainPassword($chatPassword);
+            $admin->hashPassword();
             $authReadUser = $this->em->getRepository(Ability::class)->findOneBy(['module' => 'AUTH', 'resource' => 'USER', 'action' => 'READ', 'resourceConstraint' => null]);
             $chatUser->addAbility($authReadUser);
             $this->em->flush();

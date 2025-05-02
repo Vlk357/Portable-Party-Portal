@@ -1,4 +1,5 @@
 <?php
+
 // filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/backend/auth-service/src/EventListener/JWTCreatedListener.php
 
 namespace App\EventListener;
