@@ -115,23 +115,68 @@ export class PermissionGuard implements CanActivate {
     }
 
     // Extract permission parts
-    const [module, resource, action, constraint] = permission.split(':');
+    const [module, resource, action, constraintString] = permission.split(':'); // Renamed 'constraint' to 'constraintString'
 
-    // Get resource ID for context-specific permissions
-    let contextConstraint = constraint;
-    if (constraint === '$resourceId') {
+    // --- FIX: Process constraint as number | undefined ---
+    let contextConstraint: number | undefined = undefined; // Initialize as undefined
+
+    if (constraintString === '$resourceId') {
+      // Dynamic constraint: Get ID from incoming data payload
+      let idValue: unknown = undefined; // Use unknown for intermediate value
+
+      // Prefer constraintField if specified in options
       if (
         options.constraintField &&
         data[options.constraintField] !== undefined
       ) {
-        // Use the specified constraint field (e.g., roomId)
-        contextConstraint = String(data[options.constraintField]);
-      } else if (
+        idValue = data[options.constraintField];
+        this.logger.verbose(
+          `Using constraintField '${options.constraintField}' for $resourceId. Value: ${JSON.stringify(idValue)}`,
+        );
+      }
+      // Fallback to resourceIdField
+      else if (
         options.resourceIdField &&
         data[options.resourceIdField] !== undefined
       ) {
-        // Fall back to resourceIdField if constraintField not specified
-        contextConstraint = String(data[options.resourceIdField]);
+        idValue = data[options.resourceIdField];
+        this.logger.verbose(
+          `Using resourceIdField '${options.resourceIdField}' for $resourceId. Value: ${JSON.stringify(idValue)}`,
+        );
+      } else {
+        this.logger.warn(
+          `Could not resolve '$resourceId'. Neither constraintField nor resourceIdField found in options or data.`,
+        );
+      }
+
+      // Parse the retrieved value into a number
+      if (typeof idValue === 'number') {
+        contextConstraint = idValue; // Already a number
+      } else if (typeof idValue === 'string') {
+        const parsedInt = parseInt(idValue, 10); // Use radix 10 for safety
+        if (!isNaN(parsedInt)) {
+          contextConstraint = parsedInt; // Successfully parsed string to number
+        } else {
+          this.logger.warn(
+            `Constraint value '${idValue}' from data payload is a string but could not be parsed to a number.`,
+          );
+        }
+      } else if (idValue !== undefined) {
+        // Log if the value is neither number, string, nor undefined
+        this.logger.warn(
+          `Constraint value from data payload is not a number or string: type=${typeof idValue}, value=${JSON.stringify(idValue)}`,
+        );
+      }
+      // If idValue was undefined, contextConstraint remains undefined
+    } else if (constraintString !== undefined) {
+      // Static constraint: Provided directly in the permission string (e.g., "CHAT:ROOM:READ:1")
+      const parsedInt = parseInt(constraintString, 10); // Use radix 10
+      if (!isNaN(parsedInt)) {
+        contextConstraint = parsedInt; // Successfully parsed static constraint string
+      } else {
+        this.logger.warn(
+          `Static constraint '${constraintString}' in permission string is not a valid number.`,
+        );
       }
     }
 

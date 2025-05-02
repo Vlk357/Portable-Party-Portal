@@ -30,7 +30,7 @@ export class PermissionService {
     module: string,
     resource: string,
     action: string,
-    constraint?: string,
+    constraint?: number,
   ): Promise<boolean> {
     const permString = `${module}:${resource}:${action}${constraint ? `:${constraint}` : ''}`;
     const cacheKey = `PERM:${userId}:${permString}`;
@@ -62,7 +62,7 @@ export class PermissionService {
     module: string,
     resource: string,
     action: string,
-    constraint?: string,
+    constraint?: number,
     expiresAt?: Date,
   ): Promise<void> {
     try {
@@ -139,7 +139,7 @@ export class PermissionService {
       module: string;
       resource: string;
       action: string;
-      constraint?: string;
+      constraint?: number;
     }>,
   ): Promise<Role> {
     try {

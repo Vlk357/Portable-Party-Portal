@@ -86,27 +86,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const userId = await this.wsAuthMiddleware.authenticate(client);
       const authClient = this.setupUserConnection(client, userId);
 
+      // Call the service method to ensure membership in the General room
+      await this.chatRoomService.ensureUserMembershipInGeneralRoom(userId);
+
       // Get rooms the user has permission to access initially
       const permittedRooms =
         await this.chatService.getUserPermittedRooms(userId);
-      const permittedRoomIds = permittedRooms.map((room) => room.roomId);
 
-      // Call the service method to ensure membership in the General room
-      const generalRoomId =
-        await this.chatRoomService.ensureUserMembershipInGeneralRoom(
-          userId,
-          permittedRoomIds, // Pass only the IDs
-        );
-
-      // If the user was added to the General room, ensure the socket joins it
-      if (generalRoomId && !permittedRoomIds.includes(generalRoomId)) {
-        this.logger.log(
-          `Joining user ${userId} (socket ${authClient.id}) to newly added General room ${generalRoomId}`,
-        );
-        await authClient.join(`room:${generalRoomId}`);
-        // Optionally, add the general room to the permittedRooms list if needed later
-        // permittedRooms.push({ roomId: generalRoomId /* add other fields if needed */ });
-      }
+      this.logger.log(permittedRooms);
 
       // Join all permitted rooms
       for (const room of permittedRooms) {
@@ -586,7 +573,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       module: ModuleEnum.CHAT,
       resource: ResourceEnum.CHAT_ROOM,
       action: ActionEnum.UPDATE, // Or DELETE if more specific
-      constraint: roomId.toString(),
+      constraint: roomId,
     };
 
     try {

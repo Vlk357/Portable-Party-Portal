@@ -213,7 +213,7 @@ export class PermissionRepository {
     module: ModuleEnum | string,
     resource: ResourceEnum | string,
     action: ActionEnum | string,
-    constraint?: number | string,
+    constraint?: number,
   ): Promise<Ability | null> {
     try {
       // Convert string inputs to proper enums if needed
@@ -224,12 +224,6 @@ export class PermissionRepository {
       const actionEnum =
         typeof action === 'string' ? (action as ActionEnum) : action;
 
-      // Convert string constraint to number if needed
-      const constraintValue =
-        typeof constraint === 'string' && !isNaN(parseInt(constraint))
-          ? parseInt(constraint)
-          : (constraint as number | undefined);
-
       // Use TypeORM's query builder instead of findOne to avoid type issues
       const query = this.abilityRepo
         .createQueryBuilder('ability')
@@ -238,9 +232,9 @@ export class PermissionRepository {
         .andWhere('ability.action = :action', { action: actionEnum });
 
       // Add constraint condition based on value
-      if (constraintValue !== undefined) {
+      if (constraint) {
         query.andWhere('ability.resourceConstraint = :constraint', {
-          constraint: constraintValue,
+          constraint: constraint,
         });
       } else {
         query.andWhere('ability.resourceConstraint IS NULL');
@@ -261,7 +255,7 @@ export class PermissionRepository {
     module: ModuleEnum | string,
     resource: ResourceEnum | string,
     action: ActionEnum | string,
-    constraint?: number | string,
+    constraint?: number,
     description?: string,
   ): Promise<Ability> {
     try {
@@ -273,12 +267,6 @@ export class PermissionRepository {
       const actionEnum =
         typeof action === 'string' ? (action as ActionEnum) : action;
 
-      // Convert string constraint to number if needed
-      const constraintValue =
-        typeof constraint === 'string' && !isNaN(parseInt(constraint))
-          ? parseInt(constraint)
-          : (constraint as number | undefined);
-
       // Create a new ability entity properly typed
       const ability = new Ability();
       ability.module = moduleEnum;
@@ -286,12 +274,12 @@ export class PermissionRepository {
       ability.action = actionEnum;
 
       // Fix nullable field assignments without 'any'
-      if (ability.resourceConstraint !== undefined) {
-        ability.resourceConstraint = constraintValue ?? null;
+      if (constraint) {
+        ability.resourceConstraint = constraint;
       }
 
-      if (ability.description !== undefined) {
-        ability.description = description ?? null;
+      if (description) {
+        ability.description = description;
       }
 
       return await this.abilityRepo.save(ability);

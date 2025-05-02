@@ -26,6 +26,10 @@ export class ChatService {
       // Get all rooms for this user
       const rooms = await this.chatRoomService.getRoomsForUser(userId);
 
+      this.logger.debug(
+        `User rooms of user ${userId}: ${JSON.stringify(rooms)}`,
+      );
+
       // Prepare response structure
       const response = {
         success: true,
@@ -42,7 +46,7 @@ export class ChatService {
             'CHAT',
             'MESSAGE',
             'READ',
-            `${room.id}`,
+            room.id,
           );
 
           if (hasPermission) {
@@ -103,7 +107,7 @@ export class ChatService {
             'CHAT',
             'MESSAGE',
             'READ',
-            `${room.id}`,
+            room.id,
           );
 
           return hasPermission ? { roomId: room.id } : null;

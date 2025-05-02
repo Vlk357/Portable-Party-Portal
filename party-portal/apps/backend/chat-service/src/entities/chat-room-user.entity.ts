@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   Unique,
+  JoinColumn,
 } from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
 
@@ -20,5 +21,6 @@ export class ChatRoomUser {
   user_id: number;
 
   @ManyToOne(() => ChatRoom, (chatRoom) => chatRoom.chat_room_users)
+  @JoinColumn({ name: 'chat_room_id' })
   chat_room: ChatRoom;
 }

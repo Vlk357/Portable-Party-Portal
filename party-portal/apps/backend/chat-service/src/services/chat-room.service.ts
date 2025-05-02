@@ -70,7 +70,7 @@ export class ChatRoomService {
     creatorUserId: number,
   ): Promise<void> {
     this.logger.log(`Setting up permissions for room ${roomId}`);
-    const constraint = roomId.toString();
+    const constraint = roomId;
 
     try {
       // Define abilities required for the room
