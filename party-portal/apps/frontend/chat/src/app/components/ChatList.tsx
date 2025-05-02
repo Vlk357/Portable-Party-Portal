@@ -89,6 +89,7 @@ export function ChatList() {
     if (!currentToken) {
       setError('Authentication token not found.');
       setIsLoading(false);
+      handleLogout();
       return;
     }
 
@@ -176,11 +177,6 @@ export function ChatList() {
           // Note: isRefreshingTokenRef is reset on successful 'connect' or if refresh fails below
         } else {
           console.error('Token refresh failed. Logging out.');
-          // handleLogout() might already be called by refreshToken if refresh token is invalid
-          // Check if user is already being redirected before calling again
-          if (localStorage.getItem('refreshToken')) { // Simple check if logout hasn't cleared it yet
-             handleLogout();
-          }
           setError('Session expired. Please log in again.'); // Set final error
           setIsLoading(false);
           isRefreshingTokenRef.current = false; // Reset flag
