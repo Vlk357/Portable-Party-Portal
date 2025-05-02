@@ -10,7 +10,9 @@ function App() {
         setError(null);
         setIsLoading(true);
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/login`, {
+            // Use VITE_API_URL for consistency if defined, otherwise fallback
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/auth/api';
+            const response = await fetch(`${apiUrl}/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -22,12 +24,15 @@ function App() {
                 throw new Error(errorData.message || 'Login failed');
             }
             const data = await response.json();
-            // Store token in localStorage or secure storage
+            // --- Store all token data ---
             localStorage.setItem('token', data.token);
-            // Redirect or update UI state
-            //TODO: Redirect to {chat, dashboard, ...}
+            localStorage.setItem('refreshToken', data.refresh_token);
+            // Store expiration as a string; parse it when needed
+            localStorage.setItem('refreshTokenExpiration', data.refresh_token_expiration.toString());
+            // --- End storing token data ---
             console.log('Login successful', data);
-            window.location.href = '/chat-app/';
+            // Redirect to the chat application base path
+            window.location.href = '/chat-app/'; // Adjust if your chat app base route is different
         }
         catch (err) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
