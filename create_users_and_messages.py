@@ -10,12 +10,13 @@ import threading
 # import websocket
 from typing import List, Dict, Optional, Any
 import requests
-import socketio # Import the socketio library
+import socketio  # Import the socketio library
 
 # --- Constants ---
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8080/auth/api"
 # Use the base HTTP URL for socketio connection
-DEFAULT_WS_BASE_URL = "http://127.0.0.1:8080" # Socket.IO connects via HTTP/S first
+# Socket.IO connects via HTTP/S first
+DEFAULT_WS_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_ROOM_ID = 1
 DEFAULT_NUM_MESSAGES = 3
 DEFAULT_DELAY_S = 0.5
@@ -152,6 +153,7 @@ def login_user(api_url: str, username: str, password: str) -> Optional[str]:
 
 # --- Socket.IO Interaction Functions ---
 
+
 # Global dictionary to hold active socketio clients, keyed by username or token
 # This simplifies managing multiple connections
 sio_clients: Dict[str, socketio.Client] = {}
@@ -164,36 +166,38 @@ def connect_socketio(ws_url: str, token: str, username: str) -> Optional[socketi
     """Connects to the Socket.IO server with authentication."""
     print(f"Attempting Socket.IO connection for {username} to {ws_url}...")
 
-    sio = socketio.Client(logger=False, engineio_logger=False) # Disable verbose logging
+    # Disable verbose logging
+    sio = socketio.Client(logger=False, engineio_logger=False)
     connection_events[username] = threading.Event()
     connection_success[username] = False
 
     # Define event handlers specific to this client instance
     @sio.event
     def connect():
-        print(f"Socket.IO connected successfully for {username} (sid: {sio.sid})")
+        print(
+            f"Socket.IO connected successfully for {username} (sid: {sio.sid})")
         connection_success[username] = True
-        connection_events[username].set() # Signal that connection attempt finished
+        # Signal that connection attempt finished
+        connection_events[username].set()
 
     @sio.event
     def connect_error(data):
         print(f"Socket.IO connection failed for {username}: {data}")
         connection_success[username] = False
-        connection_events[username].set() # Signal that connection attempt finished
+        # Signal that connection attempt finished
+        connection_events[username].set()
 
     @sio.event
     def disconnect():
         print(f"Socket.IO disconnected for {username}")
         # Optionally handle reconnection logic here if needed
-        connection_success[username] = False # Mark as disconnected
+        connection_success[username] = False  # Mark as disconnected
         if username in sio_clients:
-             del sio_clients[username] # Clean up client reference
+            del sio_clients[username]  # Clean up client reference
 
-
-    @sio.on('*') # Catch-all for other events for debugging
+    @sio.on('*')  # Catch-all for other events for debugging
     def any_event(event, data):
         print(f"< Received event '{event}' for {username}: {str(data)[:150]}")
-
 
     try:
         # Connect with authentication data
@@ -201,19 +205,21 @@ def connect_socketio(ws_url: str, token: str, username: str) -> Optional[socketi
         sio.connect(
             ws_url,
             auth={"token": token},
-            transports=['websocket'], # Force websocket transport
+            transports=['websocket'],  # Force websocket transport
             wait_timeout=10,
-            socketio_path='/socket.io/' # Explicitly set the path based on Nginx config
+            socketio_path='/socket.io/'  # Explicitly set the path based on Nginx config
         )
 
         # Wait for the connection attempt to complete (or timeout)
-        connection_established = connection_events[username].wait(timeout=15) # Wait up to 15s
+        connection_established = connection_events[username].wait(
+            timeout=15)  # Wait up to 15s
 
         if connection_established and connection_success[username]:
-             sio_clients[username] = sio # Store the connected client
-             return sio
+            sio_clients[username] = sio  # Store the connected client
+            return sio
         else:
-            print(f"Socket.IO connection attempt timed out or failed for {username}.")
+            print(
+                f"Socket.IO connection attempt timed out or failed for {username}.")
             # Ensure disconnect is called if connect_error didn't fire but failed
             if sio.connected:
                 sio.disconnect()
@@ -223,8 +229,9 @@ def connect_socketio(ws_url: str, token: str, username: str) -> Optional[socketi
         print(f"Socket.IO connection error for {username}: {e}")
         return None
     except Exception as e:
-         print(f"Unexpected error during Socket.IO connection for {username}: {e}")
-         return None
+        print(
+            f"Unexpected error during Socket.IO connection for {username}: {e}")
+        return None
     finally:
         # Clean up the event for this user
         if username in connection_events:
@@ -236,7 +243,8 @@ def connect_socketio(ws_url: str, token: str, username: str) -> Optional[socketi
 def send_chat_message_sio(sio_client: socketio.Client, room_id: int, message_content: str, username: str):
     """Sends a chat message event over Socket.IO."""
     if not sio_client or not sio_client.connected:
-        print(f"Cannot send message for {username}: Socket.IO client is not connected.")
+        print(
+            f"Cannot send message for {username}: Socket.IO client is not connected.")
         return
 
     # ADJUST 'sendMessage' and payload structure TO YOUR BACKEND'S EXPECTATION
@@ -288,6 +296,8 @@ def parse_arguments() -> argparse.Namespace:
                         help="Number of messages EACH user sends")
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY_S,
                         help="Delay (seconds) between messages")
+    parser.add_argument("--create-users-only", type=bool, default=False,
+                        help="If it should only create users and terminate")
     return parser.parse_args()
 
 
@@ -337,7 +347,8 @@ def process_users(
 ) -> Dict[str, Dict[str, Any]]:
     """Processes users: creates and logs them in."""
     print("\n--- Processing Users (Create/Login) ---")
-    logged_in_users: Dict[str, Dict[str, Any]] = {} # username -> {'token': str}
+    # username -> {'token': str}
+    logged_in_users: Dict[str, Dict[str, Any]] = {}
 
     for user in users_to_process:
         username = user['username']
@@ -348,40 +359,49 @@ def process_users(
             print(f"Attempting login for existing user: {username}...")
             token = login_user(api_url, username, password)
             if token:
-                print(f"User {username} already exists and logged in successfully.")
-                logged_in_users[username] = {'token': token} # Store only token initially
+                print(
+                    f"User {username} already exists and logged in successfully.")
+                # Store only token initially
+                logged_in_users[username] = {'token': token}
             else:
                 print(f"Login failed for {username}. Attempting creation...")
                 if create_user(api_url, username, password, admin_token):
-                    print(f"Attempting login again for {username} after creation attempt...")
+                    print(
+                        f"Attempting login again for {username} after creation attempt...")
                     token = login_user(api_url, username, password)
                     if token:
                         logged_in_users[username] = {'token': token}
                     else:
-                        print(f"WARNING: Created/verified user {username} but failed subsequent login.")
+                        print(
+                            f"WARNING: Created/verified user {username} but failed subsequent login.")
                 else:
-                    print(f"ERROR: Failed to create user {username}. Skipping.")
+                    print(
+                        f"ERROR: Failed to create user {username}. Skipping.")
         else:
             print(f"Attempting creation for generated user: {username}...")
             if create_user(api_url, username, password, admin_token):
-                print(f"Attempting login for {username} after creation attempt...")
+                print(
+                    f"Attempting login for {username} after creation attempt...")
                 token = login_user(api_url, username, password)
                 if token:
                     logged_in_users[username] = {'token': token}
                 else:
-                    print(f"WARNING: Created/verified user {username} but failed subsequent login.")
+                    print(
+                        f"WARNING: Created/verified user {username} but failed subsequent login.")
             else:
                 print(f"ERROR: Failed to create user {username}. Skipping.")
 
         time.sleep(0.1)
 
-    print(f"\nSuccessfully processed and logged in {len(logged_in_users)} users.")
+    print(
+        f"\nSuccessfully processed and logged in {len(logged_in_users)} users.")
     return logged_in_users
 
 
 # Modified to use connect_socketio and store client in logged_in_users
 def connect_user_socketio(
-    logged_in_users: Dict[str, Dict[str, Any]], # Now username -> {'token': str}
+    # Now username -> {'token': str}
+    logged_in_users: Dict[str, Dict[str, Any]],
     ws_url: str
 ):
     """Connects Socket.IO clients for logged-in users."""
@@ -392,7 +412,8 @@ def connect_user_socketio(
     for username in usernames_to_connect:
         token = logged_in_users[username]['token']
         # Run each connection in a separate thread to parallelize
-        thread = threading.Thread(target=connect_socketio, args=(ws_url, token, username), daemon=True)
+        thread = threading.Thread(target=connect_socketio, args=(
+            ws_url, token, username), daemon=True)
         threads.append(thread)
         thread.start()
 
@@ -402,13 +423,14 @@ def connect_user_socketio(
 
     # Update logged_in_users, removing those that failed to connect
     connected_count = 0
-    for username in usernames_to_connect[:]: # Iterate copy for safe removal
+    for username in usernames_to_connect[:]:  # Iterate copy for safe removal
         if username in sio_clients and sio_clients[username].connected:
-             logged_in_users[username]['sio'] = sio_clients[username] # Add client to dict
-             connected_count += 1
+            # Add client to dict
+            logged_in_users[username]['sio'] = sio_clients[username]
+            connected_count += 1
         else:
             print(f"Removing user {username} due to connection failure.")
-            del logged_in_users[username] # Remove user if connection failed
+            del logged_in_users[username]  # Remove user if connection failed
 
     if connected_count == 0:
         print("No active Socket.IO connections established.")
@@ -418,7 +440,8 @@ def connect_user_socketio(
 
 # Modified to use send_chat_message_sio
 def simulate_conversation_sio(
-    logged_in_users: Dict[str, Dict[str, Any]], # username -> {'token': str, 'sio': Client}
+    # username -> {'token': str, 'sio': Client}
+    logged_in_users: Dict[str, Dict[str, Any]],
     room_id: int,
     num_messages: int,
     delay: float
@@ -432,7 +455,8 @@ def simulate_conversation_sio(
     user_list = list(logged_in_users.items())
     user_index = 0
     total_messages_to_send = num_messages * len(user_list)
-    print(f"Sending {num_messages} messages per user, total {total_messages_to_send} messages...")
+    print(
+        f"Sending {num_messages} messages per user, total {total_messages_to_send} messages...")
 
     for i in range(total_messages_to_send):
         username, user_data = user_list[user_index % len(user_list)]
@@ -441,9 +465,11 @@ def simulate_conversation_sio(
 
         if sio_client:
             message_content = f"Hello from {username}! This is message #{message_num_for_user}."
-            send_chat_message_sio(sio_client, room_id, message_content, username)
+            send_chat_message_sio(sio_client, room_id,
+                                  message_content, username)
         else:
-            print(f"Skipping message for {username} - Socket.IO client not connected.")
+            print(
+                f"Skipping message for {username} - Socket.IO client not connected.")
 
         user_index += 1
         time.sleep(delay)
@@ -458,8 +484,8 @@ def cleanup_socketio_clients():
     closed_count = 0
     for username in usernames:
         if username in sio_clients:
-             close_socketio(sio_clients[username], username)
-             closed_count += 1
+            close_socketio(sio_clients[username], username)
+            closed_count += 1
     print(f"Closed {closed_count} Socket.IO connections.")
 
 
@@ -470,16 +496,19 @@ def main():
     args = parse_arguments()
 
     admin_token = perform_admin_login(args.api_url)
-    if not admin_token: return
+    if not admin_token:
+        return
 
     users_to_process = prepare_user_list(args)
-    if not users_to_process: return
+    if not users_to_process:
+        return
 
     # logged_in_users now contains username -> {'token': str}
     logged_in_users = process_users(
         users_to_process, args.api_url, admin_token, bool(args.user_file)
     )
-    if not logged_in_users: return
+    if not logged_in_users or args.create_users_only:
+        return
 
     # Connect clients and update logged_in_users with {'sio': Client}
     connect_user_socketio(logged_in_users, args.ws_url)
