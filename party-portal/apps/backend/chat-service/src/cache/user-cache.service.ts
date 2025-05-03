@@ -9,12 +9,9 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { WebSocketAuthMiddleware } from 'src/auth/websocket-auth.middleware';
+import { SimpleUser } from 'src/interfaces/simple-user.interface';
 
 // Interfaces based on the example response
-interface UserListItem {
-  id: number;
-  username: string;
-}
 
 interface LoginResponse {
   token: string;
@@ -339,7 +336,7 @@ export class UserCacheService
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get<UserListItem[]>(endpoint, {
+        this.httpService.get<SimpleUser[]>(endpoint, {
           headers: {
             Authorization: `Bearer ${this.jwtToken}`, // Use JWT
             Accept: 'application/json',

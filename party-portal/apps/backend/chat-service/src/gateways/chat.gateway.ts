@@ -655,4 +655,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     }
   }
+
+  @SubscribeMessage('getUsers')
+  async handleGetUsers(@ConnectedSocket() client: AuthenticatedSocket) {
+    // No specific permission check here beyond authentication (implicit)
+    // If you needed specific permissions, add @UseGuards and @RequirePermission
+    try {
+      const users = await this.chatService.getRelevantUsers(client.userId);
+      return { success: true, users: users }; // Send data back to the requesting client
+    } catch (error) {
+      this.handleError(client, error, 'Get users error:');
+      return {
+        success: false,
+        users: [],
+        error: error instanceof Error ? error.message : 'Failed to get users',
+      };
+    }
+  }
 }

@@ -5,7 +5,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/auth/api'; // Auth API base
 
 // Function to get tokens from storage
-const getAuthTokens = () => {
+export const getAuthTokens = () => {
   const token = localStorage.getItem('token');
   const refreshToken = localStorage.getItem('refreshToken');
   const expirationString = localStorage.getItem('refreshTokenExpiration');

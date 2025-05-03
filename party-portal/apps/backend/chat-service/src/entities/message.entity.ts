@@ -36,5 +36,6 @@ export class Message {
   deleted_by_user_id: number | null;
 
   @ManyToOne(() => ChatRoom)
+  @Column({ name: 'chat_room_id' })
   chat_room: ChatRoom;
 }
