@@ -656,13 +656,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * Handles request to get all users known to the chat service cache.
+   */
   @SubscribeMessage('getUsers')
-  async handleGetUsers(@ConnectedSocket() client: AuthenticatedSocket) {
-    // No specific permission check here beyond authentication (implicit)
-    // If you needed specific permissions, add @UseGuards and @RequirePermission
+  handleGetUsers(@ConnectedSocket() client: AuthenticatedSocket) {
     try {
-      const users = await this.chatService.getRelevantUsers(client.userId);
-      return { success: true, users: users }; // Send data back to the requesting client
+      const users = this.chatService.getAllCachedUsers();
+      this.logger.log(
+        `User ${client.userId} requested all users. Found ${users.length}.`,
+      );
+      return { success: true, users: users };
     } catch (error) {
       this.handleError(client, error, 'Get users error:');
       return {

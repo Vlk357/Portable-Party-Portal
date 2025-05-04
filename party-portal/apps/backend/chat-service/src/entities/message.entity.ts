@@ -5,6 +5,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   Check,
+  JoinColumn,
 } from 'typeorm';
 import { ChatRoom } from './chat-room.entity';
 
@@ -36,6 +37,6 @@ export class Message {
   deleted_by_user_id: number | null;
 
   @ManyToOne(() => ChatRoom)
-  @Column({ name: 'chat_room_id' })
+  @JoinColumn({ name: 'chat_room_id' })
   chat_room: ChatRoom;
 }

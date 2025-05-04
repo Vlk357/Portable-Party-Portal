@@ -18,25 +18,24 @@ export class ChatService {
   ) {}
 
   /**
-   * Fetches details (ID and username) for a list of user IDs using the cache.
+   * Converts a Map of user IDs to usernames into an array of SimpleUser objects.
    */
-  private _getUsersDetails(userIds: number[]): SimpleUser[] {
-    // Fix: Use JSON.stringify for logging arrays in template literals
-    this.logger.debug(
-      `Fetching details for user IDs from cache: ${JSON.stringify(userIds)}`,
-    );
-    const users: SimpleUser[] = [];
-
-    for (const id of userIds) {
-      const username = this.userCacheService.getUsernameById(id);
+  private _mapUsersToSimpleUsers(
+    userMap: ReadonlyMap<number, string>,
+  ): SimpleUser[] {
+    const usersDetails: SimpleUser[] = [];
+    userMap.forEach((username, id) => {
+      // Ensure we don't include users with missing usernames if the map somehow contains them
       if (username) {
-        users.push({ id, username });
+        usersDetails.push({ id, username });
       } else {
-        this.logger.warn(`Username for user ID ${id} not found in cache.`);
-        users.push({ id, username: `User_${id}` }); // Default fallback
+        // Log if a user ID exists in the map but has no username (should ideally not happen with getUserMap)
+        this.logger.warn(
+          `User ID ${id} found in cache map but has no username.`,
+        );
       }
-    }
-    return users;
+    });
+    return usersDetails;
   }
 
   /**
@@ -90,7 +89,6 @@ export class ChatService {
 
       const responseRooms: any[] = [];
       const responseMessages: Record<number, any[]> = {};
-      const uniqueUserIds = new Set<number>([userId]);
 
       for (const room of userRooms) {
         const roomDetails = await this._getPermittedRoomDetails(userId, room);
@@ -101,21 +99,22 @@ export class ChatService {
             userCount: roomDetails.userCount,
           });
           responseMessages[room.id] = roomDetails.messages;
-
-          const userIdsInRoom = await this.chatRoomService.getUsersInRoom(
-            room.id,
-          );
-          userIdsInRoom.forEach((id) => uniqueUserIds.add(id));
         }
       }
 
-      const usersDetails = this._getUsersDetails(Array.from(uniqueUserIds));
+      // Fetch ALL users from the cache map
+      const allUsersMap = this.userCacheService.getUserMap();
+      // Convert the map to the SimpleUser array using the helper
+      const allUsersDetails = this._mapUsersToSimpleUsers(allUsersMap);
+      this.logger.debug(
+        `Included ${allUsersDetails.length} users in initial data for user ${userId}.`,
+      );
 
       return {
         success: true,
         rooms: responseRooms,
         roomMessages: responseMessages,
-        users: usersDetails,
+        users: allUsersDetails,
       };
     } catch (error) {
       this.logger.error(
@@ -133,25 +132,19 @@ export class ChatService {
   }
 
   /**
-   * Gets a list of users relevant to the specified user using the cache.
+   * Gets a list of all users currently known by the UserCacheService.
    */
-  async getRelevantUsers(userId: number): Promise<SimpleUser[]> {
+  getAllCachedUsers(): SimpleUser[] {
     try {
-      const userRooms = await this.chatRoomService.getRoomsForUser(userId);
-      const uniqueUserIds = new Set<number>([userId]);
-
-      for (const room of userRooms) {
-        const userIdsInRoom = await this.chatRoomService.getUsersInRoom(
-          room.id,
-        );
-        userIdsInRoom.forEach((id) => uniqueUserIds.add(id));
-      }
-
-      const usersDetails = this._getUsersDetails(Array.from(uniqueUserIds));
+      this.logger.debug('Fetching all users from cache.');
+      const allUsersMap = this.userCacheService.getUserMap();
+      // Use the helper function for conversion
+      const usersDetails = this._mapUsersToSimpleUsers(allUsersMap);
+      this.logger.debug(`Returning ${usersDetails.length} users from cache.`);
       return usersDetails;
     } catch (error) {
       this.logger.error(
-        `Failed to get relevant users for user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to get all cached users: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
       return [];
@@ -186,7 +179,6 @@ export class ChatService {
       this.logger.error(
         'Failed to get user permitted rooms',
         error instanceof Error ? error.message : 'Unknown error',
-        // Fix: Check if error is an instance of Error before accessing stack
         error instanceof Error ? error.stack : undefined,
       );
       return [];
