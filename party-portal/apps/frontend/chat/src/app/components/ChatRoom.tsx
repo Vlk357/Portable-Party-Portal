@@ -1,4 +1,3 @@
-// filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/frontend/chat/src/app/components/ChatRoom.tsx
 import React, {
   useState,
   useEffect,
@@ -11,6 +10,8 @@ import { useWebSocket } from '../context/WebSocketContext';
 import { jwtDecode } from 'jwt-decode';
 import { DecodedToken } from '../../types/DecodedToken';
 import { MessageBubble } from './MessageBubble';
+import { BackendMessage } from '../../types/BackendMessage'; // Import BackendMessage
+import { PendingMessage } from '../../types/PendingMessage';
 
 // --- Chat Room Component ---
 export function ChatRoom() {
@@ -26,12 +27,12 @@ export function ChatRoom() {
 
   const [newMessage, setNewMessage] = useState('');
   const [textareaRows, setTextareaRows] = useState(1);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref to scroll to bottom
-  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for textarea focus
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const currentRoomId = parseInt(roomId || '0', 10);
 
-  // --- Get Current User ID ---
   const currentUserId = useMemo(() => {
     const token = localStorage.getItem('token');
     if (!token) return null;
@@ -41,99 +42,161 @@ export function ChatRoom() {
       return isNaN(userId) ? null : userId;
     } catch (error) {
       console.error('Failed to decode token:', error);
-      // Optionally handle logout here if token is invalid
-      // handleLogout();
       return null;
     }
-  }, []); // Only calculate once on mount
+  }, []);
 
-  // --- Find Room Details ---
   const currentRoom = useMemo(() => {
     return rooms.find((room) => room.id === currentRoomId);
   }, [rooms, currentRoomId]);
 
-  // --- Get Messages for the Current Room (Already sorted by context) ---
-  const roomMessages = useMemo(() => {
+  // Get confirmed messages
+  const confirmedMessages = useMemo(() => {
     return getMessagesForRoom(currentRoomId);
   }, [getMessagesForRoom, currentRoomId]);
 
+  // --- Combine and Sort Confirmed and Pending Messages ---
+  const allMessages = useMemo(() => {
+    // Map pending messages to a common structure (similar to BackendMessage but with status)
+    const mappedPending = pendingMessages.map((p) => ({ ...p, id: p.tempId })); // Use tempId as key/id
+
+    // Map confirmed messages (add a 'confirmed' status for consistency if needed)
+    const mappedConfirmed = confirmedMessages.map((c) => ({
+      ...c,
+      status: 'confirmed' as const,
+    }));
+
+    // Combine, filter out any confirmed message that might still be in pending (using ID check)
+    const combined = [...mappedConfirmed, ...mappedPending];
+
+    // Sort by date
+    return combined.sort(
+      (a, b) => a.created_at.getTime() - b.created_at.getTime()
+    );
+  }, [confirmedMessages, pendingMessages]);
+  // --- End Combine and Sort ---
+
   // --- Display only the latest N messages ---
-  // Consider implementing "load more" later
   const displayedMessages = useMemo(() => {
     const MESSAGE_LIMIT = 50; // Show last 50 messages initially
-    return roomMessages.slice(-MESSAGE_LIMIT);
-  }, [roomMessages]);
+    return allMessages.slice(-MESSAGE_LIMIT);
+  }, [allMessages]);
 
   // --- Scroll to Bottom ---
   useEffect(() => {
-    // Use timeout to ensure scrolling happens after DOM updates
     const timer = setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100); // Small delay can help
+    }, 100);
     return () => clearTimeout(timer);
-  }, [displayedMessages]); // Trigger scroll when displayed messages update
+  }, [displayedMessages]);
 
   // --- Input Change Handler ---
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const currentText = event.target.value;
     setNewMessage(currentText);
-
-    // Auto-resize textarea based on content height, up to 4 lines
+    // Auto-resize logic...
     const textarea = event.target;
-    textarea.style.height = 'auto'; // Reset height to calculate scrollHeight correctly
+    textarea.style.height = 'auto';
     const scrollHeight = textarea.scrollHeight;
-
-    // Estimate line height (adjust if needed based on your font/styling)
     const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 20;
     const lines = Math.ceil(scrollHeight / lineHeight);
-
-    const newRows = Math.min(Math.max(1, lines), 4); // Min 1, Max 4 rows
+    const newRows = Math.min(Math.max(1, lines), 4);
     setTextareaRows(newRows);
-    textarea.style.height = `${scrollHeight}px`; // Set height based on content
-
-    // Ensure height doesn't exceed max rows equivalent
+    textarea.style.height = `${scrollHeight}px`;
     if (newRows === 4) {
-      textarea.style.overflowY = 'auto'; // Allow scrolling if max rows reached
+      textarea.style.overflowY = 'auto';
     } else {
       textarea.style.overflowY = 'hidden';
     }
   };
 
+  // --- Callbacks for sendMessage ---
+  const handleSendConfirm = useCallback(
+    (tempId: string, confirmedMessage: BackendMessage) => {
+      console.log(`Confirmed message for tempId: ${tempId}`, confirmedMessage);
+      // Remove the message from pending state now that it's confirmed
+      setPendingMessages((prev) => prev.filter((msg) => msg.tempId !== tempId));
+      // Note: The message will appear in the list via the 'newMessage' event handler updating 'confirmedMessages'
+    },
+    []
+  );
+
+  const handleSendError = useCallback((tempId: string, error: string) => {
+    console.error(`Failed message for tempId: ${tempId}, Error: ${error}`);
+    // Update the status of the pending message to 'failed'
+    setPendingMessages((prev) =>
+      prev.map((msg) =>
+        msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
+      )
+    );
+    // Optionally, show a more specific error to the user based on the error message
+  }, []);
+  // --- End Callbacks ---
+
   // --- Send Message Handler ---
   const handleSendMessage = useCallback(() => {
     const trimmedMessage = newMessage.trim();
-    if (trimmedMessage && currentRoomId && isConnected) {
-      sendMessage(currentRoomId, trimmedMessage);
-      setNewMessage(''); // Clear input after sending
-      setTextareaRows(1); // Reset rows
-      // Reset textarea height manually
+    if (trimmedMessage && currentRoomId && currentUserId && isConnected) {
+      // 1. Create a temporary ID
+      const tempId =
+        Date.now().toString() + Math.random().toString(36).substring(2, 9); // Simple unique enough ID
+
+      // 2. Create the pending message object
+      const pendingMsg: PendingMessage = {
+        tempId: tempId,
+        chat_room_id: currentRoomId,
+        user_id: currentUserId,
+        content: trimmedMessage,
+        created_at: new Date(), // Use current client time
+        status: 'pending',
+      };
+
+      // 3. Add to pending state
+      setPendingMessages((prev) => [...prev, pendingMsg]);
+
+      // 4. Call the context sendMessage with callbacks
+      sendMessage(
+        currentRoomId,
+        trimmedMessage,
+        tempId,
+        handleSendConfirm,
+        handleSendError
+      );
+
+      // 5. Clear input and reset UI
+      setNewMessage('');
+      setTextareaRows(1);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
         textareaRef.current.style.overflowY = 'hidden';
-        textareaRef.current.focus(); // Keep focus on textarea
+        textareaRef.current.focus();
       }
     }
-  }, [newMessage, currentRoomId, isConnected, sendMessage]); // Dependencies
+  }, [
+    newMessage,
+    currentRoomId,
+    isConnected,
+    sendMessage,
+    currentUserId,
+    handleSendConfirm,
+    handleSendError,
+  ]);
 
   // --- Key Down Handler (Send on Enter) ---
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Send message on Enter press (Shift+Enter for new line)
       if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault(); // Prevent default newline behavior
+        event.preventDefault();
         handleSendMessage();
       }
     },
     [handleSendMessage]
-  ); // Dependency
+  );
 
   // --- Render Logic ---
   if (isContextLoading && !currentRoom) {
-    // Show loading only if room data isn't available yet
     return <div className="p-4 text-center text-gray-500">Loading chat...</div>;
   }
-
-  // Show specific error if room not found after loading
   if (!isContextLoading && !currentRoom) {
     return (
       <div className="p-4 text-center text-red-500">
@@ -144,8 +207,6 @@ export function ChatRoom() {
       </div>
     );
   }
-
-  // Show general context error if present (e.g., connection failed)
   if (contextError) {
     return (
       <div className="p-4 text-center text-red-500">
@@ -157,7 +218,6 @@ export function ChatRoom() {
     );
   }
 
-  // Render chat interface if room exists
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
@@ -166,7 +226,6 @@ export function ChatRoom() {
           to="/chat"
           className="mr-3 text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-gray-100"
         >
-          {/* Back Arrow SVG */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -182,8 +241,7 @@ export function ChatRoom() {
             />
           </svg>
         </Link>
-        {/* Room Avatar/Initial */}
-        {currentRoom && ( // Check if currentRoom exists before accessing properties
+        {currentRoom && (
           <>
             <div className="w-10 h-10 bg-gray-300 rounded-full mr-3 flex-shrink-0 flex items-center justify-center text-lg font-semibold text-gray-600">
               {currentRoom.name.charAt(0).toUpperCase()}
@@ -192,31 +250,34 @@ export function ChatRoom() {
               <h1 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
                 {currentRoom.name}
               </h1>
-              {/* Optional: Display user count or status */}
-              {/* <p className="text-xs text-gray-500">{currentRoom.userCount} members</p> */}
             </div>
           </>
         )}
-        {/* Optional: Room actions (info, settings, etc.) */}
       </header>
 
       {/* Message List */}
       <div className="flex-grow overflow-y-auto p-4 space-y-1">
-        {' '}
-        {/* Reduced space-y */}
         {displayedMessages.length === 0 && (
           <div className="text-center text-gray-500 pt-10">
             No messages yet. Start the conversation!
           </div>
         )}
+        {/* Use the combined 'displayedMessages' list */}
         {displayedMessages.map((msg) => (
           <MessageBubble
-            key={msg.id}
+            // Use tempId for pending, id for confirmed as key
+            key={
+              msg.status === 'pending' || msg.status === 'failed'
+                ? msg.tempId
+                : msg.id
+            }
+            // Pass the whole combined message object
             message={msg}
             isOwnMessage={msg.user_id === currentUserId}
+            // Pass status to MessageBubble
+            status={msg.status}
           />
         ))}
-        {/* Element to scroll to */}
         <div ref={messagesEndRef} />
       </div>
 
@@ -230,16 +291,15 @@ export function ChatRoom() {
           placeholder={isConnected ? 'Type a message...' : 'Connecting...'}
           className="flex-grow p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mr-2 bg-white disabled:bg-gray-100"
           rows={textareaRows}
-          disabled={!isConnected} // Disable if not connected
-          style={{ maxHeight: `${4 * 24}px` }} // Approximate max height based on line height
+          disabled={!isConnected}
+          style={{ maxHeight: `${4 * 24}px` }}
         />
         <button
           onClick={handleSendMessage}
-          disabled={!newMessage.trim() || !isConnected} // Disable if empty or not connected
+          disabled={!newMessage.trim() || !isConnected}
           className="p-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex-shrink-0"
           aria-label="Send message"
         >
-          {/* Send Icon SVG */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"

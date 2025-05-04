@@ -397,13 +397,21 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   }, []);
 
   const sendMessage = useCallback(
-    (roomId: number, content: string) => {
+    (
+      roomId: number,
+      content: string,
+      tempId: string, // Accept tempId
+      onConfirm: (tempId: string, confirmedMessage: BackendMessage) => void, // Accept success callback
+      onError: (tempId: string, error: string) => void // Accept error callback
+    ) => {
       if (socket && isConnected && content.trim()) {
-        console.log(`Emitting sendMessage for room ${roomId}`);
+        console.log(
+          `Emitting sendMessage for room ${roomId} (tempId: ${tempId})`
+        );
         const payload = {
           roomId,
           content,
-          createdAt: new Date().toISOString(),
+          clientCreatedAt: new Date().toISOString(),
         };
         socket.emit(
           'sendMessage',
@@ -411,42 +419,50 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
           (response: {
             success: boolean;
             error?: string;
-            message?: BackendMessage;
+            message?: any; // Expect raw message from server ack
           }) => {
             if (response?.success && response.message) {
-              console.log(
-                'Message sent successfully and acknowledged:',
-                response.message
-              );
-            } else if (!response?.success) {
-              console.error(
-                'Failed to send message:',
-                response?.error || 'Unknown error'
-              );
-              const sendError = `Failed to send message: ${
-                response?.error || 'Unknown error'
-              }`;
-              setError(sendError);
-              if (
-                response?.error?.includes('Unauthorized') ||
-                response?.error?.includes('expired')
-              ) {
-                console.error(
-                  'Auth error on send. Disconnecting to trigger refresh.'
+              // Process the raw acknowledged message
+              const confirmedMessage = processRawMessage(response.message);
+              if (confirmedMessage) {
+                console.log(
+                  `Message (tempId: ${tempId}) sent successfully and acknowledged:`,
+                  confirmedMessage
                 );
-                socket.disconnect();
+                onConfirm(tempId, confirmedMessage); // Use the callback on success
+              } else {
+                console.error(
+                  `Message (tempId: ${tempId}) acknowledged but failed processing:`,
+                  response.message
+                );
+                onError(tempId, 'Failed to process server acknowledgement.');
               }
+            } else if (!response?.success) {
+              const errorMsg = response?.error || 'Unknown error';
+              console.error(
+                `Failed to send message (tempId: ${tempId}):`,
+                errorMsg
+              );
+              onError(tempId, errorMsg); // Use the error callback
+              // Existing global error handling (optional, maybe remove if handled per message)
+              // setError(`Failed to send message: ${errorMsg}`);
+              // if (errorMsg.includes('Unauthorized') || errorMsg.includes('expired')) {
+              //   console.error('Auth error on send. Disconnecting to trigger refresh.');
+              //   socket.disconnect();
+              // }
             }
           }
         );
       } else {
         console.warn(
-          'Cannot send message: Socket not connected or message empty.'
+          `Cannot send message (tempId: ${tempId}): Socket not connected or message empty.`
         );
-        if (!isConnected) setError('Cannot send message: Not connected.');
+        const errorMsg = !isConnected ? 'Not connected' : 'Message empty';
+        onError(tempId, `Cannot send message: ${errorMsg}`); // Trigger error callback immediately if cannot send
+        // if (!isConnected) setError('Cannot send message: Not connected.');
       }
     },
-    [socket, isConnected]
+    [socket, isConnected] // Removed setError dependency if handling per message
   );
 
   const getMessagesForRoom = useCallback(
