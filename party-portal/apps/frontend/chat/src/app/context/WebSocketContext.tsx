@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import React, {
   createContext,
   useContext,
@@ -22,6 +24,7 @@ import { WebSocketContextType } from '../../types/WebSocketContextType';
 import { processRawMessage } from '../../utils/messageProcessor';
 import { jwtDecode } from 'jwt-decode';
 import { DecodedToken } from '../../types/DecodedToken';
+import { RawBackendMessage } from '../../types/RawBackendMessage';
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(
   undefined
@@ -57,7 +60,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     new Map()
   );
   // --- Callback ref to notify ChatRoom when a self-sent message is confirmed via broadcast ---
-  const onSelfMessageConfirmedRef = useRef<(tempId: number) => void>(() => {});
+  const onSelfMessageConfirmedRef = useRef<(tempId: number) => void>(() => {
+    /* intentionally empty */
+  });
 
   const socketInstanceRef = useRef<Socket | null>(null);
   const isRefreshingTokenRef = useRef(false);
@@ -75,6 +80,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       return null;
     }
   }, []); // Calculate once
+
+  // --- Function for ChatRoom to register its confirmation handler ---
+  const setOnSelfMessageConfirmedHandler = useCallback(
+    (handler: (tempId: number) => void) => {
+      onSelfMessageConfirmedRef.current = handler;
+    },
+    []
+  );
 
   useEffect(() => {
     const { token } = getAuthTokens();
@@ -127,73 +140,37 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       }
     });
 
-    newSocket.on('initialData', (data: InitialData | any) => {
-      console.log('Received initialData (raw):', data);
+    newSocket.on('initialData', (data: InitialData) => {
+      // Use InitialChatData
+      console.log('Received initialData:', data);
       if (socketInstanceRef.current !== newSocket) return;
 
-      if (data && typeof data === 'object' && data.success) {
-        setRooms(data.rooms || []);
-        setUsers(data.users || []);
-
-        const processedMessages: Record<number, BackendMessage[]> = {};
-
-        (data.rooms || []).forEach((room: BackendRoom) => {
-          const roomMessagesRaw = data.roomMessages?.[room.id];
-          if (Array.isArray(roomMessagesRaw)) {
-            console.log(
-              `initialData: Processing ${roomMessagesRaw.length} messages for room ${room.id}`
-            );
-            // Use the helper function in map
-            processedMessages[room.id] = roomMessagesRaw
-              .map(processRawMessage) // Pass the raw message to the helper
-              .filter((msg): msg is BackendMessage => msg !== null) // Filter out nulls (failed processing)
-              .sort((a, b) => a.created_at.getTime() - b.created_at.getTime()); // Sort by Date object time
-            console.log(
-              `initialData: Successfully processed ${
-                processedMessages[room.id].length
-              } messages for room ${room.id}`
-            );
-          } else {
-            console.log(`initialData: No messages found for room ${room.id}.`);
-            processedMessages[room.id] = [];
-          }
-        });
-
-        console.log(
-          'initialData: Setting processed messages state:',
-          processedMessages
-        );
-        setMessages(processedMessages);
-        setError(null);
-      } else if (data && typeof data === 'object' && !data.success) {
-        console.error(
-          'initialData event received but success flag is false. Error:',
-          data.error
-        );
-        setError(
-          data.error || 'Failed to load initial chat data (server error)'
-        );
-      } else {
-        console.error(
-          'Received invalid or non-object data on initialData event:',
-          data
-        );
-        setError('Received invalid initial data from server.');
+      // Process messages: Convert date strings to Date objects
+      const processedMessages: Record<number, BackendMessage[]> = {};
+      for (const roomIdStr in data.roomMessages) {
+        const roomId = parseInt(roomIdStr, 10);
+        if (!isNaN(roomId)) {
+          processedMessages[roomId] = data.roomMessages[roomId]
+            .map(processRawMessage) // Use existing processing function
+            .filter((msg): msg is BackendMessage => msg !== null) // Type guard
+            .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+        }
       }
-      setIsLoading(false);
+      setMessages(processedMessages);
+      setRooms(data.rooms || []);
+      setUsers(data.users || []);
+      setIsLoading(false); // Ensure loading is set to false
     });
 
-    newSocket.on('newMessage', (incomingMessage: any) => {
-      console.log('Received newMessage (raw):', incomingMessage); // Log raw data
+    newSocket.on('newMessage', (incomingMessage: RawBackendMessage) => {
+      // Use RawBackendMessage
+      console.log('Received newMessage (raw):', incomingMessage);
       if (socketInstanceRef.current !== newSocket) return;
 
-      // Process the raw incoming message using the helper
-      const processedMessage = processRawMessage(incomingMessage);
-
-      // Check if processing was successful
+      const processedMessage = processRawMessage(incomingMessage); // Use existing processing function
       if (!processedMessage) {
         console.warn('newMessage: Skipping message due to processing failure.');
-        return; // Don't update state if processing failed
+        return;
       }
 
       // --- Check if it's a self-sent message that we have an ack for ---
@@ -451,7 +428,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       }
       isRefreshingTokenRef.current = false;
     };
-  }, [currentUserId, pendingAckMap]);
+  }, [currentUserId, pendingAckMap, error, setOnSelfMessageConfirmedHandler]); // Added error dependency below
 
   const sendMessage = useCallback(
     (
@@ -558,14 +535,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       console.warn('Cannot request users: Socket not connected.');
     }
   }, [socket, isConnected]);
-
-  // --- Function for ChatRoom to register its confirmation handler ---
-  const setOnSelfMessageConfirmedHandler = useCallback(
-    (handler: (tempId: number) => void) => {
-      onSelfMessageConfirmedRef.current = handler;
-    },
-    []
-  );
 
   const value: WebSocketContextType = {
     socket,

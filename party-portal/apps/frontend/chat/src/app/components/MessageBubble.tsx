@@ -1,33 +1,32 @@
 import React from 'react';
 import { BackendMessage } from '../../types/BackendMessage';
-import { PendingMessage } from '../../types/PendingMessage'; // Import PendingMessage
+import { PendingMessage } from '../../types/PendingMessage';
 
 // Define the possible shapes for a message in the bubble
 type ConfirmedMessageForBubble = BackendMessage & { status: 'confirmed' };
-type PendingMessageForBubble = PendingMessage & { id: number }; // Add 'id' mapped from tempId
+type PendingMessageForBubble = PendingMessage & { id: number };
 
 // Use a Union type for MessageWithStatus
 type MessageWithStatus = ConfirmedMessageForBubble | PendingMessageForBubble;
 
 // --- Message Bubble Component ---
 export const MessageBubble: React.FC<{
-  message: MessageWithStatus; // Use the new Union type
+  message: MessageWithStatus;
   isOwnMessage: boolean;
-  status?: 'pending' | 'failed' | 'confirmed'; // Status is already part of the message type shapes
-}> = React.memo(({ message, isOwnMessage }) => {
-  // status prop might be redundant now but keep for clarity if needed
-
-  // Format the timestamp (present in both shapes)
+  senderName?: string; // Add senderName prop
+}> = React.memo(({ message, isOwnMessage, senderName }) => {
+  // Format the timestamp in 24-hour format
   const formattedTime =
     message.created_at instanceof Date
       ? message.created_at.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
+          hour12: false, // Use 24-hour format
         })
       : 'Invalid Date';
 
   // Determine status directly from the message object
-  const currentStatus = message.status; // 'confirmed', 'pending', or 'failed'
+  const currentStatus = message.status;
 
   // Determine opacity based on status
   const opacityClass =
@@ -36,15 +35,8 @@ export const MessageBubble: React.FC<{
       : currentStatus === 'failed'
       ? 'opacity-50'
       : 'opacity-100';
-  // Determine background/text color for failed state
   const failedStyle =
     currentStatus === 'failed' ? 'bg-red-100 border-red-300' : '';
-  const failedTextStyle =
-    currentStatus === 'failed'
-      ? 'text-red-600'
-      : isOwnMessage
-      ? 'text-blue-100'
-      : 'text-gray-500';
   const failedIcon =
     currentStatus === 'failed' ? (
       <svg
@@ -81,36 +73,58 @@ export const MessageBubble: React.FC<{
     ) : null;
 
   return (
+    // --- Outer container for potential name + bubble ---
     <div
-      className={`flex mb-2 ${
-        isOwnMessage ? 'justify-end' : 'justify-start'
-      } ${opacityClass}`} // Apply opacity
+      className={`flex flex-col ${
+        isOwnMessage ? 'items-end' : 'items-start'
+      } mb-2`}
     >
+      {/* Conditionally render sender name ABOVE the bubble */}
+      {!isOwnMessage && senderName && (
+        <div className="text-xs text-gray-600 mb-0.5 ml-2 font-medium">
+          {' '}
+          {/* Adjust margin/padding as needed */}
+          {senderName}
+        </div>
+      )}
+
+      {/* --- Original bubble structure --- */}
       <div
-        className={`rounded-lg px-3 py-2 max-w-xs lg:max-w-md shadow-sm ${
-          isOwnMessage
-            ? currentStatus === 'failed'
-              ? failedStyle
-              : 'bg-blue-500 text-white' // Failed style for own message
-            : currentStatus === 'failed'
-            ? failedStyle
-            : 'bg-white text-gray-800 border border-gray-200' // Failed style for others
-        }`}
+        className={`flex ${
+          isOwnMessage ? 'justify-end' : 'justify-start'
+        } w-full`} // Ensure bubble takes width for alignment
+        title={`Sent at ${formattedTime}`}
       >
-        {/* Add 'whitespace-pre-wrap' to preserve newlines and wrap text */}
-        <p className="text-sm break-words whitespace-pre-wrap">
-          {message.content}
-        </p>
         <div
-          className={`text-xs mt-1 ${failedTextStyle} text-right`} // Apply failed text style
+          className={`rounded-lg px-3 py-2 max-w-xs lg:max-w-md shadow-sm ${opacityClass} ${
+            isOwnMessage
+              ? currentStatus === 'failed'
+                ? failedStyle
+                : 'bg-blue-500 text-white'
+              : currentStatus === 'failed'
+              ? failedStyle
+              : 'bg-white text-gray-800 border border-gray-200'
+          }`}
         >
-          {formattedTime}
-          {/* Show pending/failed icon */}
-          {pendingIcon}
-          {failedIcon}
+          {/* REMOVED sender name from inside */}
+
+          {/* Message content */}
+          <p className="text-sm break-words whitespace-pre-wrap">
+            {message.content}
+          </p>
+
+          {/* Icons container */}
+          {(pendingIcon || failedIcon) && (
+            <div className="text-xs mt-1 text-right h-3">
+              {pendingIcon}
+              {failedIcon}
+            </div>
+          )}
         </div>
       </div>
+      {/* --- End original bubble structure --- */}
     </div>
+    // --- End outer container ---
   );
 });
 

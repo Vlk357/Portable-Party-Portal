@@ -14,10 +14,11 @@ export interface WebSocketContextType {
   sendMessage: (
     roomId: number,
     content: string,
-    tempId: number, // Add tempId
-    onConfirm: (tempId: number, confirmedMessage: BackendMessage) => void, // Add success callback
-    onError: (tempId: number, error: string) => void // Add error callback
+    tempId: number,
+    onConfirm: (tempId: number, messageId: number) => void,
+    onError: (tempId: number, error: string) => void
   ) => void;
   getMessagesForRoom: (roomId: number) => BackendMessage[];
   requestUsers: () => void;
+  setOnSelfMessageConfirmedHandler: (handler: (tempId: number) => void) => void;
 }

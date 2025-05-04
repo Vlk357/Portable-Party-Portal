@@ -12,6 +12,7 @@ import { DecodedToken } from '../../types/DecodedToken';
 import { MessageBubble } from './MessageBubble';
 import { BackendMessage } from '../../types/BackendMessage'; // Import BackendMessage
 import { PendingMessage } from '../../types/PendingMessage';
+import { SimpleUser } from '../../types/SimpleUser'; // Import SimpleUser type
 
 // --- Chat Room Component ---
 export function ChatRoom() {
@@ -23,6 +24,8 @@ export function ChatRoom() {
     rooms,
     getMessagesForRoom,
     sendMessage,
+    users, // Get users array from context
+    setOnSelfMessageConfirmedHandler,
   } = useWebSocket();
 
   const [newMessage, setNewMessage] = useState('');
@@ -112,7 +115,7 @@ export function ChatRoom() {
 
   // --- Callbacks for sendMessage ---
   const handleSendConfirm = useCallback(
-    (tempId: number, confirmedMessage: BackendMessage) => {
+    (tempId: number, messageId: number) => {
       console.log(`ChatRoom: handleSendConfirm called for tempId: ${tempId}`); // Log entry
       setPendingMessages((prev) => {
         console.log(
@@ -197,6 +200,13 @@ export function ChatRoom() {
     [handleSendMessage]
   );
 
+  // --- Create a map for quick user lookup ---
+  const userMap = useMemo(() => {
+    const map = new Map<number, SimpleUser>();
+    users.forEach(user => map.set(user.id, user));
+    return map;
+  }, [users]);
+
   // --- Render Logic ---
   if (isContextLoading && !currentRoom) {
     return <div className="p-4 text-center text-gray-500">Loading chat...</div>;
@@ -267,21 +277,27 @@ export function ChatRoom() {
           </div>
         )}
         {/* Use the combined 'displayedMessages' list */}
-        {displayedMessages.map((msg) => (
-          <MessageBubble
-            // Use tempId for pending, id for confirmed as key
-            key={
-              msg.status === 'pending' || msg.status === 'failed'
-                ? msg.tempId
-                : msg.id
-            }
-            // Pass the whole combined message object
-            message={msg}
-            isOwnMessage={msg.user_id === currentUserId}
-            // Pass status to MessageBubble
-            status={msg.status}
-          />
-        ))}
+        {displayedMessages.map((msg) => {
+          // Find sender information
+          const sender = msg.user_id ? userMap.get(msg.user_id) : null;
+          const senderDisplayName = sender?.username ?? (msg.user_id ? `User ${msg.user_id}` : 'Unknown User');
+
+          return (
+            <MessageBubble
+              // Use tempId for pending, id for confirmed as key
+              key={
+                msg.status === 'pending' || msg.status === 'failed'
+                  ? msg.tempId
+                  : msg.id
+              }
+              // Pass the whole combined message object
+              message={msg}
+              isOwnMessage={msg.user_id === currentUserId}
+              // Pass the sender's name
+              senderName={senderDisplayName}
+            />
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 
