@@ -8,12 +8,17 @@ import React, {
   ReactNode,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { handleLogout, refreshToken, getAuthTokens } from '../../utils/apiFetch';
+import {
+  handleLogout,
+  refreshToken,
+  getAuthTokens,
+} from '../../utils/apiFetch';
 import { BackendRoom } from '../../types/BackendRoom';
 import { BackendMessage } from '../../types/BackendMessage';
 import { InitialData } from '../../types/InitialData';
 import type { SimpleUser } from '../../types/SimpleUser';
 import { WebSocketContextType } from '../../types/WebSocketContextType';
+import { processRawMessage } from '../../utils/messageProcessor';
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(
   undefined
@@ -98,44 +103,97 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       }
     });
 
-    newSocket.on('initialData', (data: InitialData) => {
-      console.log('Received initialData:', data);
+    newSocket.on('initialData', (data: InitialData | any) => {
+      console.log('Received initialData (raw):', data);
       if (socketInstanceRef.current !== newSocket) return;
 
-      if (data.success) {
+      if (data && typeof data === 'object' && data.success) {
         setRooms(data.rooms || []);
-        const initialMessages: Record<number, BackendMessage[]> = {};
-        (data.rooms || []).forEach((room) => {
-          initialMessages[room.id] = (data.roomMessages?.[room.id] || []).sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
+        setUsers(data.users || []);
+
+        const processedMessages: Record<number, BackendMessage[]> = {};
+
+        (data.rooms || []).forEach((room: BackendRoom) => {
+          const roomMessagesRaw = data.roomMessages?.[room.id];
+          if (Array.isArray(roomMessagesRaw)) {
+            console.log(
+              `initialData: Processing ${roomMessagesRaw.length} messages for room ${room.id}`
+            );
+            // Use the helper function in map
+            processedMessages[room.id] = roomMessagesRaw
+              .map(processRawMessage) // Pass the raw message to the helper
+              .filter((msg): msg is BackendMessage => msg !== null) // Filter out nulls (failed processing)
+              .sort((a, b) => a.created_at.getTime() - b.created_at.getTime()); // Sort by Date object time
+            console.log(
+              `initialData: Successfully processed ${
+                processedMessages[room.id].length
+              } messages for room ${room.id}`
+            );
+          } else {
+            console.log(`initialData: No messages found for room ${room.id}.`);
+            processedMessages[room.id] = [];
+          }
         });
-        setMessages(initialMessages);
-        setUsers(data.users || []); // Set users from initial data
+
+        console.log(
+          'initialData: Setting processed messages state:',
+          processedMessages
+        );
+        setMessages(processedMessages);
         setError(null);
+      } else if (data && typeof data === 'object' && !data.success) {
+        console.error(
+          'initialData event received but success flag is false. Error:',
+          data.error
+        );
+        setError(
+          data.error || 'Failed to load initial chat data (server error)'
+        );
       } else {
-        setError(data.error || 'Failed to load initial chat data.');
+        console.error(
+          'Received invalid or non-object data on initialData event:',
+          data
+        );
+        setError('Received invalid initial data from server.');
       }
       setIsLoading(false);
     });
 
-    newSocket.on('newMessage', (newMessage: BackendMessage) => {
-      console.log('Received newMessage:', newMessage);
+    newSocket.on('newMessage', (incomingMessage: any) => {
+      console.log('Received newMessage (raw):', incomingMessage); // Log raw data
       if (socketInstanceRef.current !== newSocket) return;
 
+      // Process the raw incoming message using the helper
+      const processedMessage = processRawMessage(incomingMessage);
+
+      // Check if processing was successful
+      if (!processedMessage) {
+        console.warn('newMessage: Skipping message due to processing failure.');
+        return; // Don't update state if processing failed
+      }
+
+      // Use the processed message (with Date objects) to update state
       setMessages((prevMessages) => {
-        const roomMessages = prevMessages[newMessage.roomId] || [];
-        if (roomMessages.some((msg) => msg.id === newMessage.id)) {
+        // Use the correct room ID property from the processed message
+        const roomMessages = prevMessages[processedMessage.chat_room_id] || [];
+        // Check for duplicates using the processed message ID
+        if (roomMessages.some((msg) => msg.id === processedMessage.id)) {
+          console.log(
+            `newMessage: Duplicate message ID ${processedMessage.id} received, skipping.`
+          );
           return prevMessages;
         }
-        const updatedRoomMessages = [...roomMessages, newMessage].sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        // Add the processed message and sort using the Date object directly
+        const updatedRoomMessages = [...roomMessages, processedMessage].sort(
+          (a, b) => a.created_at.getTime() - b.created_at.getTime() // Use Date object directly
+        );
+        console.log(
+          `newMessage: Added message ${processedMessage.id} to room ${processedMessage.chat_room_id}`
         );
         return {
           ...prevMessages,
-          [newMessage.roomId]: updatedRoomMessages,
+          // Use the correct room ID property from the processed message
+          [processedMessage.chat_room_id]: updatedRoomMessages,
         };
       });
     });
@@ -217,28 +275,96 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       }
     });
 
-    newSocket.on('error', (errorData: { message: string } | string) => {
+    newSocket.on('error', async (errorData: { message: string } | string) => {
+      // Make handler async
       const errorMessage =
         typeof errorData === 'string' ? errorData : errorData.message;
       console.error('WebSocket post-connection error:', errorMessage);
-      if (socketInstanceRef.current !== newSocket) return;
+
+      // Check if this error is for the current socket instance
+      if (socketInstanceRef.current !== newSocket) {
+        console.log(
+          'Ignoring post-connection error for non-current socket instance.'
+        );
+        return;
+      }
 
       const postConnectAuthErrors = [
         'Invalid or expired token',
         'Unauthorized',
+        // Add other specific error messages that indicate an auth issue after connection
       ];
-      if (postConnectAuthErrors.some((msg) => errorMessage.includes(msg))) {
-        console.error('Post-connection auth error detected. Logging out.');
-        handleLogout();
-        setError('Session expired. Please log in again.');
-        setIsConnected(false);
-        setSocket(null);
-        if (socketInstanceRef.current === newSocket) {
-          socketInstanceRef.current.disconnect();
-          socketInstanceRef.current = null;
+
+      const isAuthError = postConnectAuthErrors.some((msg) =>
+        errorMessage.includes(msg)
+      );
+
+      if (isAuthError && !isRefreshingTokenRef.current) {
+        console.log(
+          'Post-connection auth error detected, attempting token refresh...'
+        );
+        isRefreshingTokenRef.current = true;
+        setError('Session issue detected, attempting to refresh...');
+        setIsLoading(true); // Indicate loading during refresh
+
+        const refreshed = await refreshToken();
+
+        if (refreshed) {
+          console.log('Token refresh successful after post-connection error.');
+          const currentToken = localStorage.getItem('token');
+          if (currentToken && socketInstanceRef.current === newSocket) {
+            // Update auth details for subsequent operations
+            socketInstanceRef.current.auth = { token: currentToken };
+            console.log('Socket auth updated.');
+            // Check if the socket is still connected. If not, attempt reconnect.
+            if (!socketInstanceRef.current.connected) {
+              console.log(
+                'Socket disconnected after error, attempting reconnect...'
+              );
+              socketInstanceRef.current.connect();
+            } else {
+              // If still connected, clear the error potentially caused by the auth issue
+              setError(null);
+            }
+          } else {
+            console.error(
+              'Failed to get new token or socket instance changed after refresh. Logging out.'
+            );
+            handleLogout();
+            setError('Session expired. Please log in again.');
+            setIsConnected(false);
+            setSocket(null);
+            if (socketInstanceRef.current === newSocket) {
+              socketInstanceRef.current.disconnect();
+              socketInstanceRef.current = null;
+            }
+          }
+        } else {
+          // Refresh failed, proceed with logout
+          console.error(
+            'Token refresh failed after post-connection error. Logging out.'
+          );
+          handleLogout();
+          setError('Session expired. Please log in again.');
+          setIsConnected(false);
+          setSocket(null);
+          if (socketInstanceRef.current === newSocket) {
+            socketInstanceRef.current.disconnect();
+            socketInstanceRef.current = null;
+          }
         }
+        // Reset flags after handling
+        setIsLoading(false);
+        isRefreshingTokenRef.current = false;
+      } else if (isAuthError && isRefreshingTokenRef.current) {
+        console.log(
+          'Refresh already in progress, ignoring subsequent post-connection auth error.'
+        );
       } else {
+        // Handle non-auth errors
         setError(`Chat error: ${errorMessage}`);
+        // Consider if disconnect is needed for non-auth errors too
+        // Example: newSocket.disconnect();
       }
     });
 

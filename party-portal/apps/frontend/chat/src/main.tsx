@@ -9,9 +9,9 @@ const root = ReactDOM.createRoot(
 );
 
 root.render(
-  <StrictMode>
+  // <StrictMode>
     <BrowserRouter basename="/chat-app">
       <App />
     </BrowserRouter>
-  </StrictMode>
+  // </StrictMode>
 );

@@ -213,7 +213,7 @@ export function ChatRoom() {
           <MessageBubble
             key={msg.id}
             message={msg}
-            isOwnMessage={msg.userId === currentUserId}
+            isOwnMessage={msg.user_id === currentUserId}
           />
         ))}
         {/* Element to scroll to */}

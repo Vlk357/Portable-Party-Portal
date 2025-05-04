@@ -27,11 +27,12 @@ const setAuthTokens = (data: LoginResponse) => {
 
 // Function to clear tokens and redirect to login
 const handleLogout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('refreshTokenExpiration');
+  console.error('HandleLogout has been called!')
+  // localStorage.removeItem('token');
+  // localStorage.removeItem('refreshToken');
+  // localStorage.removeItem('refreshTokenExpiration');
   // Redirect to login page (adjust path as needed)
-  window.location.href = '/auth/login/'; // Or use React Router navigate
+  // window.location.href = '/auth/login/'; // Or use React Router navigate
 };
 
 // Function to attempt token refresh
