@@ -113,10 +113,15 @@ export function ChatRoom() {
   // --- Callbacks for sendMessage ---
   const handleSendConfirm = useCallback(
     (tempId: number, confirmedMessage: BackendMessage) => {
-      console.log(`Confirmed message for tempId: ${tempId}`, confirmedMessage);
-      // Remove the message from pending state now that it's confirmed
-      setPendingMessages((prev) => prev.filter((msg) => msg.tempId !== tempId));
-      // Note: The message will appear in the list via the 'newMessage' event handler updating 'confirmedMessages'
+      console.log(`ChatRoom: handleSendConfirm called for tempId: ${tempId}`); // Log entry
+      setPendingMessages((prev) => {
+        console.log(
+          `ChatRoom: Filtering pending messages. Current count: ${prev.length}. Removing tempId: ${tempId}`
+        ); // Log before filter
+        const newState = prev.filter((msg) => msg.tempId !== tempId);
+        console.log(`ChatRoom: New pending messages count: ${newState.length}`); // Log after filter
+        return newState;
+      });
     },
     []
   );
@@ -138,8 +143,7 @@ export function ChatRoom() {
     const trimmedMessage = newMessage.trim();
     if (trimmedMessage && currentRoomId && currentUserId && isConnected) {
       // 1. Create a temporary ID
-      const tempId =
-        Date.now();
+      const tempId = Date.now();
 
       // 2. Create the pending message object
       const pendingMsg: PendingMessage = {

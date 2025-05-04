@@ -14,7 +14,7 @@ export const MessageBubble: React.FC<{
   message: MessageWithStatus; // Use the new Union type
   isOwnMessage: boolean;
   status?: 'pending' | 'failed' | 'confirmed'; // Status is already part of the message type shapes
-}> = React.memo(({ message, isOwnMessage, status }) => {
+}> = React.memo(({ message, isOwnMessage }) => {
   // status prop might be redundant now but keep for clarity if needed
 
   // Format the timestamp (present in both shapes)
@@ -58,7 +58,7 @@ export const MessageBubble: React.FC<{
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1-18 0Zm-9 3.75h.008v.008H12v-.008Z"
         />
       </svg>
     ) : null;
@@ -97,7 +97,10 @@ export const MessageBubble: React.FC<{
             : 'bg-white text-gray-800 border border-gray-200' // Failed style for others
         }`}
       >
-        <p className="text-sm break-words">{message.content}</p>
+        {/* Add 'whitespace-pre-wrap' to preserve newlines and wrap text */}
+        <p className="text-sm break-words whitespace-pre-wrap">
+          {message.content}
+        </p>
         <div
           className={`text-xs mt-1 ${failedTextStyle} text-right`} // Apply failed text style
         >

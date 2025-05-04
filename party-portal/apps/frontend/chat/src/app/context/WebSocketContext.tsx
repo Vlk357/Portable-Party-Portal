@@ -6,6 +6,7 @@ import React, {
   useRef,
   useCallback,
   ReactNode,
+  useMemo,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
@@ -19,6 +20,8 @@ import { InitialData } from '../../types/InitialData';
 import type { SimpleUser } from '../../types/SimpleUser';
 import { WebSocketContextType } from '../../types/WebSocketContextType';
 import { processRawMessage } from '../../utils/messageProcessor';
+import { jwtDecode } from 'jwt-decode';
+import { DecodedToken } from '../../types/DecodedToken';
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(
   undefined
@@ -49,8 +52,29 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   );
   const [users, setUsers] = useState<SimpleUser[]>([]); // Add users state
 
+  // --- State to map tempId to real messageId upon ack ---
+  const [pendingAckMap, setPendingAckMap] = useState<Map<number, number>>(
+    new Map()
+  );
+  // --- Callback ref to notify ChatRoom when a self-sent message is confirmed via broadcast ---
+  const onSelfMessageConfirmedRef = useRef<(tempId: number) => void>(() => {});
+
   const socketInstanceRef = useRef<Socket | null>(null);
   const isRefreshingTokenRef = useRef(false);
+
+  // --- Get Current User ID ---
+  const currentUserId = useMemo(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      const userId = parseInt(decoded.sub, 10);
+      return isNaN(userId) ? null : userId;
+    } catch (error) {
+      console.error('WebSocketContext: Failed to decode token:', error);
+      return null;
+    }
+  }, []); // Calculate once
 
   useEffect(() => {
     const { token } = getAuthTokens();
@@ -171,6 +195,39 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         console.warn('newMessage: Skipping message due to processing failure.');
         return; // Don't update state if processing failed
       }
+
+      // --- Check if it's a self-sent message that we have an ack for ---
+      if (processedMessage.user_id === currentUserId) {
+        const realId = processedMessage.id;
+        let foundTempId: number | null = null;
+
+        // Find the tempId associated with this realId in our map
+        for (const [tempId, messageId] of pendingAckMap.entries()) {
+          if (messageId === realId) {
+            foundTempId = tempId;
+            break;
+          }
+        }
+
+        if (foundTempId !== null) {
+          console.log(
+            `newMessage: Confirmed self-sent message. Real ID: ${realId}, Temp ID: ${foundTempId}`
+          );
+          // Call the callback registered by ChatRoom to remove the pending state
+          onSelfMessageConfirmedRef.current(foundTempId);
+          // Clean up the map entry
+          setPendingAckMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(foundTempId as number); // Type assertion safe here
+            return newMap;
+          });
+        } else {
+          console.log(
+            `newMessage: Received self-sent message ID ${realId} but no matching pending ack found (might be from another session/tab).`
+          );
+        }
+      }
+      // --- End self-sent message check ---
 
       // Use the processed message (with Date objects) to update state
       setMessages((prevMessages) => {
@@ -394,14 +451,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       }
       isRefreshingTokenRef.current = false;
     };
-  }, []);
+  }, [currentUserId, pendingAckMap]);
 
   const sendMessage = useCallback(
     (
       roomId: number,
       content: string,
       tempId: number,
-      onConfirm: (tempId: number, confirmedMessage: BackendMessage) => void, // Accept success callback
+      onConfirm: (tempId: number, messageId: number) => void, // Accept success callback
       onError: (tempId: number, error: string) => void // Accept error callback
     ) => {
       if (socket && isConnected && content.trim()) {
@@ -419,24 +476,20 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
           (response: {
             success: boolean;
             error?: string;
-            message?: any; // Expect raw message from server ack
+            messageId?: number; // Expect messageId now
           }) => {
-            if (response?.success && response.message) {
-              // Process the raw acknowledged message
-              const confirmedMessage = processRawMessage(response.message);
-              if (confirmedMessage) {
-                console.log(
-                  `Message (tempId: ${tempId}) sent successfully and acknowledged:`,
-                  confirmedMessage
-                );
-                onConfirm(tempId, confirmedMessage); // Use the callback on success
-              } else {
-                console.error(
-                  `Message (tempId: ${tempId}) acknowledged but failed processing:`,
-                  response.message
-                );
-                onError(tempId, 'Failed to process server acknowledgement.');
-              }
+            if (response?.success && typeof response.messageId === 'number') {
+              const realMessageId = response.messageId;
+              console.log(
+                `Message (tempId: ${tempId}) ack received successfully. Real ID: ${realMessageId}`
+              );
+              // Store the mapping for the newMessage handler to find later
+              setPendingAckMap((prev) =>
+                new Map(prev).set(tempId, realMessageId)
+              );
+              // Notify the caller (ChatRoom) of success and provide the real ID
+              onConfirm(tempId, realMessageId);
+              // --- DO NOT add message to state here ---
             } else if (!response?.success) {
               const errorMsg = response?.error || 'Unknown error';
               console.error(
@@ -450,6 +503,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
               //   console.error('Auth error on send. Disconnecting to trigger refresh.');
               //   socket.disconnect();
               // }
+            } else {
+              // Handle case where ack is success but messageId is missing/invalid
+              console.error(
+                `Message (tempId: ${tempId}) ack success but invalid messageId received:`,
+                response
+              );
+              onError(tempId, 'Server acknowledgement missing message ID.');
             }
           }
         );
@@ -462,7 +522,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         // if (!isConnected) setError('Cannot send message: Not connected.');
       }
     },
-    [socket, isConnected] // Removed setError dependency if handling per message
+    [socket, isConnected]
   );
 
   const getMessagesForRoom = useCallback(
@@ -499,6 +559,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
   }, [socket, isConnected]);
 
+  // --- Function for ChatRoom to register its confirmation handler ---
+  const setOnSelfMessageConfirmedHandler = useCallback(
+    (handler: (tempId: number) => void) => {
+      onSelfMessageConfirmedRef.current = handler;
+    },
+    []
+  );
+
   const value: WebSocketContextType = {
     socket,
     isConnected,
@@ -510,6 +578,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     sendMessage,
     getMessagesForRoom,
     requestUsers,
+    setOnSelfMessageConfirmedHandler,
   };
 
   return (
