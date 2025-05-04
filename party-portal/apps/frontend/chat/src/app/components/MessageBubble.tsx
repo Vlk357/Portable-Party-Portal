@@ -1,24 +1,23 @@
 import React from 'react';
 import { BackendMessage } from '../../types/BackendMessage';
+import { PendingMessage } from '../../types/PendingMessage'; // Import PendingMessage
 
-// Combine types for props - message can be BackendMessage or have status
-type MessageWithStatus = (
-  | BackendMessage
-  | { tempId: string; status: 'pending' | 'failed' }
-) & {
-  content: string;
-  created_at: Date;
-  user_id: number | null;
-  status?: 'pending' | 'failed' | 'confirmed'; // Add status
-};
+// Define the possible shapes for a message in the bubble
+type ConfirmedMessageForBubble = BackendMessage & { status: 'confirmed' };
+type PendingMessageForBubble = PendingMessage & { id: number }; // Add 'id' mapped from tempId
+
+// Use a Union type for MessageWithStatus
+type MessageWithStatus = ConfirmedMessageForBubble | PendingMessageForBubble;
 
 // --- Message Bubble Component ---
 export const MessageBubble: React.FC<{
-  message: MessageWithStatus; // Use combined type
+  message: MessageWithStatus; // Use the new Union type
   isOwnMessage: boolean;
-  status?: 'pending' | 'failed' | 'confirmed'; // Receive status prop
+  status?: 'pending' | 'failed' | 'confirmed'; // Status is already part of the message type shapes
 }> = React.memo(({ message, isOwnMessage, status }) => {
-  // Format the timestamp
+  // status prop might be redundant now but keep for clarity if needed
+
+  // Format the timestamp (present in both shapes)
   const formattedTime =
     message.created_at instanceof Date
       ? message.created_at.toLocaleTimeString([], {
@@ -27,23 +26,27 @@ export const MessageBubble: React.FC<{
         })
       : 'Invalid Date';
 
+  // Determine status directly from the message object
+  const currentStatus = message.status; // 'confirmed', 'pending', or 'failed'
+
   // Determine opacity based on status
   const opacityClass =
-    status === 'pending'
+    currentStatus === 'pending'
       ? 'opacity-60'
-      : status === 'failed'
+      : currentStatus === 'failed'
       ? 'opacity-50'
       : 'opacity-100';
   // Determine background/text color for failed state
-  const failedStyle = status === 'failed' ? 'bg-red-100 border-red-300' : '';
+  const failedStyle =
+    currentStatus === 'failed' ? 'bg-red-100 border-red-300' : '';
   const failedTextStyle =
-    status === 'failed'
+    currentStatus === 'failed'
       ? 'text-red-600'
       : isOwnMessage
       ? 'text-blue-100'
       : 'text-gray-500';
   const failedIcon =
-    status === 'failed' ? (
+    currentStatus === 'failed' ? (
       <svg
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
@@ -55,12 +58,12 @@ export const MessageBubble: React.FC<{
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1-18 0Zm-9 3.75h.008v.008H12v-.008Z"
+          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
         />
       </svg>
     ) : null;
   const pendingIcon =
-    status === 'pending' ? (
+    currentStatus === 'pending' ? (
       <svg
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
@@ -86,10 +89,10 @@ export const MessageBubble: React.FC<{
       <div
         className={`rounded-lg px-3 py-2 max-w-xs lg:max-w-md shadow-sm ${
           isOwnMessage
-            ? status === 'failed'
+            ? currentStatus === 'failed'
               ? failedStyle
               : 'bg-blue-500 text-white' // Failed style for own message
-            : status === 'failed'
+            : currentStatus === 'failed'
             ? failedStyle
             : 'bg-white text-gray-800 border border-gray-200' // Failed style for others
         }`}

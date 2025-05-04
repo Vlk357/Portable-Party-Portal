@@ -400,9 +400,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     (
       roomId: number,
       content: string,
-      tempId: string, // Accept tempId
-      onConfirm: (tempId: string, confirmedMessage: BackendMessage) => void, // Accept success callback
-      onError: (tempId: string, error: string) => void // Accept error callback
+      tempId: number,
+      onConfirm: (tempId: number, confirmedMessage: BackendMessage) => void, // Accept success callback
+      onError: (tempId: number, error: string) => void // Accept error callback
     ) => {
       if (socket && isConnected && content.trim()) {
         console.log(
@@ -411,7 +411,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         const payload = {
           roomId,
           content,
-          clientCreatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         socket.emit(
           'sendMessage',

@@ -1,5 +1,5 @@
 export interface PendingMessage {
-  tempId: string; // Unique temporary ID for client-side tracking
+  tempId: number;
   chat_room_id: number;
   user_id: number | null; // The sender's ID
   content: string;

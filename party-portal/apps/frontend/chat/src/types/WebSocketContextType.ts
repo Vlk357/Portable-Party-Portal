@@ -14,9 +14,9 @@ export interface WebSocketContextType {
   sendMessage: (
     roomId: number,
     content: string,
-    tempId: string, // Add tempId
-    onConfirm: (tempId: string, confirmedMessage: BackendMessage) => void, // Add success callback
-    onError: (tempId: string, error: string) => void // Add error callback
+    tempId: number, // Add tempId
+    onConfirm: (tempId: number, confirmedMessage: BackendMessage) => void, // Add success callback
+    onError: (tempId: number, error: string) => void // Add error callback
   ) => void;
   getMessagesForRoom: (roomId: number) => BackendMessage[];
   requestUsers: () => void;

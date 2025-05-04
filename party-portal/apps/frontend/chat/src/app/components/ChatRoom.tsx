@@ -112,7 +112,7 @@ export function ChatRoom() {
 
   // --- Callbacks for sendMessage ---
   const handleSendConfirm = useCallback(
-    (tempId: string, confirmedMessage: BackendMessage) => {
+    (tempId: number, confirmedMessage: BackendMessage) => {
       console.log(`Confirmed message for tempId: ${tempId}`, confirmedMessage);
       // Remove the message from pending state now that it's confirmed
       setPendingMessages((prev) => prev.filter((msg) => msg.tempId !== tempId));
@@ -121,7 +121,7 @@ export function ChatRoom() {
     []
   );
 
-  const handleSendError = useCallback((tempId: string, error: string) => {
+  const handleSendError = useCallback((tempId: number, error: string) => {
     console.error(`Failed message for tempId: ${tempId}, Error: ${error}`);
     // Update the status of the pending message to 'failed'
     setPendingMessages((prev) =>
@@ -139,7 +139,7 @@ export function ChatRoom() {
     if (trimmedMessage && currentRoomId && currentUserId && isConnected) {
       // 1. Create a temporary ID
       const tempId =
-        Date.now().toString() + Math.random().toString(36).substring(2, 9); // Simple unique enough ID
+        Date.now();
 
       // 2. Create the pending message object
       const pendingMsg: PendingMessage = {
