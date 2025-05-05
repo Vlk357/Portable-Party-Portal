@@ -1,0 +1,8 @@
+framework:
+    cache:
+        # Define the pool for streaming state
+        pools:
+            cache.streaming_state:
+                adapter: cache.adapter.filesystem # Use filesystem adapter
+                # adapter: '%env(CACHE_DSN)%' # Or use DSN from env
+                default_lifetime: 0 # Store indefinitely unless cleared

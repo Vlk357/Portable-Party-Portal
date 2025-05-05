@@ -6,6 +6,7 @@ services:
     volumes:
       - ./party-portal/apps/backend:/var/www/apps # Mount backend code
     # Environment variables needed by the base PHP setup itself, if any
+      - ./party-portal/vendor:/var/www/vendor
     networks:
       - backend
     extra_hosts:
@@ -16,7 +17,6 @@ services:
     volumes:
       # Mount specific service code + JWT keys
       - ./party-portal/apps/backend/auth-service:/var/www/apps/auth
-      # Ensure keys are present here or adjust path
       - ./party-portal/apps/backend/auth-service/config/jwt:/var/www/apps/auth/config/jwt:ro
     working_dir: /var/www/apps/auth
     environment:
@@ -120,6 +120,61 @@ services:
       - backend
     # Command to run the dev server from the correct directory
     command: sh -c "npm run dev -- --host --port 5174"
+
+  cinema: # Cinema Service (Symfony) Configuration
+    extends: php # Reuses the same PHP image build
+    volumes:
+      # Mount specific service code (relative to /var/www/apps)
+      - ./party-portal/apps/backend/cinema-service:/var/www/apps/cinema
+      # Mount the movie directory from the host into the container
+      - ${MOVIES_DIRECTORY}:/var/www/media:ro # Read-only recommended
+    working_dir: /var/www/apps/cinema
+    environment:
+      # --- Framework/Runtime ---
+      APP_ENV: ${SYMFONY_ENV:-dev}
+      APP_SECRET: ${CINEMA_APP_SECRET} # Needs to be set in .env (can be different from auth)
+      # --- Cache ---
+      # Using filesystem cache adapter - stored within container's /var/www/apps/cinema/var/cache
+      CACHE_DSN: cache.adapter.filesystem
+      # --- Mercure ---
+      MERCURE_URL: http://mercure/.well-known/mercure # Internal URL to Mercure Hub
+      MERCURE_PUBLIC_URL: http://127.0.0.1:8080/.well-known/mercure # Public URL via Nginx
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET} # Needs to be set in .env (MUST be the same as Mercure service)
+      # --- Service Specific ---
+      # Path *inside the container* where movies are mounted
+      MOVIE_DIRECTORY: /var/www/media
+    depends_on:
+      mercure: # Must wait for Mercure to publish updates
+        condition: service_started
+      # No database dependency initially, add if needed later
+    command: >
+      sh -c "
+        composer install --optimize-autoloader --no-dev &&
+        # Add migrations here if database is added later
+        # php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
+        php-fpm
+      "
+
+  mercure: # Mercure Hub Service
+    image: dunglas/mercure:latest # Use official Mercure image
+    environment:
+      # The secret key used by publishers (Symfony services) to authorize publishing.
+      # MUST match MERCURE_JWT_SECRET in cinema/auth services.
+      MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      # The secret key used to sign subscription JWTs (if needed, not used for anonymous).
+      MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET} # Can be the same or different
+      # Allow anonymous subscriptions (needed for public /stream/status topic)
+      MERCURE_EXTRA_DIRECTIVES: |
+        anonymous_subscriptions
+      # Address the hub listens on *inside* the container network
+      SERVER_NAME: ':80'
+      # Allow requests from the Nginx proxy (adjust if your Nginx container has a different name/IP)
+      CORS_ALLOWED_ORIGINS: '*' # Be more specific in production! (e.g., http://localhost:5174)
+    # ports: # No need to expose ports directly if accessed via Nginx
+    #   - "9090:80" # Example: Expose directly on host 9090 for debugging
+    networks:
+      - backend
+    command: /usr/local/bin/mercure run -config /etc/caddy/Caddyfile.dev # Use appropriate command/config
 
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
