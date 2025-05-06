@@ -11,7 +11,8 @@ function App() {
         setIsLoading(true);
         try {
             // Use VITE_API_URL for consistency if defined, otherwise fallback
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/auth/api';
+            const apiUrl = `${window.location.origin}/auth/api`;
+            console.log(`Origin url: ${window.location.origin}`);
             const response = await fetch(`${apiUrl}/login`, {
                 method: 'POST',
                 headers: {

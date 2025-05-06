@@ -113,7 +113,7 @@ services:
       # - ./package-lock.json:/app/package-lock.json # Mount root package-lock.json
     # No working_dir needed here if command specifies path
     environment:
-      - VITE_CHAT_WEBSOCKET_URL=ws://localhost:8080/chat
+      - VITE_CHAT_WEBSOCKET_URL=/chat
       - VITE_CHAT_API_URL=/chat/api
       - PORT=5174 # Define port for chat frontend
     networks:
@@ -138,7 +138,7 @@ services:
       CACHE_DSN: cache.adapter.filesystem
       # --- Mercure ---
       MERCURE_URL: http://mercure/.well-known/mercure # Internal URL to Mercure Hub
-      MERCURE_PUBLIC_URL: http://127.0.0.1:8080/.well-known/mercure # Public URL via Nginx
+      MERCURE_PUBLIC_URL: /.well-known/mercure # Public URL via Nginx
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET} # Needs to be set in .env (MUST be the same as Mercure service)
       # --- Service Specific ---
       # Path *inside the container* where movies are mounted
@@ -149,7 +149,7 @@ services:
       # No database dependency initially, add if needed later
     command: >
       sh -c "
-        composer install --optimize-autoloader --no-dev &&
+        composer install --optimize-autoloader &&
         # Add migrations here if database is added later
         # php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
         php-fpm
@@ -174,7 +174,7 @@ services:
     #   - "9090:80" # Example: Expose directly on host 9090 for debugging
     networks:
       - backend
-    command: /usr/local/bin/mercure run -config /etc/caddy/Caddyfile.dev # Use appropriate command/config
+    command: caddy run --config /etc/caddy/Caddyfile.dev --adapter caddyfile
 
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine

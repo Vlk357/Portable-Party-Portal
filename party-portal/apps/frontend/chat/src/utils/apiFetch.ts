@@ -1,9 +1,7 @@
 // filepath: party-portal/apps/frontend/auth/src/utils/apiFetch.ts
 import type { LoginResponse } from '../../src/types/LoginResponse'; // Adjust path if needed
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/auth/api'; // Auth API base
-
+const API_BASE_URL = `${window.location.origin}/auth/api`; // Auth API base
 // Function to get tokens from storage
 export const getAuthTokens = () => {
   const token = localStorage.getItem('token');
@@ -27,7 +25,7 @@ const setAuthTokens = (data: LoginResponse) => {
 
 // Function to clear tokens and redirect to login
 const handleLogout = () => {
-  console.error('HandleLogout has been called!')
+  console.error('HandleLogout has been called!');
   // localStorage.removeItem('token');
   // localStorage.removeItem('refreshToken');
   // localStorage.removeItem('refreshTokenExpiration');
@@ -60,8 +58,8 @@ const refreshToken = async (): Promise<boolean> => {
       );
       // If refresh token itself is invalid (e.g., 401/403), logout
       if (response.status === 401 || response.status === 403) {
-         console.log("Refresh token invalid or expired. Logging out.");
-         handleLogout();
+        console.log('Refresh token invalid or expired. Logging out.');
+        handleLogout();
       }
       return false;
     }
@@ -111,7 +109,8 @@ export const apiFetch = async (
         headers.set('Authorization', `Bearer ${newToken}`);
       }
       console.log('Retrying original request with new token.');
-      response = await fetch(url, { // Reassign response
+      response = await fetch(url, {
+        // Reassign response
         ...options,
         headers,
       });
