@@ -190,6 +190,8 @@ services:
       # - frontend-auth
       - chat
       - frontend-chat
+      - cinema
+      - mercure
     networks:
       - backend
 
