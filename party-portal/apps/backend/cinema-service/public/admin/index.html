@@ -1,0 +1,540 @@
+service/public/admin/index.html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cinema Streaming Admin</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+      }
+      h1 {
+        color: #333;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 10px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: white;
+      }
+      .card-title {
+        font-size: 18px;
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: 0.3s;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button.danger {
+        background-color: #f44336;
+      }
+      button.danger:hover {
+        background-color: #d32f2f;
+      }
+      button.secondary {
+        background-color: #2196f3;
+      }
+      button.secondary:hover {
+        background-color: #0b7dda;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      .status {
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 4px;
+      }
+      .status.success {
+        background-color: #dff0d8;
+        color: #3c763d;
+      }
+      .status.error {
+        background-color: #f2dede;
+        color: #a94442;
+      }
+      .status.info {
+        background-color: #d9edf7;
+        color: #31708f;
+      }
+      #statusInfo {
+        font-weight: bold;
+      }
+      .movie-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 15px;
+      }
+      .movie-card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        transition: 0.3s;
+      }
+      .movie-card:hover {
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+      .movie-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+      .controls {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+      }
+      #auth-section {
+        margin-bottom: 20px;
+      }
+      .hidden {
+        display: none;
+      }
+      .tab {
+        overflow: hidden;
+        border: 1px solid #ccc;
+        background-color: #f1f1f1;
+        border-radius: 4px 4px 0 0;
+      }
+      .tab button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: 0.3s;
+        color: black;
+      }
+      .tab button:hover {
+        background-color: #ddd;
+      }
+      .tab button.active {
+        background-color: #ccc;
+      }
+      .tabcontent {
+        display: none;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        animation: fadeEffect 1s;
+      }
+      @keyframes fadeEffect {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      textarea {
+        width: 100%;
+        height: 100px;
+        margin-top: 10px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Cinema Streaming Admin</h1>
+
+      <div id="auth-section" class="card">
+        <h2 class="card-title">Authentication</h2>
+        <div>
+          <input
+            type="text"
+            id="tokenInput"
+            placeholder="Enter JWT Token"
+            style="width: 70%; padding: 8px"
+          />
+          <button id="authButton" class="secondary">Authenticate</button>
+        </div>
+        <div id="authStatus" class="status" style="display: none"></div>
+      </div>
+
+      <div id="admin-panel" class="hidden">
+        <div class="tab">
+          <button
+            class="tablinks active"
+            onclick="openTab(event, 'status-tab')"
+          >
+            Current Status
+          </button>
+          <button class="tablinks" onclick="openTab(event, 'movies-tab')">
+            Available Movies
+          </button>
+          <button class="tablinks" onclick="openTab(event, 'logs-tab')">
+            Logs
+          </button>
+        </div>
+
+        <div id="status-tab" class="tabcontent" style="display: block">
+          <div class="card">
+            <h2 class="card-title">Current Stream Status</h2>
+            <div id="statusInfo" class="status info">Loading status...</div>
+
+            <div class="controls">
+              <button id="refreshStatus" class="secondary">
+                Refresh Status
+              </button>
+              <button id="pauseButton" disabled>Pause</button>
+              <button id="resumeButton" disabled>Resume</button>
+              <button id="stopButton" class="danger" disabled>
+                Stop Stream
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="movies-tab" class="tabcontent">
+          <div class="card">
+            <h2 class="card-title">Available Movies</h2>
+            <button id="refreshMovies" class="secondary">Refresh Movies</button>
+            <div id="moviesList" class="movie-list">
+              <p>Loading movies...</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="logs-tab" class="tabcontent">
+          <div class="card">
+            <h2 class="card-title">Admin Action Logs</h2>
+            <button id="clearLogs" class="danger">Clear Logs</button>
+            <textarea id="logArea" readonly></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // State management
+      let authToken = localStorage.getItem('cinemaAdminToken') || '';
+      let currentStatus = {};
+      let availableMovies = [];
+
+      // DOM Elements
+      const tokenInput = document.getElementById('tokenInput');
+      const authButton = document.getElementById('authButton');
+      const authStatus = document.getElementById('authStatus');
+      const adminPanel = document.getElementById('admin-panel');
+      const authSection = document.getElementById('auth-section');
+      const statusInfo = document.getElementById('statusInfo');
+      const pauseButton = document.getElementById('pauseButton');
+      const resumeButton = document.getElementById('resumeButton');
+      const stopButton = document.getElementById('stopButton');
+      const refreshStatus = document.getElementById('refreshStatus');
+      const refreshMovies = document.getElementById('refreshMovies');
+      const moviesList = document.getElementById('moviesList');
+      const logArea = document.getElementById('logArea');
+      const clearLogs = document.getElementById('clearLogs');
+
+      // Initialize UI based on saved token
+      if (authToken) {
+        tokenInput.value = authToken;
+        checkAuthentication();
+      }
+
+      // Tab functionality
+      function openTab(evt, tabName) {
+        const tabcontent = document.getElementsByClassName('tabcontent');
+        for (let i = 0; i < tabcontent.length; i++) {
+          tabcontent[i].style.display = 'none';
+        }
+
+        const tablinks = document.getElementsByClassName('tablinks');
+        for (let i = 0; i < tablinks.length; i++) {
+          tablinks[i].className = tablinks[i].className.replace(' active', '');
+        }
+
+        document.getElementById(tabName).style.display = 'block';
+        evt.currentTarget.className += ' active';
+      }
+
+      // Event Listeners
+      authButton.addEventListener('click', checkAuthentication);
+      refreshStatus.addEventListener('click', fetchStatus);
+      refreshMovies.addEventListener('click', fetchMovies);
+      pauseButton.addEventListener('click', pauseStream);
+      resumeButton.addEventListener('click', resumeStream);
+      stopButton.addEventListener('click', confirmStopStream);
+      clearLogs.addEventListener('click', () => {
+        logArea.value = '';
+        localStorage.removeItem('cinemaAdminLogs');
+      });
+
+      // Load saved logs
+      logArea.value = localStorage.getItem('cinemaAdminLogs') || '';
+
+      // Helper Functions
+      function logAction(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `[${timestamp}] ${message}\n`;
+        logArea.value = logMessage + logArea.value;
+        localStorage.setItem('cinemaAdminLogs', logArea.value);
+      }
+
+      function showError(message) {
+        authStatus.textContent = message;
+        authStatus.className = 'status error';
+        authStatus.style.display = 'block';
+      }
+
+      function showSuccess(message) {
+        authStatus.textContent = message;
+        authStatus.className = 'status success';
+        authStatus.style.display = 'block';
+      }
+
+      function updateStatusDisplay() {
+        if (!currentStatus) {
+          statusInfo.textContent = 'Error fetching status';
+          statusInfo.className = 'status error';
+          return;
+        }
+
+        let statusText = '';
+
+        if (currentStatus.isPlaying === false && !currentStatus.manifestUrl) {
+          statusText = 'No active stream';
+          statusInfo.className = 'status info';
+          pauseButton.disabled = true;
+          resumeButton.disabled = true;
+          stopButton.disabled = true;
+        } else if (currentStatus.isPlaying === true) {
+          statusText = `Playing: ${
+            currentStatus.title || currentStatus.manifestUrl
+          }`;
+          if (currentStatus.currentTime) {
+            statusText += ` (${formatTime(currentStatus.currentTime)})`;
+          }
+          statusInfo.className = 'status success';
+          pauseButton.disabled = false;
+          resumeButton.disabled = true;
+          stopButton.disabled = false;
+        } else {
+          statusText = `Paused: ${
+            currentStatus.title || currentStatus.manifestUrl
+          }`;
+          if (currentStatus.currentTime) {
+            statusText += ` (${formatTime(currentStatus.currentTime)})`;
+          }
+          statusInfo.className = 'status info';
+          pauseButton.disabled = true;
+          resumeButton.disabled = false;
+          stopButton.disabled = false;
+        }
+
+        statusInfo.textContent = statusText;
+      }
+
+      function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+
+        return [
+          hours.toString().padStart(2, '0'),
+          minutes.toString().padStart(2, '0'),
+          remainingSeconds.toString().padStart(2, '0'),
+        ].join(':');
+      }
+
+      function renderMoviesList() {
+        if (!availableMovies || availableMovies.length === 0) {
+          moviesList.innerHTML = '<p>No movies available</p>';
+          return;
+        }
+
+        moviesList.innerHTML = '';
+        availableMovies.forEach((movie) => {
+          const card = document.createElement('div');
+          card.className = 'movie-card';
+
+          const title = document.createElement('div');
+          title.className = 'movie-title';
+          title.textContent = movie.title || movie.path;
+
+          const path = document.createElement('div');
+          path.textContent = `Path: ${movie.path}`;
+          path.style.fontSize = '12px';
+          path.style.marginBottom = '10px';
+
+          const playBtn = document.createElement('button');
+          playBtn.textContent = 'Play';
+          playBtn.onclick = () => startStream(movie.manifestUrl);
+
+          card.appendChild(title);
+          card.appendChild(path);
+          card.appendChild(playBtn);
+          moviesList.appendChild(card);
+        });
+      }
+
+      // API Functions
+      async function makeApiRequest(endpoint, method = 'GET', body = null) {
+        try {
+          const url = `/cinema/admin/stream${endpoint}`;
+          const options = {
+            method,
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+            },
+          };
+
+          if (body) {
+            options.body = JSON.stringify(body);
+          }
+
+          const response = await fetch(url, options);
+
+          if (response.status === 401) {
+            showAuthentication();
+            showError('Authentication failed. Please enter a valid token.');
+            return null;
+          }
+
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.statusText}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          logAction(`Error: ${error.message}`);
+          console.error('API request error:', error);
+          return null;
+        }
+      }
+
+      async function checkAuthentication() {
+        authToken = tokenInput.value.trim();
+
+        if (!authToken) {
+          showError('Please enter a JWT token');
+          return;
+        }
+
+        // Try to fetch status to validate token
+        const status = await makeApiRequest('/status');
+
+        if (status) {
+          showSuccess('Authentication successful!');
+          localStorage.setItem('cinemaAdminToken', authToken);
+          showAdminPanel();
+          currentStatus = status;
+          updateStatusDisplay();
+          fetchMovies();
+          logAction('Authentication successful');
+        } else {
+          showError('Authentication failed. Please enter a valid token.');
+        }
+      }
+
+      function showAuthentication() {
+        adminPanel.classList.add('hidden');
+        authSection.style.display = 'block';
+      }
+
+      function showAdminPanel() {
+        authSection.style.display = 'none';
+        adminPanel.classList.remove('hidden');
+      }
+
+      async function fetchStatus() {
+        const status = await makeApiRequest('/status');
+        if (status) {
+          currentStatus = status;
+          updateStatusDisplay();
+          logAction('Status refreshed');
+        }
+      }
+
+      async function fetchMovies() {
+        const response = await makeApiRequest('/movies');
+        if (response && response.movies) {
+          availableMovies = response.movies;
+          renderMoviesList();
+          logAction(`Loaded ${availableMovies.length} movies`);
+        }
+      }
+
+      async function startStream(manifestUrl) {
+        const response = await makeApiRequest('/start', 'POST', {
+          manifestUrl,
+        });
+        if (response) {
+          logAction(`Started stream: ${manifestUrl}`);
+          fetchStatus();
+          // Switch to status tab
+          document.querySelector('.tablinks').click();
+        }
+      }
+
+      async function pauseStream() {
+        const response = await makeApiRequest('/pause', 'POST');
+        if (response) {
+          logAction('Paused stream');
+          fetchStatus();
+        }
+      }
+
+      async function resumeStream() {
+        const response = await makeApiRequest('/resume', 'POST');
+        if (response) {
+          logAction('Resumed stream');
+          fetchStatus();
+        }
+      }
+
+      function confirmStopStream() {
+        if (confirm('Are you sure you want to stop the current stream?')) {
+          stopStream();
+        }
+      }
+
+      async function stopStream() {
+        const response = await makeApiRequest('/stop', 'POST');
+        if (response) {
+          logAction('Stopped stream');
+          fetchStatus();
+        }
+      }
+
+      // Initial fetch of status if authenticated
+      if (authToken) {
+        fetchStatus();
+      }
+    </script>
+  </body>
+</html>

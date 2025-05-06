@@ -127,7 +127,7 @@ class StreamingStateService
         $finder = new Finder();
         $movies = [];
         try {
-            $finder->files()->in($this->movieDirectory)->name(['*.m3u8', '*.mpd'])->depth('== 1'); // Look in subdirs like movie1/manifest.m3u8
+            $finder->files()->in($this->movieDirectory)->name(['*.m3u8', '*.mpd']); // Look in subdirs like movie1/manifest.m3u8
 
             foreach ($finder as $file) {
                 // Get path relative to movieDirectory, e.g., "movie1/manifest.m3u8"

@@ -42,7 +42,7 @@ const refreshToken = async (): Promise<boolean> => {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/token/refresh`, {
+    const response = await fetch(`/auth/api/token/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
