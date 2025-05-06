@@ -16,14 +16,55 @@ export const MessageBubble: React.FC<{
   senderName?: string; // Add senderName prop
 }> = React.memo(({ message, isOwnMessage, senderName }) => {
   // Format the timestamp in 24-hour format
-  const formattedTime =
-    message.created_at instanceof Date
-      ? message.created_at.toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false, // Use 24-hour format
-        })
-      : 'Invalid Date';
+  const formattedTime = React.useMemo(() => {
+    if (!(message.created_at instanceof Date)) {
+      return 'Invalid Date';
+    }
+    
+    const now = new Date();
+    const messageDate = message.created_at;
+    
+    // Check if message is from today
+    const isToday = 
+      messageDate.getDate() === now.getDate() &&
+      messageDate.getMonth() === now.getMonth() &&
+      messageDate.getFullYear() === now.getFullYear();
+    
+    // Check if message is from yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = 
+      messageDate.getDate() === yesterday.getDate() &&
+      messageDate.getMonth() === yesterday.getMonth() &&
+      messageDate.getFullYear() === yesterday.getFullYear();
+    
+    // Format just the time part (used for all cases)
+    const timeString = messageDate.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    
+    if (isToday) {
+      return `Today, ${timeString}`;
+    } else if (isYesterday) {
+      return `Yesterday, ${timeString}`;
+    } else {
+      // Different year
+      if (messageDate.getFullYear() !== now.getFullYear()) {
+        return messageDate.toLocaleDateString([], {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }) + `, ${timeString}`;
+      }
+      // Same year but different day
+      return messageDate.toLocaleDateString([], {
+        day: '2-digit',
+        month: 'short'
+      }) + `, ${timeString}`;
+    }
+  }, [message.created_at]);
 
   // Determine status directly from the message object
   const currentStatus = message.status;
@@ -93,7 +134,6 @@ export const MessageBubble: React.FC<{
         className={`flex ${
           isOwnMessage ? 'justify-end' : 'justify-start'
         } w-full`} // Ensure bubble takes width for alignment
-        title={`Sent at ${formattedTime}`}
       >
         <div
           className={`rounded-lg px-3 py-2 max-w-xs lg:max-w-md shadow-sm ${opacityClass} ${
@@ -105,6 +145,7 @@ export const MessageBubble: React.FC<{
               ? failedStyle
               : 'bg-white text-gray-800 border border-gray-200'
           }`}
+          title={`${formattedTime}`}
         >
           {/* REMOVED sender name from inside */}
 
