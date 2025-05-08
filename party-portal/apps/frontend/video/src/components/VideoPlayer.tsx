@@ -90,7 +90,7 @@ const VideoPlayer: React.FC = () => {
             if (
               !prevState ||
               !prevState.manifestUrl ||
-              !currentManifestUrl || // currentManifestUrl is from the closure of setupMercureListener
+              !currentManifestUrl ||
               prevState.manifestUrl !== currentManifestUrl
             ) {
               console.log(

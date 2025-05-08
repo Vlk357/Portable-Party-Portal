@@ -141,15 +141,27 @@ class StreamingStateService
             return $state;
         });
 
+        // Prepare state for Mercure payload
+        // This structure should match what the frontend expects (StreamState interface)
+        $mercureStatePayload = [
+            'manifestUrl' => $state['manifestUrl'] ?? null,
+            'playbackState' => $state['playbackState'] ?? 'stopped',
+            'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
+            'stateUpdateServerTime' => isset($state['stateUpdateServerTime']) && $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
+                ? $state['stateUpdateServerTime']->getTimestamp() * 1000 // Convert to milliseconds
+                : ($state['stateUpdateServerTime'] ?? null) // Handle if already a timestamp or null
+        ];
+
         // Publish update to Mercure
         try {
             $update = new Update(
-                '/stream/status',
-                json_encode(['action' => $action, ...$payload])
+                '/cinema/stream/updates', // Correct topic for the frontend
+                json_encode($mercureStatePayload) // Publish the new state object
             );
             $this->logger->info('Attempting to publish to Mercure hub', [
-                'topic' => '/stream/status',
-                'action' => $action
+                'topic' => '/cinema/stream/updates',
+                'action_for_logging' => $action, // Keep action for logging if desired
+                'payload_sent' => $mercureStatePayload
             ]);
             $this->hub->publish($update);
             $this->logger->info('Successfully published to Mercure hub');
