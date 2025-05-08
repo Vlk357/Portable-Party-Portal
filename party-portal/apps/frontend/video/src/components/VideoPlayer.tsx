@@ -7,24 +7,19 @@ interface StreamState {
   manifestUrl: string | null;
   playbackState: 'playing' | 'paused' | 'stopped';
   videoPlaybackTimeMs: number;
-  stateUpdateServerTime?: number;
+  stateUpdateServerTime?: number; // Unix timestamp in milliseconds
 }
 
 const VideoPlayer: React.FC = () => {
-  // const videoRef = useRef<HTMLVideoElement>(null); // OLD
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const videoRef = useCallback((node: HTMLVideoElement | null) => {
-    // This callback is called when the ref is attached or detached
     if (node) {
-      // Ref is attached to a DOM element
       console.log('VideoRef Callback: Node attached:', node);
       setVideoElement(node);
     } else {
-      // Ref is detached (e.g., component unmounts)
       console.log('VideoRef Callback: Node detached.');
-      // Potentially clean up things related to the old video element if necessary
     }
-  }, []); // Empty dependency array means this callback itself doesn't change
+  }, []);
 
   const playerRef = useRef<shaka.Player | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -35,11 +30,12 @@ const VideoPlayer: React.FC = () => {
   const navigate = useNavigate();
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [shakaPlayerInstance, setShakaPlayerInstance] = useState<shaka.Player | null>(null);
+  const [isMutedForAutoplay, setIsMutedForAutoplay] = useState(true); // New state for muted autoplay
 
   // Control visibility timer
   useEffect(() => {
     let hideTimeout: number;
-    if (isControlsVisible && streamState?.playbackState === 'playing') {
+    if (isControlsVisible && streamState?.playbackState === 'playing' && !isMutedForAutoplay) { // Only hide if playing and unmuted
       hideTimeout = window.setTimeout(() => {
         setIsControlsVisible(false);
       }, 3000);
@@ -47,7 +43,7 @@ const VideoPlayer: React.FC = () => {
     return () => {
       clearTimeout(hideTimeout);
     };
-  }, [isControlsVisible, streamState?.playbackState]);
+  }, [isControlsVisible, streamState?.playbackState, isMutedForAutoplay]);
 
   // Fetch initial stream state and set up Mercure listener
   useEffect(() => {
@@ -81,14 +77,12 @@ const VideoPlayer: React.FC = () => {
       eventSource.onmessage = (event) => {
         console.log('Mercure: Message received:', event.data);
         try {
-          const update = JSON.parse(event.data) as Partial<
-            Pick<StreamState, 'playbackState' | 'videoPlaybackTimeMs'>
-          >;
+          const update = JSON.parse(event.data) as Partial<StreamState>; // Mercure can update server time too
           setStreamState((prevState) => {
             if (
               !prevState ||
               !prevState.manifestUrl ||
-              !currentManifestUrl || 
+              !currentManifestUrl ||
               prevState.manifestUrl !== currentManifestUrl
             ) {
               console.log(
@@ -104,6 +98,9 @@ const VideoPlayer: React.FC = () => {
               }),
               ...(typeof update.videoPlaybackTimeMs === 'number' && {
                 videoPlaybackTimeMs: update.videoPlaybackTimeMs,
+              }),
+              ...(typeof update.stateUpdateServerTime === 'number' && { // Update server time from Mercure
+                stateUpdateServerTime: update.stateUpdateServerTime,
               }),
             };
           });
@@ -134,7 +131,8 @@ const VideoPlayer: React.FC = () => {
                  console.log('FetchStreamInfo: Manifest removed, closing Mercure.');
                  eventSource?.close();
             }
-            return data;
+            // Always update to the latest data from fetch, including server time
+            return data; 
           });
 
           if (data.manifestUrl) {
@@ -177,7 +175,7 @@ const VideoPlayer: React.FC = () => {
     };
   }, []);
 
-  // Initialize Shaka Player when videoElement (from callback ref) is available
+  // Initialize Shaka Player
   useEffect(() => {
     console.log('ShakaInit Effect: Fired. videoElement (state):', videoElement, 'shakaPlayerInstance (state):', shakaPlayerInstance);
 
@@ -185,16 +183,23 @@ const VideoPlayer: React.FC = () => {
       console.log('ShakaInit: videoElement available and NO shakaPlayerInstance (state). Initializing...');
       if (window.shaka && window.shaka.Player.isBrowserSupported()) {
         console.log('ShakaInit: Browser supports Shaka Player. Creating new instance...');
-        const player = new window.shaka.Player(videoElement); // Use videoElement from state
+        // const player = new window.shaka.Player(videoElement); // Old way
+        const player = new window.shaka.Player(); // New way (Shaka v3.1+)
         
         player.addEventListener('error', (event: shaka.extern.ErrorEvent) => {
           console.error('Shaka Player Error Event:', event.detail);
           setIsPlayerReady(false);
         });
 
-        playerRef.current = player; // Keep the direct ref updated if needed elsewhere
-        setShakaPlayerInstance(player); // This will trigger LoadManifest
-        console.log('ShakaInit: Player instance CREATED and SET to state. playerRef.current:', playerRef.current);
+        // Attach player to video element (New way)
+        player.attach(videoElement).then(() => {
+            console.log('ShakaInit: Player ATTACHED to videoElement.');
+            playerRef.current = player;
+            setShakaPlayerInstance(player);
+            console.log('ShakaInit: Player instance CREATED and SET to state. playerRef.current:', playerRef.current);
+        }).catch((error: shaka.extern.Error) => {
+            console.error('ShakaInit: Error attaching player to videoElement:', error);
+        });
       } else {
         console.warn('ShakaInit: Shaka Player not available or not supported.');
       }
@@ -213,84 +218,80 @@ const VideoPlayer: React.FC = () => {
         }).catch((e: Error) => console.error('ShakaInit Cleanup: Error destroying Shaka player (from playerRef):', e));
         playerRef.current = null;
       }
-      setShakaPlayerInstance(null); // Crucial: ensure state is cleared
+      setShakaPlayerInstance(null);
       setIsPlayerReady(false);
       console.log('ShakaInit Effect: Cleanup finished. shakaPlayerInstance (state) set to null.');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoElement]); // KEY CHANGE: Depend on videoElement state
+  }, [videoElement]);
 
   // Load manifest
   useEffect(() => {
     console.log('LoadManifest Effect: Fired. manifestUrl:', streamState?.manifestUrl, 'shakaPlayerInstance:', shakaPlayerInstance, 'videoElement (state):', videoElement);
 
-    setIsPlayerReady(false);
+    // Always reset player readiness when manifest or player changes
+    setIsPlayerReady(false); 
 
     if (!streamState?.manifestUrl) {
       console.log('LoadManifest: Skipping - no manifestUrl.');
       if (shakaPlayerInstance) {
         console.log('LoadManifest: Unloading current Shaka content due to no manifestUrl.');
-        shakaPlayerInstance.unload().catch(e => console.error("Error unloading shaka player", e));
+        shakaPlayerInstance.unload().catch((e: shaka.extern.Error | Error) => console.error("Error unloading shaka player", e));
       }
       return;
     }
 
-    if (!videoElement) { // Check videoElement from state
-      console.log('LoadManifest: Skipping - no videoElement (from state). This is unexpected if manifestUrl is present and ShakaInit ran.');
+    if (!videoElement) {
+      console.log('LoadManifest: Skipping - no videoElement (from state).');
       return;
     }
-
-    if (shakaPlayerInstance) {
-      console.log('LoadManifest: Using Shaka Player to load manifest:', streamState.manifestUrl);
-      const manifestToLoad = `/movies/${streamState.manifestUrl}`;
-      shakaPlayerInstance.load(manifestToLoad)
-        .then(() => {
-          console.log('LoadManifest: Shaka Player loaded manifest successfully:', manifestToLoad);
-          setIsPlayerReady(true);
-        })
-        .catch((error: shaka.extern.Error) => {
-          console.error('LoadManifest: Shaka Player error loading manifest. Error Code:', error.code, 'Details:', error.detail || error);
-          setIsPlayerReady(false);
-        });
-    } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) { // Use videoElement from state
-      console.warn('LoadManifest: shakaPlayerInstance is NULL. Attempting NATIVE HLS playback for:', streamState.manifestUrl);
-      const manifestToLoad = `/movies/${streamState.manifestUrl}`;
-      if (videoElement.src !== manifestToLoad) {
-        videoElement.src = manifestToLoad;
-        videoElement.onloadeddata = () => {
-          console.log('LoadManifest: Native HLS video onloadeddata for', manifestToLoad);
-          setIsPlayerReady(true);
-        };
-        videoElement.onerror = (e) => {
-          console.error('LoadManifest: Native HLS video error.', 'Video Element Error:', videoElement?.error, 'Event:', e);
-          setIsPlayerReady(false);
-        };
-        videoElement.load();
-      } else {
-        setIsPlayerReady(true); // Already loaded
-      }
-    } else {
-      console.log('LoadManifest: No suitable player. shakaPlayerInstance is NULL, and native HLS not supported or videoElement missing.');
+    if (!shakaPlayerInstance) {
+      console.log('LoadManifest: Skipping - no shakaPlayerInstance (from state).');
+      return;
     }
-  }, [streamState?.manifestUrl, shakaPlayerInstance, videoElement]); // Add videoElement to dependencies
+    
+    // The 'muted' prop on <video> and PlaybackEffect handle muting for autoplay.
+    // No need to set videoElement.muted here based on isMutedForAutoplay.
+
+    console.log('LoadManifest: Using Shaka Player to load manifest:', streamState.manifestUrl);
+    const manifestToLoad = `/movies/${streamState.manifestUrl}`;
+    shakaPlayerInstance.load(manifestToLoad)
+      .then(() => {
+        console.log('LoadManifest: Shaka Player loaded manifest successfully:', manifestToLoad);
+        setIsPlayerReady(true); // Player is ready after manifest loads
+      })
+      .catch((error: shaka.extern.Error) => {
+        console.error('LoadManifest: Shaka Player error loading manifest. Error Code:', error.code, 'Details:', error.detail || error);
+        setIsPlayerReady(false);
+      });
+  }, [streamState?.manifestUrl, shakaPlayerInstance, videoElement]);
+
 
   // Handle playback state (play/pause)
   useEffect(() => {
-    console.log('PlaybackEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'IsPlayerReady:', isPlayerReady);
-    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady) { // Use videoElement from state
-      console.log('PlaybackEffect: Skipping - conditions not met.');
+    console.log('PlaybackEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'IsPlayerReady:', isPlayerReady, 'isMutedForAutoplay:', isMutedForAutoplay);
+    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady) {
+      console.log('PlaybackEffect: Skipping - conditions not met (videoElement, manifestUrl, or isPlayerReady).');
       return;
     }
 
-    // const videoEl = videoElement; // Already have videoElement
     if (streamState.playbackState === 'playing') {
       console.log('PlaybackEffect: Attempting to play...');
+      if (isMutedForAutoplay) { // Ensure video is muted before attempting to play if muted autoplay is intended
+          videoElement.muted = true;
+          console.log('PlaybackEffect: Ensured video is muted for autoplay attempt.');
+      }
       const playPromise = videoElement.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
           console.log('PlaybackEffect: Play command successful.');
+          // If play succeeded and was muted for autoplay, it remains muted until user interaction.
         }).catch(error => {
-          if (error.name !== 'AbortError') {
+          if (error.name === 'NotAllowedError') {
+            console.warn('PlaybackEffect: Play was prevented by browser autoplay policy. Video remains muted. User interaction needed to unmute and play.');
+            // isMutedForAutoplay remains true. User interaction will handle unmuting.
+            // Optionally, show a "Tap to unmute/play" UI element here.
+          } else if (error.name !== 'AbortError') {
             console.error('PlaybackEffect: Error playing video:', error.name, error.message, error);
           } else {
             console.warn('PlaybackEffect: Play command aborted (likely by another action).');
@@ -302,48 +303,80 @@ const VideoPlayer: React.FC = () => {
       videoElement.pause();
       console.log('PlaybackEffect: Pause command issued.');
     }
-  }, [streamState?.playbackState, streamState?.manifestUrl, isPlayerReady, videoElement]); // Add videoElement
+  }, [streamState?.playbackState, streamState?.manifestUrl, isPlayerReady, videoElement, isMutedForAutoplay]);
 
   // Handle seeking
   useEffect(() => {
-    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'IsPlayerReady:', isPlayerReady);
-    if (!videoElement || !streamState?.manifestUrl || typeof streamState.videoPlaybackTimeMs !== 'number' || streamState.videoPlaybackTimeMs < 0 || !isPlayerReady) { // Use videoElement
-      console.log('SeekEffect: Skipping - conditions not met.');
+    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'ServerTime:', streamState?.stateUpdateServerTime, 'IsPlayerReady:', isPlayerReady);
+    if (!videoElement || !streamState?.manifestUrl || typeof streamState.videoPlaybackTimeMs !== 'number' || streamState.videoPlaybackTimeMs < 0 || !isPlayerReady) {
+      console.log('SeekEffect: Skipping - conditions not met (videoElement, manifest, time, or player not ready).');
       return;
     }
 
-    const targetTime = streamState.videoPlaybackTimeMs / 1000;
+    let targetTimeSeconds: number;
+    if (typeof streamState.stateUpdateServerTime === 'number' && streamState.stateUpdateServerTime > 0) {
+      const serverTimeAtLastUpdateMs = streamState.stateUpdateServerTime;
+      const videoTimeAtLastUpdateMs = streamState.videoPlaybackTimeMs;
+      const currentTimeMs = Date.now();
+      const elapsedTimeSinceLastUpdateMs = currentTimeMs - serverTimeAtLastUpdateMs;
+      
+      if (elapsedTimeSinceLastUpdateMs < 0) {
+        console.warn(`SeekEffect: Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs.`);
+        targetTimeSeconds = videoTimeAtLastUpdateMs / 1000;
+      } else {
+        const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs;
+        targetTimeSeconds = calculatedTargetTimeMs / 1000;
+        console.log(`SeekEffect: Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s)`);
+      }
+    } else {
+      // Fallback if server time is not available
+      targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
+      console.log(`SeekEffect: Using raw videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
+    }
     
     let canSeek = false;
     let currentSeekableString = "not available";
+    const videoDuration = videoElement.duration;
+
+    if (targetTimeSeconds < 0) targetTimeSeconds = 0;
+    if (videoDuration && targetTimeSeconds > videoDuration) {
+        console.log(`SeekEffect: Target time ${targetTimeSeconds.toFixed(3)}s exceeds duration ${videoDuration.toFixed(3)}s. Clamping to duration.`);
+        targetTimeSeconds = videoDuration;
+    }
+
 
     if (shakaPlayerInstance) {
         const seekRange = shakaPlayerInstance.seekRange();
         currentSeekableString = `Shaka Range: [${seekRange.start?.toFixed(3)}, ${seekRange.end?.toFixed(3)}]`;
-        if (targetTime >= seekRange.start && targetTime <= seekRange.end) {
+        if (targetTimeSeconds >= seekRange.start && targetTimeSeconds <= seekRange.end) {
             canSeek = true;
         }
-    } else if (videoElement.seekable && videoElement.seekable.length > 0) { // Native
+    } else if (videoElement.seekable && videoElement.seekable.length > 0) {
         currentSeekableString = `Native Ranges: `;
         for (let i = 0; i < videoElement.seekable.length; i++) {
             currentSeekableString += `[${videoElement.seekable.start(i).toFixed(3)}, ${videoElement.seekable.end(i).toFixed(3)}] `;
-            if (targetTime >= videoElement.seekable.start(i) && targetTime <= videoElement.seekable.end(i)) {
+            if (targetTimeSeconds >= videoElement.seekable.start(i) && targetTimeSeconds <= videoElement.seekable.end(i)) {
                 canSeek = true;
             }
         }
     }
     
-    console.log(`SeekEffect: Target time: ${targetTime.toFixed(3)}s. Current video time: ${videoElement.currentTime.toFixed(3)}s. Seekable: ${currentSeekableString}`);
+    console.log(`SeekEffect: Target time: ${targetTimeSeconds.toFixed(3)}s. Current video time: ${videoElement.currentTime.toFixed(3)}s. Seekable: ${currentSeekableString}`);
 
-    if (canSeek && Math.abs(videoElement.currentTime - targetTime) > 1.5) {
-      console.log(`SeekEffect: Seeking to ${targetTime.toFixed(3)}.`);
-      videoElement.currentTime = targetTime;
+    // Adjust threshold for seeking based on how fresh the sync data is.
+    // If stateUpdateServerTime is very recent, we can be more aggressive.
+    // If it's old, a larger difference might be acceptable to avoid jumpiness.
+    const seekThreshold = 1.5; // seconds
+
+    if (canSeek && Math.abs(videoElement.currentTime - targetTimeSeconds) > seekThreshold) {
+      console.log(`SeekEffect: Seeking to ${targetTimeSeconds.toFixed(3)}.`);
+      videoElement.currentTime = targetTimeSeconds;
     } else if (canSeek) {
-      console.log(`SeekEffect: Target time ${targetTime.toFixed(3)}s is close enough or already there. No seek needed.`);
+      console.log(`SeekEffect: Target time ${targetTimeSeconds.toFixed(3)}s is close enough or already there. No seek needed.`);
     } else {
-      console.log(`SeekEffect: Cannot seek to ${targetTime.toFixed(3)}s (outside seekable range or range not available).`);
+      console.log(`SeekEffect: Cannot seek to ${targetTimeSeconds.toFixed(3)}s (outside seekable range or range not available).`);
     }
-  }, [streamState?.videoPlaybackTimeMs, streamState?.manifestUrl, isPlayerReady, shakaPlayerInstance, videoElement]); // Add videoElement
+  }, [streamState?.videoPlaybackTimeMs, streamState?.stateUpdateServerTime, streamState?.manifestUrl, isPlayerReady, shakaPlayerInstance, videoElement]);
 
   const requestOrientationLock = useCallback(() => {
     if (!videoElement) return; // Use videoElement
@@ -413,7 +446,23 @@ const VideoPlayer: React.FC = () => {
   }, [requestOrientationLock, videoElement]); // Added videoElement here
 
   const handleUserInteraction = () => {
-    setIsControlsVisible(true);
+    console.log('handleUserInteraction: Fired.');
+    setIsControlsVisible(true); // Show controls on any interaction
+
+    if (videoElement && isMutedForAutoplay) {
+      console.log('handleUserInteraction: Unmuting video and attempting to play if needed.');
+      videoElement.muted = false;
+      setIsMutedForAutoplay(false);
+      // Attempt to play again if it was paused due to autoplay restrictions
+      // and the desired state is 'playing'
+      if (streamState?.playbackState === 'playing' && videoElement.paused) {
+        videoElement.play().then(() => {
+          console.log('handleUserInteraction: Play after unmute successful.');
+        }).catch(error => {
+          console.error('handleUserInteraction: Error playing after unmute:', error);
+        });
+      }
+    }
   };
 
   const handleBack = () => {
@@ -448,15 +497,16 @@ const VideoPlayer: React.FC = () => {
     <div
       ref={playerContainerRef}
       className={playerContainerClasses}
-      onClick={handleUserInteraction}
-      onTouchStart={handleUserInteraction}
+      onClick={handleUserInteraction} // This will now also handle unmuting
+      onTouchStart={handleUserInteraction} // For touch devices
     >
       <video
-        ref={videoRef} // Use the callback ref here
+        ref={videoRef}
         className={videoElementClasses}
         onLoadedMetadata={handleMetadataLoaded}
         playsInline
-        autoPlay={false} // Explicitly set autoPlay to false, Shaka will handle play
+        autoPlay={false} // Explicitly false, we control play via effect
+        muted // Start muted - this attribute is key for attempting autoplay
       />
 
       <div className={controlsClasses}>
@@ -470,6 +520,12 @@ const VideoPlayer: React.FC = () => {
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
             </svg>
           </button>
+
+          {isMutedForAutoplay && streamState?.playbackState === 'playing' && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-4 bg-black/70 rounded-lg text-white text-center">
+              <p>Tap to unmute</p>
+            </div>
+          )}
 
           <div
             className="text-white text-lg font-bold truncate px-2"
