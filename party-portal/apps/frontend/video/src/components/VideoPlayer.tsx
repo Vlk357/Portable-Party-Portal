@@ -31,6 +31,7 @@ const VideoPlayer: React.FC = () => {
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [shakaPlayerInstance, setShakaPlayerInstance] = useState<shaka.Player | null>(null);
   const [isMutedForAutoplay, setIsMutedForAutoplay] = useState(true); // New state for muted autoplay
+  const [hasInitialSeekCompleted, setHasInitialSeekCompleted] = useState(false); // New state
 
   // Control visibility timer
   useEffect(() => {
@@ -238,6 +239,7 @@ const VideoPlayer: React.FC = () => {
       }
       setShakaPlayerInstance(null);
       setIsPlayerReady(false);
+      setHasInitialSeekCompleted(false); // Reset on cleanup
       console.log('ShakaInit Effect: Cleanup finished. shakaPlayerInstance (state) set to null.');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,6 +251,15 @@ const VideoPlayer: React.FC = () => {
 
     // Always reset player readiness when manifest or player changes
     setIsPlayerReady(false); 
+    // When a new manifest is being loaded (or cleared), reset the initial seek completion flag.
+    // This ensures the PlaybackEffect waits for the new content's initial seek.
+    if (streamState?.manifestUrl) {
+        setHasInitialSeekCompleted(false);
+    } else {
+        // If no manifest, effectively no initial seek is pending that PlaybackEffect should wait for.
+        // Setting to true prevents PlaybackEffect from being stuck if manifest is removed.
+        setHasInitialSeekCompleted(true); 
+    }
 
     if (!streamState?.manifestUrl) {
       console.log('LoadManifest: Skipping - no manifestUrl.');
@@ -277,19 +288,21 @@ const VideoPlayer: React.FC = () => {
       .then(() => {
         console.log('LoadManifest: Shaka Player loaded manifest successfully:', manifestToLoad);
         setIsPlayerReady(true); // Player is ready after manifest loads
+        // Note: setHasInitialSeekCompleted is NOT set here. SeekEffect will handle it.
       })
       .catch((error: shaka.extern.Error) => {
         console.error('LoadManifest: Shaka Player error loading manifest. Error Code:', error.code, 'Details:', error.detail || error);
         setIsPlayerReady(false);
+        setHasInitialSeekCompleted(false); // If load fails, ensure it's reset
       });
   }, [streamState?.manifestUrl, shakaPlayerInstance, videoElement]);
 
 
   // Handle playback state (play/pause)
   useEffect(() => {
-    console.log('PlaybackEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'IsPlayerReady:', isPlayerReady, 'isMutedForAutoplay:', isMutedForAutoplay);
-    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady) {
-      console.log('PlaybackEffect: Skipping - conditions not met (videoElement, manifestUrl, or isPlayerReady).');
+    console.log('PlaybackEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'IsPlayerReady:', isPlayerReady, 'isMutedForAutoplay:', isMutedForAutoplay, 'HasInitialSeekCompleted:', hasInitialSeekCompleted);
+    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady || !hasInitialSeekCompleted) {
+      console.log('PlaybackEffect: Skipping - conditions not met (videoElement, manifestUrl, isPlayerReady, or initial seek not done).');
       return;
     }
 
@@ -321,17 +334,18 @@ const VideoPlayer: React.FC = () => {
       videoElement.pause();
       console.log('PlaybackEffect: Pause command issued.');
     }
-  }, [streamState?.playbackState, streamState?.manifestUrl, isPlayerReady, videoElement, isMutedForAutoplay]);
+  }, [streamState?.playbackState, streamState?.manifestUrl, isPlayerReady, videoElement, isMutedForAutoplay, hasInitialSeekCompleted]);
 
   // Handle seeking
   useEffect(() => {
-    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'ServerTime:', streamState?.stateUpdateServerTime, 'IsPlayerReady:', isPlayerReady);
+    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'ServerTime:', streamState?.stateUpdateServerTime, 'IsPlayerReady:', isPlayerReady, 'HasInitialSeekCompleted:', hasInitialSeekCompleted);
     if (!videoElement || !streamState?.manifestUrl || typeof streamState.videoPlaybackTimeMs !== 'number' || streamState.videoPlaybackTimeMs < 0 || !isPlayerReady) {
       console.log('SeekEffect: Skipping - conditions not met (videoElement, manifest, time, or player not ready).');
       return;
     }
 
     let targetTimeSeconds: number;
+    const SYNC_OFFSET_MS = 200; // User requested 200ms offset
 
     if (streamState.playbackState === 'playing') {
       if (typeof streamState.stateUpdateServerTime === 'number' && streamState.stateUpdateServerTime > 0) {
@@ -341,22 +355,22 @@ const VideoPlayer: React.FC = () => {
         const elapsedTimeSinceLastUpdateMs = currentTimeMs - serverTimeAtLastUpdateMs;
         
         if (elapsedTimeSinceLastUpdateMs < 0) {
-          console.warn(`SeekEffect (Playing): Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs.`);
-          targetTimeSeconds = videoTimeAtLastUpdateMs / 1000;
+          console.warn(`SeekEffect (Playing): Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs + offset.`);
+          targetTimeSeconds = (videoTimeAtLastUpdateMs + SYNC_OFFSET_MS) / 1000;
         } else {
-          const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs;
+          const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs + SYNC_OFFSET_MS;
           targetTimeSeconds = calculatedTargetTimeMs / 1000;
-          console.log(`SeekEffect (Playing): Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s)`);
+          console.log(`SeekEffect (Playing): Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s, Offset: ${SYNC_OFFSET_MS/1000}s)`);
         }
       } else {
         // Fallback if server time is not available while playing
-        targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
-        console.log(`SeekEffect (Playing): Using raw videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
+        targetTimeSeconds = (streamState.videoPlaybackTimeMs + SYNC_OFFSET_MS) / 1000;
+        console.log(`SeekEffect (Playing): Using raw videoPlaybackTimeMs + offset: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
       }
     } else { // Includes 'paused' or 'stopped'
-      // If paused or stopped, use the videoPlaybackTimeMs directly from the state update
-      targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
-      console.log(`SeekEffect (${streamState.playbackState}): Using direct videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s.`);
+      // If paused or stopped, use the videoPlaybackTimeMs directly from the state update (plus offset)
+      targetTimeSeconds = (streamState.videoPlaybackTimeMs + SYNC_OFFSET_MS) / 1000;
+      console.log(`SeekEffect (${streamState.playbackState}): Using direct videoPlaybackTimeMs + offset: ${targetTimeSeconds.toFixed(3)}s.`);
     }
     
     let canSeek = false;
@@ -396,12 +410,25 @@ const VideoPlayer: React.FC = () => {
     if (canSeek && Math.abs(videoElement.currentTime - targetTimeSeconds) > seekThreshold) {
       console.log(`SeekEffect: Seeking to ${targetTimeSeconds.toFixed(3)}.`);
       videoElement.currentTime = targetTimeSeconds;
+      if (!hasInitialSeekCompleted) {
+        setHasInitialSeekCompleted(true);
+      }
+    } else if (canSeek && !hasInitialSeekCompleted) {
+      // If already close enough to target on the first check after manifest load,
+      // and initial seek hasn't been flagged, flag it now so playback can start.
+      console.log(`SeekEffect: Close enough on initial check (${Math.abs(videoElement.currentTime - targetTimeSeconds).toFixed(3)}s diff), marking initial seek complete.`);
+      setHasInitialSeekCompleted(true);
     } else if (canSeek) {
       console.log(`SeekEffect: Target time ${targetTimeSeconds.toFixed(3)}s is close enough or already there. No seek needed.`);
     } else {
       console.log(`SeekEffect: Cannot seek to ${targetTimeSeconds.toFixed(3)}s (outside seekable range or range not available).`);
+      // If we can't seek but an initial seek is pending, we might get stuck.
+      // However, Shaka should eventually make the range seekable once enough data is buffered.
+      // If it's truly unseekable (e.g. live stream not started yet at that point),
+      // setting hasInitialSeekCompleted might be needed to unblock, but this is complex.
+      // For VOD, this should resolve as data buffers.
     }
-  }, [streamState?.videoPlaybackTimeMs, streamState?.stateUpdateServerTime, streamState?.manifestUrl, streamState?.playbackState, isPlayerReady, shakaPlayerInstance, videoElement]);
+  }, [streamState?.videoPlaybackTimeMs, streamState?.stateUpdateServerTime, streamState?.manifestUrl, streamState?.playbackState, isPlayerReady, shakaPlayerInstance, videoElement, hasInitialSeekCompleted]);
 
   const requestOrientationLock = useCallback(() => {
     if (!videoElement) return; // Use videoElement
