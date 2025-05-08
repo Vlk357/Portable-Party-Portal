@@ -172,6 +172,8 @@ services:
       CORS_ALLOWED_ORIGINS: '*' # Be more specific in production! (e.g., http://localhost:5174)
     # ports: # No need to expose ports directly if accessed via Nginx
     #   - "9090:80" # Example: Expose directly on host 9090 for debugging
+    volumes:
+      - ./docker/mercure/config/Caddyfile.dev:/etc/caddy/Caddyfile.dev:ro
     networks:
       - backend
     command: caddy run --config /etc/caddy/Caddyfile.dev --adapter caddyfile

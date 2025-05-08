@@ -1,0 +1,48 @@
+{
+    # Global options
+    admin off
+    auto_https off
+}
+
+:80 {
+    # Enable the Mercure hub
+    mercure {
+        # Publisher JWT key
+        publisher_jwt {$MERCURE_PUBLISHER_JWT_KEY}
+        # Subscriber JWT key
+        subscriber_jwt {$MERCURE_SUBSCRIBER_JWT_KEY}
+        # Allow anonymous subscribers
+        anonymous
+        # Enable the subscription API (needed for the JavaScript library)
+        subscriptions
+        # Configure CORS
+        cors_origins *
+        # Enable the demo UI (for local development and debugging)
+        # ui
+    }
+
+    # Health check endpoint
+    respond /health 200
+
+    # Enable compression
+    encode gzip
+
+    # Set basic security headers
+    header {
+        # Enable XSS filtering
+        X-XSS-Protection "1; mode=block"
+        # Prevent MIME type sniffing
+        X-Content-Type-Options "nosniff"
+        # Disable embedding in frames
+        X-Frame-Options "DENY"
+        # Cache control
+        Cache-Control "no-cache, no-store, must-revalidate"
+    }
+
+    # Log
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
