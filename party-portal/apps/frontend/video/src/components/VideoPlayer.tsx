@@ -77,12 +77,20 @@ const VideoPlayer: React.FC = () => {
       eventSource.onmessage = (event) => {
         console.log('Mercure: Message received:', event.data);
         try {
-          const update = JSON.parse(event.data) as Partial<StreamState>; // Mercure can update server time too
+          const updateFromServer = JSON.parse(event.data) as Partial<StreamState>;
+          let processedUpdate = { ...updateFromServer }; // Clone to avoid mutating original if passed elsewhere
+
+          // Convert stateUpdateServerTime to milliseconds if it's in seconds from Mercure
+          if (typeof processedUpdate.stateUpdateServerTime === 'number' && processedUpdate.stateUpdateServerTime < 2000000000) { // Heuristic: timestamp in seconds (roughly up to year 2033)
+            console.log('Mercure: Converting stateUpdateServerTime from seconds to milliseconds. Original:', processedUpdate.stateUpdateServerTime);
+            processedUpdate.stateUpdateServerTime = processedUpdate.stateUpdateServerTime * 1000;
+          }
+
           setStreamState((prevState) => {
             if (
               !prevState ||
               !prevState.manifestUrl ||
-              !currentManifestUrl ||
+              !currentManifestUrl || // currentManifestUrl is from the closure of setupMercureListener
               prevState.manifestUrl !== currentManifestUrl
             ) {
               console.log(
@@ -90,19 +98,19 @@ const VideoPlayer: React.FC = () => {
               );
               return prevState;
             }
-            console.log('Mercure: Applying state update:', update);
-            return {
-              ...prevState,
-              ...(update.playbackState && {
-                playbackState: update.playbackState,
-              }),
-              ...(typeof update.videoPlaybackTimeMs === 'number' && {
-                videoPlaybackTimeMs: update.videoPlaybackTimeMs,
-              }),
-              ...(typeof update.stateUpdateServerTime === 'number' && { // Update server time from Mercure
-                stateUpdateServerTime: update.stateUpdateServerTime,
-              }),
-            };
+            console.log('Mercure: Applying processed state update:', processedUpdate);
+            // Merge ensuring not to overwrite with undefined if a field is not in processedUpdate
+            const newState = { ...prevState };
+            if (processedUpdate.playbackState) {
+              newState.playbackState = processedUpdate.playbackState;
+            }
+            if (typeof processedUpdate.videoPlaybackTimeMs === 'number') {
+              newState.videoPlaybackTimeMs = processedUpdate.videoPlaybackTimeMs;
+            }
+            if (typeof processedUpdate.stateUpdateServerTime === 'number') {
+              newState.stateUpdateServerTime = processedUpdate.stateUpdateServerTime;
+            }
+            return newState;
           });
         } catch (e) {
           console.error('Mercure: Error parsing message:', e);
@@ -121,21 +129,30 @@ const VideoPlayer: React.FC = () => {
         console.log('FetchStreamInfo: Response status:', response.status);
         if (response.ok) {
           const data: StreamState = await response.json();
-          console.log('FetchStreamInfo: Data received:', data);
+          console.log('FetchStreamInfo: Data received (raw):', JSON.parse(JSON.stringify(data))); 
+          
+          // Create a mutable copy for processing
+          let processedData = { ...data };
+
+          if (typeof processedData.stateUpdateServerTime === 'number' && processedData.stateUpdateServerTime < 2000000000) { // Heuristic: timestamp in seconds
+            console.log('FetchStreamInfo: Converting stateUpdateServerTime from seconds to milliseconds. Original:', processedData.stateUpdateServerTime);
+            processedData.stateUpdateServerTime = processedData.stateUpdateServerTime * 1000;
+          }
+          console.log('FetchStreamInfo: Data after potential conversion:', processedData);
           
           setStreamState(prevStreamState => {
-            if (data.manifestUrl && data.manifestUrl !== prevStreamState?.manifestUrl) {
-                 console.log('FetchStreamInfo: New or changed manifest, setting up Mercure for:', data.manifestUrl);
-                 setupMercureListener(data.manifestUrl);
-            } else if (!data.manifestUrl && prevStreamState?.manifestUrl) {
+            if (processedData.manifestUrl && processedData.manifestUrl !== prevStreamState?.manifestUrl) {
+                 console.log('FetchStreamInfo: New or changed manifest, setting up Mercure for:', processedData.manifestUrl);
+                 setupMercureListener(processedData.manifestUrl);
+            } else if (!processedData.manifestUrl && prevStreamState?.manifestUrl) {
                  console.log('FetchStreamInfo: Manifest removed, closing Mercure.');
                  eventSource?.close();
             }
             // Always update to the latest data from fetch, including server time
-            return data; 
+            return processedData; 
           });
 
-          if (data.manifestUrl) {
+          if (processedData.manifestUrl) {
             if (pollingIntervalId) {
               console.log('FetchStreamInfo: Active stream found, clearing polling interval.');
               clearInterval(pollingIntervalId);
@@ -450,17 +467,26 @@ const VideoPlayer: React.FC = () => {
     setIsControlsVisible(true); // Show controls on any interaction
 
     if (videoElement && isMutedForAutoplay) {
-      console.log('handleUserInteraction: Unmuting video and attempting to play if needed.');
+      console.log('handleUserInteraction: Unmuting video.');
       videoElement.muted = false;
       setIsMutedForAutoplay(false);
-      // Attempt to play again if it was paused due to autoplay restrictions
-      // and the desired state is 'playing'
+      // If the desired state is 'playing' and the video was paused (e.g. due to autoplay restrictions initially failing silently or by other means)
+      // then attempt to play. If it was already playing (muted), unmuting is enough.
       if (streamState?.playbackState === 'playing' && videoElement.paused) {
+        console.log('handleUserInteraction: Video was paused and should be playing, attempting to play after unmute.');
         videoElement.play().then(() => {
           console.log('handleUserInteraction: Play after unmute successful.');
         }).catch(error => {
-          console.error('handleUserInteraction: Error playing after unmute:', error);
+          // It's possible the play() here is interrupted if a seek happens immediately after due to state updates.
+          // This is usually fine as the SeekEffect and PlaybackEffect will take over.
+          if (error.name !== 'AbortError') {
+            console.error('handleUserInteraction: Error playing after unmute:', error);
+          } else {
+            console.warn('handleUserInteraction: Play after unmute aborted, likely by other player actions (e.g., seek).');
+          }
         });
+      } else if (streamState?.playbackState === 'playing' && !videoElement.paused) {
+        console.log('handleUserInteraction: Video was already playing (muted), now unmuted.');
       }
     }
   };
