@@ -78,12 +78,13 @@ const VideoPlayer: React.FC = () => {
         console.log('Mercure: Message received:', event.data);
         try {
           const updateFromServer = JSON.parse(event.data) as Partial<StreamState>;
-          let processedUpdate = { ...updateFromServer }; // Clone to avoid mutating original if passed elsewhere
+          // Backend now sends stateUpdateServerTime in milliseconds.
+          // The previous heuristic conversion is no longer needed here.
+          const processedUpdate = { ...updateFromServer }; 
 
-          // Convert stateUpdateServerTime to milliseconds if it's in seconds from Mercure
-          if (typeof processedUpdate.stateUpdateServerTime === 'number' && processedUpdate.stateUpdateServerTime < 2000000000) { // Heuristic: timestamp in seconds (roughly up to year 2033)
-            console.log('Mercure: Converting stateUpdateServerTime from seconds to milliseconds. Original:', processedUpdate.stateUpdateServerTime);
-            processedUpdate.stateUpdateServerTime = processedUpdate.stateUpdateServerTime * 1000;
+          // Optional: Log to verify the format of received stateUpdateServerTime
+          if (typeof processedUpdate.stateUpdateServerTime === 'number') {
+            console.log('Mercure: Received stateUpdateServerTime (should be ms):', processedUpdate.stateUpdateServerTime);
           }
 
           setStreamState((prevState) => {
@@ -99,7 +100,6 @@ const VideoPlayer: React.FC = () => {
               return prevState;
             }
             console.log('Mercure: Applying processed state update:', processedUpdate);
-            // Merge ensuring not to overwrite with undefined if a field is not in processedUpdate
             const newState = { ...prevState };
             if (processedUpdate.playbackState) {
               newState.playbackState = processedUpdate.playbackState;
@@ -131,14 +131,15 @@ const VideoPlayer: React.FC = () => {
           const data: StreamState = await response.json();
           console.log('FetchStreamInfo: Data received (raw):', JSON.parse(JSON.stringify(data))); 
           
-          // Create a mutable copy for processing
-          let processedData = { ...data };
+          // Backend now sends stateUpdateServerTime in milliseconds.
+          // The previous heuristic conversion is no longer needed here.
+          const processedData = { ...data };
 
-          if (typeof processedData.stateUpdateServerTime === 'number' && processedData.stateUpdateServerTime < 2000000000) { // Heuristic: timestamp in seconds
-            console.log('FetchStreamInfo: Converting stateUpdateServerTime from seconds to milliseconds. Original:', processedData.stateUpdateServerTime);
-            processedData.stateUpdateServerTime = processedData.stateUpdateServerTime * 1000;
+          // Optional: Log to verify the format of received stateUpdateServerTime
+          if (typeof processedData.stateUpdateServerTime === 'number') {
+            console.log('FetchStreamInfo: Received stateUpdateServerTime (should be ms):', processedData.stateUpdateServerTime);
           }
-          console.log('FetchStreamInfo: Data after potential conversion:', processedData);
+          console.log('FetchStreamInfo: Data after ensuring correct time format (no client-side conversion needed for server time):', processedData);
           
           setStreamState(prevStreamState => {
             if (processedData.manifestUrl && processedData.manifestUrl !== prevStreamState?.manifestUrl) {

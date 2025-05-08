@@ -36,12 +36,13 @@ class StreamingStateService
     {
         $state = $this->getState();
 
-        // Return the raw timestamps without any calculations
         return [
             'manifestUrl' => $state['manifestUrl'] ?? null,
             'playbackState' => $state['playbackState'] ?? 'stopped',
-            'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0), // Raw video time in milliseconds
-            'stateUpdateServerTime' => $state['stateUpdateServerTime'] ? $state['stateUpdateServerTime']->getTimestamp() : null // Server time in milliseconds
+            'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
+            'stateUpdateServerTime' => $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
+                ? (int)((float)$state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
+                : null
         ];
     }
 
@@ -68,21 +69,28 @@ class StreamingStateService
             return;
         }
 
-        $currentVideoTimeMs = $currentState['videoPlaybackTimeMs'];
-        if ($currentState['stateUpdateServerTime']) {
+        $currentVideoTimeMs = (float) $currentState['videoPlaybackTimeMs']; // Start with current time as float
+        if ($currentState['stateUpdateServerTime'] instanceof \DateTimeImmutable) {
             $now = $this->clock->now();
-            $timeSinceUpdateMs = ($now->getTimestamp() - $currentState['stateUpdateServerTime']->getTimestamp()) * 1000;
+            
+            // Calculate elapsed time with microsecond precision then convert to milliseconds
+            $nowPreciseSeconds = (float)$now->format('U.u');
+            $lastUpdatePreciseSeconds = (float)$currentState['stateUpdateServerTime']->format('U.u');
+            
+            $timeSinceUpdateMs = ($nowPreciseSeconds - $lastUpdatePreciseSeconds) * 1000.0;
+            
             $currentVideoTimeMs += max(0, $timeSinceUpdateMs);
+            $this->logger->info(sprintf("Calculated timeSinceUpdateMs: %.3f ms. New currentVideoTimeMs before int cast: %.3f ms", $timeSinceUpdateMs, $currentVideoTimeMs));
         }
 
         $newState = [
             ...$currentState,
             'playbackState' => 'paused',
-            'videoPlaybackTimeMs' => (int) $currentVideoTimeMs,
+            'videoPlaybackTimeMs' => (int) round($currentVideoTimeMs), // Round to nearest millisecond and cast to int
             'stateUpdateServerTime' => $this->clock->now(),
         ];
-        $this->saveStateAndPublish($newState, 'pause', ['videoTimeMs' => (int) $currentVideoTimeMs]);
-        $this->logger->info("Stream paused at time: " . $currentVideoTimeMs . "ms");
+        $this->saveStateAndPublish($newState, 'pause', ['videoTimeMs' => (int) round($currentVideoTimeMs)]);
+        $this->logger->info("Stream paused at time: " . (int) round($currentVideoTimeMs) . "ms");
     }
 
     public function resumeStream(): void
@@ -142,14 +150,13 @@ class StreamingStateService
         });
 
         // Prepare state for Mercure payload
-        // This structure should match what the frontend expects (StreamState interface)
         $mercureStatePayload = [
             'manifestUrl' => $state['manifestUrl'] ?? null,
             'playbackState' => $state['playbackState'] ?? 'stopped',
             'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
             'stateUpdateServerTime' => isset($state['stateUpdateServerTime']) && $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
-                ? $state['stateUpdateServerTime']->getTimestamp() * 1000 // Convert to milliseconds
-                : ($state['stateUpdateServerTime'] ?? null) // Handle if already a timestamp or null
+                ? (int)((float)$state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
+                : ($state['stateUpdateServerTime'] ?? null) // Handle if already a millisecond timestamp (e.g. from older state) or null
         ];
 
         // Publish update to Mercure
