@@ -1,4 +1,3 @@
-service/public/admin/index.html
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -169,20 +168,17 @@ service/public/admin/index.html
     <div class="container">
       <h1>Cinema Streaming Admin</h1>
 
-      <div id="auth-section" class="card">
-        <h2 class="card-title">Authentication</h2>
+      <!-- Auth section now hidden by default -->
+      <div id="auth-section" class="card" style="display: none">
+        <h2 class="card-title">Authentication Required</h2>
         <div>
-          <input
-            type="text"
-            id="tokenInput"
-            placeholder="Enter JWT Token"
-            style="width: 70%; padding: 8px"
-          />
-          <button id="authButton" class="secondary">Authenticate</button>
+          <p>Your session has expired or you're not logged in.</p>
+          <button id="loginRedirect" class="secondary">Go to Login</button>
         </div>
         <div id="authStatus" class="status" style="display: none"></div>
       </div>
 
+      <!-- Admin panel shown by default -->
       <div id="admin-panel" class="hidden">
         <div class="tab">
           <button
@@ -244,8 +240,6 @@ service/public/admin/index.html
       let availableMovies = [];
 
       // DOM Elements
-      const tokenInput = document.getElementById('tokenInput');
-      const authButton = document.getElementById('authButton');
       const authStatus = document.getElementById('authStatus');
       const adminPanel = document.getElementById('admin-panel');
       const authSection = document.getElementById('auth-section');
@@ -258,12 +252,6 @@ service/public/admin/index.html
       const moviesList = document.getElementById('moviesList');
       const logArea = document.getElementById('logArea');
       const clearLogs = document.getElementById('clearLogs');
-
-      // Initialize UI based on saved token
-      if (authToken) {
-        tokenInput.value = authToken;
-        checkAuthentication();
-      }
 
       // Tab functionality
       function openTab(evt, tabName) {
@@ -282,7 +270,10 @@ service/public/admin/index.html
       }
 
       // Event Listeners
-      authButton.addEventListener('click', checkAuthentication);
+      document.getElementById('loginRedirect').addEventListener('click', () => {
+        window.location.href = '/auth/login';
+      });
+
       refreshStatus.addEventListener('click', fetchStatus);
       refreshMovies.addEventListener('click', fetchMovies);
       pauseButton.addEventListener('click', pauseStream);
@@ -325,13 +316,29 @@ service/public/admin/index.html
 
         let statusText = '';
 
-        if (currentStatus.isPlaying === false && !currentStatus.manifestUrl) {
+        // Check if there's an active stream based on manifestUrl existence
+        if (!currentStatus.manifestUrl) {
           statusText = 'No active stream';
           statusInfo.className = 'status info';
           pauseButton.disabled = true;
           resumeButton.disabled = true;
           stopButton.disabled = true;
-        } else if (currentStatus.isPlaying === true) {
+        }
+        // Check if the stream is paused based on the status field
+        else if (currentStatus.state === 'paused') {
+          statusText = `Paused: ${
+            currentStatus.title || currentStatus.manifestUrl
+          }`;
+          if (currentStatus.currentTime) {
+            statusText += ` (${formatTime(currentStatus.currentTime)})`;
+          }
+          statusInfo.className = 'status success';
+          pauseButton.disabled = true;
+          resumeButton.disabled = false;
+          stopButton.disabled = false;
+        }
+        // Otherwise assume the stream is playing
+        else if (currentStatus.state === 'playing'){
           statusText = `Playing: ${
             currentStatus.title || currentStatus.manifestUrl
           }`;
@@ -343,16 +350,10 @@ service/public/admin/index.html
           resumeButton.disabled = true;
           stopButton.disabled = false;
         } else {
-          statusText = `Paused: ${
-            currentStatus.title || currentStatus.manifestUrl
-          }`;
-          if (currentStatus.currentTime) {
-            statusText += ` (${formatTime(currentStatus.currentTime)})`;
-          }
-          statusInfo.className = 'status info';
+          statusText = `Error: unexpected error`;
           pauseButton.disabled = true;
-          resumeButton.disabled = false;
-          stopButton.disabled = false;
+          resumeButton.disabled = true;
+          stopButton.disabled = true;
         }
 
         statusInfo.textContent = statusText;
@@ -383,10 +384,10 @@ service/public/admin/index.html
 
           const title = document.createElement('div');
           title.className = 'movie-title';
-          title.textContent = movie.title || movie.path;
+          title.textContent = movie.title || 'Unnamed Movie';
 
           const path = document.createElement('div');
-          path.textContent = `Path: ${movie.path}`;
+          path.textContent = `Path: ${movie.path || 'Unknown'}`;
           path.style.fontSize = '12px';
           path.style.marginBottom = '10px';
 
@@ -421,13 +422,15 @@ service/public/admin/index.html
 
           if (response.status === 401) {
             showAuthentication();
-            showError('Authentication failed. Please enter a valid token.');
+            showError('Authentication failed or expired.');
             return null;
           }
 
           if (!response.ok) {
             throw new Error(`API request failed: ${response.statusText}`);
           }
+
+          // console.log(await response.json());
 
           return await response.json();
         } catch (error) {
@@ -437,33 +440,10 @@ service/public/admin/index.html
         }
       }
 
-      async function checkAuthentication() {
-        authToken = tokenInput.value.trim();
-
-        if (!authToken) {
-          showError('Please enter a JWT token');
-          return;
-        }
-
-        // Try to fetch status to validate token
-        const status = await makeApiRequest('/status');
-
-        if (status) {
-          showSuccess('Authentication successful!');
-          localStorage.setItem('cinemaAdminToken', authToken);
-          showAdminPanel();
-          currentStatus = status;
-          updateStatusDisplay();
-          fetchMovies();
-          logAction('Authentication successful');
-        } else {
-          showError('Authentication failed. Please enter a valid token.');
-        }
-      }
-
       function showAuthentication() {
         adminPanel.classList.add('hidden');
         authSection.style.display = 'block';
+        logAction('Authentication required');
       }
 
       function showAdminPanel() {
@@ -483,7 +463,36 @@ service/public/admin/index.html
       async function fetchMovies() {
         const response = await makeApiRequest('/movies');
         if (response && response.movies) {
-          availableMovies = response.movies;
+          // Transform the raw paths into proper movie objects
+          availableMovies = response.movies.map((path) => {
+            // Extract title from path
+            const fileName = path.split('/').pop();
+            const fileNameWithoutExt = fileName.replace(/\.(m3u8|mpd)$/, '');
+
+            // Try to make a nice title from the path
+            let title = '';
+
+            // If it has folders, use the last folder name
+            if (path.includes('/')) {
+              const folders = path.split('/');
+              // Use the folder name as a base for the title
+              if (folders.length > 1) {
+                title = folders[folders.length - 2].replace(/_/g, ' ');
+              }
+            }
+
+            // If we couldn't extract a good title, use the filename
+            if (!title || title === '') {
+              title = fileNameWithoutExt.replace(/-/g, ' ').replace(/_/g, ' ');
+            }
+
+            return {
+              path: path,
+              title: title.charAt(0).toUpperCase() + title.slice(1), // Capitalize first letter
+              manifestUrl: path,
+            };
+          });
+
           renderMoviesList();
           logAction(`Loaded ${availableMovies.length} movies`);
         }
@@ -531,10 +540,32 @@ service/public/admin/index.html
         }
       }
 
-      // Initial fetch of status if authenticated
-      if (authToken) {
-        fetchStatus();
+      // Auto-authenticate on load
+      async function autoAuthenticate() {
+        authToken = localStorage.getItem('token') || '';
+
+        if (!authToken) {
+          // No token found - redirect to login
+          window.location.href = '/auth/login/';
+          return;
+        }
+
+        // Try to fetch status to validate token
+        const status = await makeApiRequest('/status');
+
+        if (status) {
+          showAdminPanel();
+          currentStatus = status;
+          updateStatusDisplay();
+          fetchMovies();
+          logAction('Auto-authenticated with saved token');
+        } else {
+          showAuthentication();
+        }
       }
+
+      // Start auto-authentication on page load
+      autoAuthenticate();
     </script>
   </body>
 </html>

@@ -19,7 +19,7 @@ class AdminStreamController extends AbstractController
     #[Route('/status', name: 'admin_stream_status', methods: ['GET'])]
     public function getStatus(): JsonResponse
     {
-        return $this->json($this->streamingStateService->getState());
+        return $this->json($this->streamingStateService->getCurrentStateForClient());
     }
 
     #[Route('/movies', name: 'admin_stream_movies', methods: ['GET'])]
