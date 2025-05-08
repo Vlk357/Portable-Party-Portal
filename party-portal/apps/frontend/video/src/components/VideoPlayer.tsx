@@ -1,14 +1,24 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+// Assuming shaka types are globally available via your types/index.ts setup
+// No need for:
+// declare global {
+//   interface Window {
+//     shaka: any; 
+//   }
+// }
 
 interface StreamState {
   manifestUrl: string | null;
   playbackState: 'playing' | 'paused' | 'stopped';
   videoPlaybackTimeMs: number;
+  stateUpdateServerTime?: number; // Included if API sends it, though not directly used by player logic yet
 }
 
 const VideoPlayer: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<shaka.Player | null>(null); // Use shaka.Player type
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const [streamState, setStreamState] = useState<StreamState | null>(null);
   const [isVideoVertical, setIsVideoVertical] = useState(false);
@@ -20,7 +30,6 @@ const VideoPlayer: React.FC = () => {
   useEffect(() => {
     let hideTimeout: number;
     if (isControlsVisible && streamState?.playbackState === 'playing') {
-      // Only hide if playing
       hideTimeout = window.setTimeout(() => {
         setIsControlsVisible(false);
       }, 3000);
@@ -30,66 +39,185 @@ const VideoPlayer: React.FC = () => {
     };
   }, [isControlsVisible, streamState?.playbackState]);
 
-  // Fetch stream state from API
+  // Fetch initial stream state and set up Mercure listener
   useEffect(() => {
-    const fetchStreamState = async () => {
+    let pollingIntervalId: number | undefined;
+    let eventSource: EventSource | undefined;
+
+    const MERCURE_STREAM_UPDATES_TOPIC = '/cinema/stream/updates'; // Adjust topic as per your backend
+
+    const setupMercureListener = (currentManifestUrl: string) => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      const mercureUrl = new URL('/.well-known/mercure', window.location.origin);
+      mercureUrl.searchParams.append('topic', MERCURE_STREAM_UPDATES_TOPIC);
+      // Example for a dynamic topic based on manifest, if needed:
+      // mercureUrl.searchParams.append('topic', `/cinema/stream/${encodeURIComponent(currentManifestUrl)}/status`);
+
+      eventSource = new EventSource(mercureUrl.toString());
+
+      eventSource.onmessage = (event) => {
+        try {
+          const update = JSON.parse(event.data) as Partial<Pick<StreamState, 'playbackState' | 'videoPlaybackTimeMs'>>;
+          setStreamState(prevState => {
+            if (!prevState || prevState.manifestUrl !== currentManifestUrl) {
+              return prevState; // Update only if manifest matches
+            }
+            return {
+              ...prevState,
+              ...(update.playbackState && { playbackState: update.playbackState }),
+              ...(typeof update.videoPlaybackTimeMs === 'number' && { videoPlaybackTimeMs: update.videoPlaybackTimeMs }),
+            };
+          });
+        } catch (e) {
+          console.error('Error parsing Mercure message:', e);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('Mercure EventSource failed:', error);
+        eventSource?.close();
+        // Optional: Implement reconnection strategy or fallback to polling
+      };
+    };
+
+    const fetchStreamInfo = async () => {
       try {
         const response = await fetch('/cinema/api/stream/info');
         if (response.ok) {
-          const data = await response.json();
+          const data: StreamState = await response.json();
           setStreamState(data);
+          if (data.manifestUrl) {
+            if (pollingIntervalId) {
+              clearInterval(pollingIntervalId);
+              pollingIntervalId = undefined;
+            }
+            setupMercureListener(data.manifestUrl);
+          } else {
+            // No active stream, start or continue polling
+            if (eventSource) eventSource.close(); // Close active Mercure if stream disappeared
+            if (!pollingIntervalId) {
+              pollingIntervalId = window.setInterval(fetchStreamInfo, 5000);
+            }
+          }
+        } else {
+          console.error('Error fetching stream state: Response not OK', response.status);
+          if (!pollingIntervalId) {
+            pollingIntervalId = window.setInterval(fetchStreamInfo, 5000);
+          }
         }
       } catch (error) {
         console.error('Error fetching stream state:', error);
+        if (!pollingIntervalId) {
+          pollingIntervalId = window.setInterval(fetchStreamInfo, 5000);
+        }
       }
     };
-    fetchStreamState();
-    const interval = setInterval(fetchStreamState, 5000);
-    return () => clearInterval(interval);
+
+    fetchStreamInfo(); // Initial fetch
+
+    return () => {
+      if (pollingIntervalId) clearInterval(pollingIntervalId);
+      eventSource?.close();
+    };
+  }, []); // Runs once on mount to initiate fetching/polling and Mercure
+
+  // Initialize and destroy Shaka Player
+  useEffect(() => {
+    if (!videoRef.current) return;
+    const videoElement = videoRef.current;
+
+    if (window.shaka && window.shaka.Player.isBrowserSupported()) {
+      playerRef.current = new window.shaka.Player(videoElement);
+      playerRef.current.addEventListener('error', (event: shaka.extern.ErrorEvent) => {
+        console.error('Shaka Player Error Event:', event.detail);
+      });
+      // console.log('Shaka Player initialized');
+    } else {
+      console.warn('Shaka Player not available or not supported. Using basic HTML5 video.');
+    }
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy().then(() => {
+          // console.log('Shaka Player destroyed');
+        }).catch((e: Error) => console.error('Error destroying Shaka player:', e));
+        playerRef.current = null;
+      } else if (videoElement) {
+        videoElement.src = '';
+        videoElement.load();
+      }
+    };
   }, []);
 
-  // Set up video source (keep as is, Shaka player logic is separate from styling)
+  // Load manifest when streamState.manifestUrl changes
   useEffect(() => {
     if (!streamState?.manifestUrl || !videoRef.current) return;
-    const videoElement = videoRef.current;
-    if (window.shaka) {
-      const player = new window.shaka.Player(videoElement);
-      player
-        .load(`/movies/${streamState.manifestUrl}`)
-        .catch((error: Error) => {
-          console.error('Error loading video:', error);
-        });
-    } else {
-      videoElement.src = `/movies/${streamState.manifestUrl}`;
-    }
-    if (streamState.videoPlaybackTimeMs > 0) {
-      videoElement.currentTime = streamState.videoPlaybackTimeMs / 1000;
-    }
-    if (streamState.playbackState === 'playing') {
-      videoElement
-        .play()
-        .catch((error) => console.error('Error playing:', error));
-    } else {
-      videoElement.pause();
-    }
-  }, [
-    streamState?.manifestUrl,
-    streamState?.playbackState,
-    streamState?.videoPlaybackTimeMs,
-  ]);
 
-  const handleMetadataLoaded = () => {
-    if (videoRef.current) {
-      const { videoWidth, videoHeight } = videoRef.current;
-      setIsVideoVertical(videoHeight > videoWidth);
-      if (isFullScreen) {
-        // Only attempt orientation lock if already in fullscreen
-        requestOrientationLock();
+    const manifestToLoad = `/movies/${streamState.manifestUrl}`;
+
+    if (playerRef.current) {
+      playerRef.current.load(manifestToLoad)
+        .then(() => {
+          // console.log('Shaka: Manifest loaded successfully:', manifestToLoad);
+        })
+        .catch((error: shaka.extern.Error) => {
+          console.error('Shaka: Error loading video manifest:', error.detail || error);
+        });
+    } else if (videoRef.current) {
+      if (videoRef.current.src !== manifestToLoad) {
+        videoRef.current.src = manifestToLoad;
+        videoRef.current.load();
       }
     }
-  };
+  }, [streamState?.manifestUrl]);
 
-  const requestOrientationLock = () => {
+  // Handle playback state (play/pause)
+  useEffect(() => {
+    if (!videoRef.current || !streamState || !streamState.manifestUrl) return;
+
+    const videoElement = videoRef.current;
+    // Ensure manifest is loaded for the current stream before attempting play/pause
+    const currentManifestSuffix = streamState.manifestUrl;
+    const isManifestLoaded = playerRef.current 
+      ? playerRef.current.getManifestUri()?.endsWith(currentManifestSuffix) 
+      : videoElement.currentSrc?.endsWith(currentManifestSuffix);
+
+    if (isManifestLoaded) {
+      if (streamState.playbackState === 'playing') {
+        videoElement.play().catch(error => {
+          if (error.name !== 'AbortError') {
+            console.error('Error playing video:', error);
+          }
+        });
+      } else {
+        videoElement.pause();
+      }
+    }
+  }, [streamState]); // Depends on the whole streamState object
+
+  // Handle seeking
+  useEffect(() => {
+    if (!videoRef.current || !streamState || !streamState.manifestUrl || streamState.videoPlaybackTimeMs < 0) return; // Allow 0
+    
+    const videoElement = videoRef.current;
+    const currentManifestSuffix = streamState.manifestUrl;
+    const isManifestLoaded = playerRef.current 
+      ? playerRef.current.getManifestUri()?.endsWith(currentManifestSuffix)
+      : videoElement.currentSrc?.endsWith(currentManifestSuffix);
+
+    if (isManifestLoaded) {
+      const targetTime = streamState.videoPlaybackTimeMs / 1000;
+      if (Math.abs(videoElement.currentTime - targetTime) > 1.5) { 
+        videoElement.currentTime = targetTime;
+      }
+    }
+  }, [streamState]); // Depends on the whole streamState object
+
+  const requestOrientationLock = useCallback(() => {
+    if (!videoRef.current) return; // Guard against null ref
+    // isVideoVertical state is used directly from the outer scope
     try {
       if (
         window.screen.orientation &&
@@ -97,47 +225,63 @@ const VideoPlayer: React.FC = () => {
       ) {
         const lockOrientation = isVideoVertical ? 'portrait' : 'landscape';
         window.screen.orientation.lock(lockOrientation).catch((e: Error) => {
-          console.log(`Failed to lock to ${lockOrientation}:`, e);
+          console.warn(`Failed to lock to ${lockOrientation}:`, e.message); // Warn instead of log
         });
       }
     } catch (error) {
       console.error('Error locking orientation:', error);
     }
-  };
+  }, [isVideoVertical]); // Dependency on isVideoVertical
 
+  const handleMetadataLoaded = () => {
+    if (videoRef.current) {
+      const { videoWidth, videoHeight } = videoRef.current;
+      const currentIsVideoVertical = videoHeight > videoWidth;
+      setIsVideoVertical(currentIsVideoVertical);
+      if (isFullScreen) {
+        // Call requestOrientationLock directly, it uses the latest isVideoVertical due to useCallback's closure
+         requestOrientationLock();
+      }
+    }
+  };
+  
   const toggleFullScreen = () => {
     if (!playerContainerRef.current) return;
     if (!document.fullscreenElement) {
       playerContainerRef.current
         .requestFullscreen()
         .then(() => {
-          setIsFullScreen(true);
-          requestOrientationLock();
+          // setIsFullScreen(true); // Handled by fullscreenchange event
+          // requestOrientationLock(); // Called by fullscreenchange event listener if metadata loaded
         })
         .catch((err) => {
           console.error('Error attempting to enable fullscreen:', err);
         });
     } else {
-      document.exitFullscreen().then(() => setIsFullScreen(false));
+      document.exitFullscreen(); // setIsFullScreen(false) handled by event
     }
   };
 
-  // Update fullscreen state on change (e.g. ESC key)
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullScreen(!!document.fullscreenElement);
+      const currentlyFullScreen = !!document.fullscreenElement;
+      setIsFullScreen(currentlyFullScreen);
+      if (currentlyFullScreen && videoRef.current && videoRef.current.videoWidth > 0) {
+         requestOrientationLock();
+      } else if (!currentlyFullScreen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
+         window.screen.orientation.unlock();
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () =>
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  }, [requestOrientationLock]); // Now depends on the memoized requestOrientationLock
 
   const handleUserInteraction = () => {
     setIsControlsVisible(true);
   };
 
   const handleBack = () => {
-    window.parent.postMessage({ type: 'NAVIGATE_BACK' }, '*');
     navigate(-1);
   };
 
@@ -145,7 +289,7 @@ const VideoPlayer: React.FC = () => {
     return (
       <div className="w-full h-screen flex justify-center items-center bg-black text-white">
         <div className="text-2xl p-5 text-center">
-          No active stream available
+          {streamState === null ? 'Loading stream information...' : 'No active stream available.'}
         </div>
       </div>
     );
@@ -155,7 +299,7 @@ const VideoPlayer: React.FC = () => {
     isFullScreen ? 'fixed inset-0 z-[9999]' : ''
   }`;
   const videoElementClasses = `w-full h-full object-contain ${
-    isVideoVertical ? 'max-w-full max-h-full' : ''
+    isVideoVertical ? 'max-w-full max-h-full' : '' // This logic might need review for vertical videos in fullscreen
   }`;
   const controlsClasses = `absolute inset-0 flex flex-col justify-between p-4 bg-gradient-to-b from-[rgba(0,0,0,0.7)] from-0% via-transparent via-20% to-transparent to-80% to-[rgba(0,0,0,0.7)] to-100% transition-opacity duration-300 ease-in-out ${
     isControlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -168,15 +312,13 @@ const VideoPlayer: React.FC = () => {
       ref={playerContainerRef}
       className={playerContainerClasses}
       onClick={handleUserInteraction}
-      onTouchStart={handleUserInteraction} // For touch devices
+      onTouchStart={handleUserInteraction}
     >
       <video
         ref={videoRef}
         className={videoElementClasses}
         onLoadedMetadata={handleMetadataLoaded}
-        playsInline // Important for iOS
-        autoPlay
-        // Consider adding 'controls' attribute for native controls as a fallback or for accessibility
+        playsInline
       />
 
       <div className={controlsClasses}>
@@ -191,11 +333,11 @@ const VideoPlayer: React.FC = () => {
             </svg>
           </button>
 
-          <div className="text-white text-lg font-bold">
-            {/* Text shadow: Tailwind doesn't have text-shadow utilities by default. 
-                You might need a plugin (e.g., tailwindcss-textshadow) or custom CSS for this.
-                Example with plugin: className="text-white text-lg font-bold text-shadow-md" 
-            */}
+          <div className="text-white text-lg font-bold truncate px-2" title={streamState.manifestUrl
+              .split('/')
+              .pop()
+              ?.replace(/\.(mpd|m3u8)$/i, '')
+              .replace(/_/g, ' ')}>
             {streamState.manifestUrl
               .split('/')
               .pop()
@@ -217,8 +359,7 @@ const VideoPlayer: React.FC = () => {
             </svg>
           </button>
         </div>
-        {/* Placeholder for bottom controls (play/pause, timeline, volume) if you add them later */}
-        <div></div>
+        <div></div> {/* Placeholder for bottom controls */}
       </div>
     </div>
   );
