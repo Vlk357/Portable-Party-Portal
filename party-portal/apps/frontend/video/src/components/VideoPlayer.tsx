@@ -324,31 +324,38 @@ const VideoPlayer: React.FC = () => {
 
   // Handle seeking
   useEffect(() => {
-    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'ServerTime:', streamState?.stateUpdateServerTime, 'IsPlayerReady:', isPlayerReady);
+    console.log('SeekEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'TimeMs:', streamState?.videoPlaybackTimeMs, 'ServerTime:', streamState?.stateUpdateServerTime, 'IsPlayerReady:', isPlayerReady);
     if (!videoElement || !streamState?.manifestUrl || typeof streamState.videoPlaybackTimeMs !== 'number' || streamState.videoPlaybackTimeMs < 0 || !isPlayerReady) {
       console.log('SeekEffect: Skipping - conditions not met (videoElement, manifest, time, or player not ready).');
       return;
     }
 
     let targetTimeSeconds: number;
-    if (typeof streamState.stateUpdateServerTime === 'number' && streamState.stateUpdateServerTime > 0) {
-      const serverTimeAtLastUpdateMs = streamState.stateUpdateServerTime;
-      const videoTimeAtLastUpdateMs = streamState.videoPlaybackTimeMs;
-      const currentTimeMs = Date.now();
-      const elapsedTimeSinceLastUpdateMs = currentTimeMs - serverTimeAtLastUpdateMs;
-      
-      if (elapsedTimeSinceLastUpdateMs < 0) {
-        console.warn(`SeekEffect: Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs.`);
-        targetTimeSeconds = videoTimeAtLastUpdateMs / 1000;
+
+    if (streamState.playbackState === 'playing') {
+      if (typeof streamState.stateUpdateServerTime === 'number' && streamState.stateUpdateServerTime > 0) {
+        const serverTimeAtLastUpdateMs = streamState.stateUpdateServerTime;
+        const videoTimeAtLastUpdateMs = streamState.videoPlaybackTimeMs;
+        const currentTimeMs = Date.now();
+        const elapsedTimeSinceLastUpdateMs = currentTimeMs - serverTimeAtLastUpdateMs;
+        
+        if (elapsedTimeSinceLastUpdateMs < 0) {
+          console.warn(`SeekEffect (Playing): Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs.`);
+          targetTimeSeconds = videoTimeAtLastUpdateMs / 1000;
+        } else {
+          const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs;
+          targetTimeSeconds = calculatedTargetTimeMs / 1000;
+          console.log(`SeekEffect (Playing): Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s)`);
+        }
       } else {
-        const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs;
-        targetTimeSeconds = calculatedTargetTimeMs / 1000;
-        console.log(`SeekEffect: Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s)`);
+        // Fallback if server time is not available while playing
+        targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
+        console.log(`SeekEffect (Playing): Using raw videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
       }
-    } else {
-      // Fallback if server time is not available
+    } else { // Includes 'paused' or 'stopped'
+      // If paused or stopped, use the videoPlaybackTimeMs directly from the state update
       targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
-      console.log(`SeekEffect: Using raw videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
+      console.log(`SeekEffect (${streamState.playbackState}): Using direct videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s.`);
     }
     
     let canSeek = false;
@@ -383,7 +390,7 @@ const VideoPlayer: React.FC = () => {
     // Adjust threshold for seeking based on how fresh the sync data is.
     // If stateUpdateServerTime is very recent, we can be more aggressive.
     // If it's old, a larger difference might be acceptable to avoid jumpiness.
-    const seekThreshold = 1.5; // seconds
+    const seekThreshold = streamState.playbackState === 'playing' ? 1.5 : 0.5; // Smaller threshold for paused state to be more precise
 
     if (canSeek && Math.abs(videoElement.currentTime - targetTimeSeconds) > seekThreshold) {
       console.log(`SeekEffect: Seeking to ${targetTimeSeconds.toFixed(3)}.`);
@@ -393,7 +400,7 @@ const VideoPlayer: React.FC = () => {
     } else {
       console.log(`SeekEffect: Cannot seek to ${targetTimeSeconds.toFixed(3)}s (outside seekable range or range not available).`);
     }
-  }, [streamState?.videoPlaybackTimeMs, streamState?.stateUpdateServerTime, streamState?.manifestUrl, isPlayerReady, shakaPlayerInstance, videoElement]);
+  }, [streamState?.videoPlaybackTimeMs, streamState?.stateUpdateServerTime, streamState?.manifestUrl, streamState?.playbackState, isPlayerReady, shakaPlayerInstance, videoElement]);
 
   const requestOrientationLock = useCallback(() => {
     if (!videoElement) return; // Use videoElement
