@@ -325,7 +325,7 @@
           stopButton.disabled = true;
         }
         // Check if the stream is paused based on the status field
-        else if (currentStatus.state === 'paused') {
+        else if (currentStatus.playbackState === 'paused') {
           statusText = `Paused: ${
             currentStatus.title || currentStatus.manifestUrl
           }`;
@@ -338,7 +338,7 @@
           stopButton.disabled = false;
         }
         // Otherwise assume the stream is playing
-        else if (currentStatus.state === 'playing'){
+        else if (currentStatus.playbackState === 'playing'){
           statusText = `Playing: ${
             currentStatus.title || currentStatus.manifestUrl
           }`;

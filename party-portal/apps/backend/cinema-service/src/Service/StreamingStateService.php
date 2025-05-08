@@ -39,7 +39,7 @@ class StreamingStateService
         // Return the raw timestamps without any calculations
         return [
             'manifestUrl' => $state['manifestUrl'] ?? null,
-            'state' => $state['playbackState'] ?? 'stopped',
+            'playbackState' => $state['playbackState'] ?? 'stopped',
             'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0), // Raw video time in milliseconds
             'stateUpdateServerTime' => $state['stateUpdateServerTime'] ? $state['stateUpdateServerTime']->getTimestamp() : null // Server time in milliseconds
         ];
@@ -192,5 +192,157 @@ class StreamingStateService
             'videoPlaybackTimeMs' => 0,
             'stateUpdateServerTime' => null,
         ];
+    }
+
+    /**
+     * Get the duration of a video file in seconds
+     */
+    public function getVideoDuration(string $manifestPath): ?float
+    {
+        try {
+            $fullPath = $this->movieDirectory . '/' . $manifestPath;
+
+            if (!file_exists($fullPath)) {
+                $this->logger->error("Manifest file not found: {$fullPath}");
+                return null;
+            }
+
+            $extension = pathinfo($fullPath, PATHINFO_EXTENSION);
+
+            if ($extension === 'mpd') {
+                return $this->parseMpdDuration($fullPath);
+            } elseif ($extension === 'm3u8') {
+                return $this->parseM3u8Duration($fullPath);
+            }
+
+            $this->logger->error("Unsupported manifest format: {$extension}");
+            return null;
+        } catch (\Exception $e) {
+            $this->logger->error("Error getting video duration: " . $e->getMessage(), [
+                'exception' => $e,
+                'manifestPath' => $manifestPath
+            ]);
+            return null;
+        }
+    }
+
+    private function parseMpdDuration(string $mpdPath): ?float
+    {
+        $xml = simplexml_load_file($mpdPath);
+        if (!$xml) {
+            $this->logger->error("Failed to parse MPD file as XML");
+            return null;
+        }
+
+        // Check for mediaPresentationDuration attribute
+        if (isset($xml['mediaPresentationDuration'])) {
+            $durationString = (string) $xml['mediaPresentationDuration'];
+            return $this->parseIsoDuration($durationString);
+        }
+
+        // Check for Period duration
+        if (isset($xml->Period[0]['duration'])) {
+            $durationString = (string) $xml->Period[0]['duration'];
+            return $this->parseIsoDuration($durationString);
+        }
+
+        // Check for adaptation sets and calculate based on segments
+        $duration = 0;
+        foreach ($xml->xpath('//SegmentTemplate[@duration]') as $segment) {
+            $segmentDuration = (int) $segment['duration'];
+            $timescale = isset($segment['timescale']) ? (int) $segment['timescale'] : 1;
+
+            if ($segmentDuration > 0) {
+                // Get segment count from SegmentTimeline if available
+                $segmentCount = 1;
+                $segmentTimeline = $segment->SegmentTimeline;
+                if ($segmentTimeline) {
+                    $segmentCount = count($segmentTimeline->S);
+                }
+
+                $duration = max($duration, ($segmentDuration * $segmentCount) / $timescale);
+            }
+        }
+
+        return $duration > 0 ? $duration : null;
+    }
+
+    private function parseM3u8Duration(string $m3u8Path): ?float
+    {
+        $content = file_get_contents($m3u8Path);
+        if ($content === false) {
+            $this->logger->error("Failed to read M3U8 file");
+            return null;
+        }
+
+        // Check for EXT-X-DURATION tag
+        if (preg_match('/#EXT-X-DURATION:(\d+(\.\d+)?)/', $content, $matches)) {
+            return (float) $matches[1];
+        }
+
+        // Sum up individual segment durations
+        $totalDuration = 0;
+        preg_match_all('/#EXTINF:(\d+(\.\d+)?)/', $content, $matches);
+
+        if (isset($matches[1]) && is_array($matches[1])) {
+            foreach ($matches[1] as $duration) {
+                $totalDuration += (float) $duration;
+            }
+            return $totalDuration;
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse ISO 8601 duration format (e.g., PT1H30M15.5S)
+     */
+    private function parseIsoDuration(string $isoDuration): float
+    {
+        // Remove the "P" prefix
+        $duration = substr($isoDuration, 1);
+
+        // Initialize duration parts
+        $days = 0;
+        $hours = 0;
+        $minutes = 0;
+        $seconds = 0;
+
+        // Extract "T" part for time
+        $timePart = $duration;
+        if (strpos($duration, 'T') !== false) {
+            list($datePart, $timePart) = explode('T', $duration);
+
+            // Parse date part (days)
+            if (preg_match('/(\d+)D/', $datePart, $matches)) {
+                $days = (int) $matches[1];
+            }
+        } else {
+            $datePart = $duration;
+            $timePart = '';
+
+            // Parse date part (days)
+            if (preg_match('/(\d+)D/', $datePart, $matches)) {
+                $days = (int) $matches[1];
+            }
+        }
+
+        // Parse hours
+        if (preg_match('/(\d+)H/', $timePart, $matches)) {
+            $hours = (int) $matches[1];
+        }
+
+        // Parse minutes
+        if (preg_match('/(\d+)M/', $timePart, $matches)) {
+            $minutes = (int) $matches[1];
+        }
+
+        // Parse seconds (possibly with decimal)
+        if (preg_match('/(\d+(\.\d+)?)S/', $timePart, $matches)) {
+            $seconds = (float) $matches[1];
+        }
+
+        // Calculate total seconds
+        return $days * 86400 + $hours * 3600 + $minutes * 60 + $seconds;
     }
 }
