@@ -66,6 +66,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const socketInstanceRef = useRef<Socket | null>(null);
   const isRefreshingTokenRef = useRef(false);
+  const hasProcessedInitialDataRef = useRef(false); // Flag for initialData
 
   // --- Get Current User ID ---
   const currentUserId = useMemo(() => {
@@ -99,9 +100,11 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       return;
     }
 
-    if (socketInstanceRef.current) {
+    // Only run setup if there's no existing, connected, or connecting socket instance
+    // that matches what we expect.
+    if (socketInstanceRef.current && socketInstanceRef.current.active) {
       console.log(
-        'WebSocketProvider effect: Skipping setup, socket instance already exists.'
+        'WebSocketProvider effect: Skipping setup, socket instance already active.'
       );
       return;
     }
@@ -121,6 +124,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
     setIsLoading(true);
     setError(null);
+    hasProcessedInitialDataRef.current = false; // Reset flag for new connection
 
     const newSocket = io(wsUrl, {
       auth: { token: currentToken },
@@ -141,25 +145,62 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     });
 
     newSocket.on('initialData', (data: InitialData) => {
-      // Use InitialChatData
       console.log('Received initialData:', data);
-      if (socketInstanceRef.current !== newSocket) return;
+      if (socketInstanceRef.current !== newSocket || hasProcessedInitialDataRef.current) {
+        if (hasProcessedInitialDataRef.current) {
+          console.log('initialData: Already processed for this connection, skipping.');
+        }
+        return;
+      }
+      hasProcessedInitialDataRef.current = true; // Set flag after first successful processing
 
-      // Process messages: Convert date strings to Date objects
-      const processedMessages: Record<number, BackendMessage[]> = {};
+      const newProcessedMessages: Record<number, BackendMessage[]> = {};
       for (const roomIdStr in data.roomMessages) {
         const roomId = parseInt(roomIdStr, 10);
         if (!isNaN(roomId)) {
-          processedMessages[roomId] = data.roomMessages[roomId]
-            .map(processRawMessage) // Use existing processing function
-            .filter((msg): msg is BackendMessage => msg !== null) // Type guard
+          newProcessedMessages[roomId] = data.roomMessages[roomId]
+            .map(processRawMessage)
+            .filter((msg): msg is BackendMessage => msg !== null)
             .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
         }
       }
-      setMessages(processedMessages);
+      
+      // Merge initial data with existing messages if any (though typically messages would be empty here)
+      // This provides a safety net if initialData were to be emitted later unexpectedly.
+      // A more robust merge would be needed if initialData could truly arrive mid-session
+      // and potentially overlap with messages loaded via requestOlderMessages.
+      // For now, a simple overwrite if messages state is empty, otherwise merge.
+      setMessages(prevMessages => {
+        // If prevMessages is empty, just use the newProcessedMessages
+        if (Object.keys(prevMessages).length === 0) {
+          console.log('initialData: Setting messages from initial load.');
+          return newProcessedMessages;
+        }
+
+        // More complex merge: only add messages from initialData if they don't already exist
+        // This is a basic merge. A more sophisticated one might be needed depending on backend behavior.
+        console.log('initialData: Merging with existing messages (should be rare).');
+        const mergedMessages = { ...prevMessages };
+        for (const roomIdStr in newProcessedMessages) {
+            const roomId = parseInt(roomIdStr, 10);
+            const existingRoomMessages = mergedMessages[roomId] || [];
+            const initialRoomMessages = newProcessedMessages[roomId] || [];
+
+            const uniqueInitialMessages = initialRoomMessages.filter(
+                initMsg => !existingRoomMessages.some(existMsg => existMsg.id === initMsg.id)
+            );
+
+            if (uniqueInitialMessages.length > 0) {
+                mergedMessages[roomId] = [...existingRoomMessages, ...uniqueInitialMessages]
+                    .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+            }
+        }
+        return mergedMessages;
+      });
+
       setRooms(data.rooms || []);
       setUsers(data.users || []);
-      setIsLoading(false); // Ensure loading is set to false
+      setIsLoading(false);
     });
 
     newSocket.on('newMessage', (incomingMessage: RawBackendMessage) => {
@@ -416,19 +457,28 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     });
 
     return () => {
-      console.log('Running WebSocketProvider effect cleanup');
-      if (socketInstanceRef.current === newSocket) {
+      console.log('Running WebSocketProvider effect cleanup for socket:', newSocket.id);
+      if (newSocket) { // Check if newSocket was actually created
         console.log('Disconnecting WebSocket in cleanup for ID:', newSocket.id);
-        socketInstanceRef.current.disconnect();
-        socketInstanceRef.current = null;
-      } else {
-        console.log(
-          'Skipping disconnect in cleanup (socket instance mismatch or already null)'
-        );
+        newSocket.off('connect');
+        newSocket.off('initialData');
+        newSocket.off('newMessage');
+        newSocket.off('connect_error');
+        newSocket.off('error');
+        newSocket.off('disconnect');
+        newSocket.disconnect();
       }
-      isRefreshingTokenRef.current = false;
+      if (socketInstanceRef.current === newSocket) {
+        socketInstanceRef.current = null; // Clear the ref if it's the one we are cleaning up
+      }
+      // Do not set setSocket(null) or setIsConnected(false) here directly
+      // The 'disconnect' event handler should manage that for the specific socket instance.
+      isRefreshingTokenRef.current = false; // Reset refresh flag
     };
-  }, [currentUserId, pendingAckMap, error, setOnSelfMessageConfirmedHandler]); // Added error dependency below
+  // Critical: Removed pendingAckMap. 'error' might also be a candidate for removal
+  // if it causes too many re-runs, but let's start with pendingAckMap.
+  // setOnSelfMessageConfirmedHandler is stable due to useCallback.
+  }, [currentUserId, error, setOnSelfMessageConfirmedHandler]);
 
   const sendMessage = useCallback(
     (
@@ -536,6 +586,119 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
   }, [socket, isConnected]);
 
+  const requestOlderMessages = useCallback(
+    async (
+      roomId: number,
+      beforeId: number | null,
+      limit: number
+    ): Promise<{ messagesFetched: number; hasMore: boolean; error?: string }> => {
+      if (!socket || !isConnected) {
+        console.warn(
+          'requestOlderMessages: Cannot fetch, socket not connected.'
+        );
+        return {
+          messagesFetched: 0,
+          hasMore: false,
+          error: 'Not connected',
+        };
+      }
+
+      console.log(
+        `requestOlderMessages: Requesting older messages for room ${roomId}, beforeId: ${beforeId}, limit: ${limit}`
+      );
+
+      return new Promise((resolve) => {
+        socket.emit(
+          'getMessages',
+          { roomId, beforeId, limit },
+          (response: {
+            success: boolean;
+            messages?: RawBackendMessage[];
+            error?: string;
+          }) => {
+            // Check for success and presence of messages at the top level of the callback
+            if (response.success && response.messages) {
+              const fetchedMessages = response.messages; // Store in a new const for clarity
+              const processedNewMessages = fetchedMessages
+                .map(processRawMessage)
+                .filter((msg): msg is BackendMessage => msg !== null);
+
+              if (processedNewMessages.length === 0) {
+                console.log(
+                  'requestOlderMessages: No new older messages fetched or all failed processing.'
+                );
+                resolve({
+                  messagesFetched: 0,
+                  hasMore: false,
+                });
+                return;
+              }
+
+              setMessages((prevMessages) => {
+                const existingRoomMessages = prevMessages[roomId] || [];
+                const uniqueNewMessages = processedNewMessages.filter(
+                  (newMsg) =>
+                    !existingRoomMessages.some(
+                      (existingMsg) => existingMsg.id === newMsg.id
+                    )
+                );
+
+                if (uniqueNewMessages.length === 0) {
+                   console.log('requestOlderMessages: All fetched older messages were duplicates.');
+                   resolve({
+                    messagesFetched: 0,
+                    hasMore: fetchedMessages.length === limit, // Use checked fetchedMessages
+                  });
+                  return prevMessages;
+                }
+                
+                const updatedRoomMessages = [
+                  ...uniqueNewMessages,
+                  ...existingRoomMessages,
+                ].sort(
+                  (a, b) => a.created_at.getTime() - b.created_at.getTime()
+                );
+
+                return {
+                  ...prevMessages,
+                  [roomId]: updatedRoomMessages,
+                };
+              });
+              
+              console.log(
+                `requestOlderMessages: Successfully fetched and processed ${processedNewMessages.length} older messages for room ${roomId}.`
+              );
+              resolve({
+                messagesFetched: processedNewMessages.length,
+                hasMore: processedNewMessages.length === limit,
+              });
+            } else if (response.success && !response.messages) {
+              // Success but no messages array, means 0 messages fetched
+              console.log('requestOlderMessages: Success, but no messages array returned (0 messages).');
+              resolve({
+                messagesFetched: 0,
+                hasMore: false, // No messages, so no more from this batch
+              });
+            }
+             else { // Handles !response.success or other unexpected cases
+              console.error(
+                'requestOlderMessages: Failed to fetch older messages -',
+                response.error
+              );
+              resolve({
+                messagesFetched: 0,
+                hasMore: false,
+                error: response.error || 'Failed to fetch older messages',
+              });
+            }
+          }
+        );
+      });
+    },
+    // Remove processRawMessage from dependencies if it's a stable import/function
+    [socket, isConnected] 
+  );
+
   const value: WebSocketContextType = {
     socket,
     isConnected,
@@ -548,6 +711,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     getMessagesForRoom,
     requestUsers,
     setOnSelfMessageConfirmedHandler,
+    requestOlderMessages, // Add to context value
   };
 
   return (

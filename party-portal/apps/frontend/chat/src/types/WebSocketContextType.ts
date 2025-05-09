@@ -2,6 +2,7 @@ import { Socket } from 'socket.io-client';
 import { BackendRoom } from './BackendRoom';
 import { BackendMessage } from './BackendMessage';
 import { SimpleUser } from './SimpleUser';
+import { RawBackendMessage } from './RawBackendMessage';
 
 export interface WebSocketContextType {
   socket: Socket | null;
@@ -21,4 +22,9 @@ export interface WebSocketContextType {
   getMessagesForRoom: (roomId: number) => BackendMessage[];
   requestUsers: () => void;
   setOnSelfMessageConfirmedHandler: (handler: (tempId: number) => void) => void;
+  requestOlderMessages: (
+    roomId: number,
+    beforeId: number | null,
+    limit: number
+  ) => Promise<{ messagesFetched: number; hasMore: boolean; error?: string }>;
 }

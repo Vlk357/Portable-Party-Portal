@@ -10,9 +10,10 @@ import { useWebSocket } from '../context/WebSocketContext';
 import { jwtDecode } from 'jwt-decode';
 import { DecodedToken } from '../../types/DecodedToken';
 import { MessageBubble } from './MessageBubble';
-import { BackendMessage } from '../../types/BackendMessage'; // Import BackendMessage
 import { PendingMessage } from '../../types/PendingMessage';
 import { SimpleUser } from '../../types/SimpleUser'; // Import SimpleUser type
+
+const MESSAGES_PER_PAGE = 20; // Number of older messages to fetch each time
 
 // --- Chat Room Component ---
 export function ChatRoom() {
@@ -26,6 +27,8 @@ export function ChatRoom() {
     sendMessage,
     users, // Get users array from context
     setOnSelfMessageConfirmedHandler,
+    // ---- This function is expected from your WebSocketContext ----
+    requestOlderMessages,
   } = useWebSocket();
 
   const [newMessage, setNewMessage] = useState('');
@@ -33,6 +36,14 @@ export function ChatRoom() {
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messageContainerRef = useRef<HTMLDivElement>(null); // Ref for the scrollable message list
+  const scrollAnchorRef = useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null); // For scroll preservation
+
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(true); // Assume true initially
 
   const currentRoomId = parseInt(roomId || '0', 10);
 
@@ -60,38 +71,157 @@ export function ChatRoom() {
 
   // --- Combine and Sort Confirmed and Pending Messages ---
   const allMessages = useMemo(() => {
-    // Map pending messages to a common structure (similar to BackendMessage but with status)
-    const mappedPending = pendingMessages.map((p) => ({ ...p, id: p.tempId })); // Use tempId as key/id
-
-    // Map confirmed messages (add a 'confirmed' status for consistency if needed)
+    const mappedPending = pendingMessages.map((p) => ({ ...p, id: p.tempId }));
     const mappedConfirmed = confirmedMessages.map((c) => ({
       ...c,
       status: 'confirmed' as const,
     }));
-
-    // Combine, filter out any confirmed message that might still be in pending (using ID check)
     const combined = [...mappedConfirmed, ...mappedPending];
-
-    // Sort by date
     return combined.sort(
       (a, b) => a.created_at.getTime() - b.created_at.getTime()
     );
   }, [confirmedMessages, pendingMessages]);
   // --- End Combine and Sort ---
 
-  // --- Display only the latest N messages ---
   const displayedMessages = useMemo(() => {
-    const MESSAGE_LIMIT = 50; // Show last 50 messages initially
-    return allMessages.slice(-MESSAGE_LIMIT);
+    return allMessages; // Display all loaded messages
   }, [allMessages]);
 
-  // --- Scroll to Bottom ---
+  // --- Scroll to Bottom for new messages (revised) ---
+  const [lastMessageCount, setLastMessageCount] = useState(0);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [displayedMessages]);
+    if (
+      allMessages.length > lastMessageCount &&
+      messageContainerRef.current &&
+      !isLoadingOlder // Don't auto-scroll if older messages are being loaded
+    ) {
+      const container = messageContainerRef.current;
+      const isUserNearBottom =
+        container.scrollHeight - container.scrollTop <=
+        container.clientHeight + 200; // 200px tolerance
+
+      // Only scroll if it's an initial load (lastMessageCount === 0)
+      // or if a new message arrived AND the user was already near the bottom.
+      if (lastMessageCount === 0 || isUserNearBottom) {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: lastMessageCount === 0 ? 'auto' : 'smooth',
+        });
+      }
+    }
+    setLastMessageCount(allMessages.length);
+  }, [allMessages, isLoadingOlder]);
+
+  // --- Load Older Messages ---
+  const loadOlderMessages = useCallback(async () => {
+    if (
+      isLoadingOlder ||
+      !hasMoreOlderMessages ||
+      !currentRoomId ||
+      !requestOlderMessages
+    ) {
+      if (!requestOlderMessages) {
+        console.warn(
+          'ChatRoom: requestOlderMessages function is not available from context.'
+        );
+      }
+      return;
+    }
+
+    // Confirmed messages should be sorted: oldest first, newest last.
+    // So, confirmedMessages[0] is the oldest one currently displayed.
+    const oldestConfirmedMessage =
+      confirmedMessages.length > 0 ? confirmedMessages[0] : null;
+    const beforeMessageId = oldestConfirmedMessage
+      ? oldestConfirmedMessage.id
+      : null;
+
+    console.log(
+      `Attempting to load older messages for room ${currentRoomId}, before ID: ${beforeMessageId}, limit: ${MESSAGES_PER_PAGE}`
+    );
+    setIsLoadingOlder(true);
+
+    if (messageContainerRef.current) {
+      scrollAnchorRef.current = {
+        scrollHeight: messageContainerRef.current.scrollHeight,
+        scrollTop: messageContainerRef.current.scrollTop,
+      };
+    }
+
+    try {
+      const result = await requestOlderMessages(
+        currentRoomId,
+        beforeMessageId,
+        MESSAGES_PER_PAGE
+      );
+
+      console.log(
+        `Fetched ${result.messagesFetched} older messages. Has more: ${result.hasMore}`
+      );
+      if (result.error) {
+        console.error(
+          'Failed to load older messages from context:',
+          result.error
+        );
+        // Optionally set an error state here to display to the user
+      }
+      if (!result.hasMore) {
+        setHasMoreOlderMessages(false);
+      }
+      // The WebSocketContext's requestOlderMessages should handle updating the
+      // global message store, which will then update `confirmedMessages` via `getMessagesForRoom`.
+    } catch (error) {
+      console.error('Error calling requestOlderMessages:', error);
+      // Optionally set an error state here
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [
+    isLoadingOlder,
+    hasMoreOlderMessages,
+    currentRoomId,
+    confirmedMessages,
+    requestOlderMessages, // Added to dependencies
+  ]);
+
+  // --- Scroll Event Listener for Loading Older Messages ---
+  useEffect(() => {
+    const container = messageContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Trigger if scrolled very close to the top
+      if (container.scrollTop < 50 && !isLoadingOlder && hasMoreOlderMessages) {
+        loadOlderMessages();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [loadOlderMessages, isLoadingOlder, hasMoreOlderMessages]); // loadOlderMessages is stable due to useCallback
+
+  // --- useLayoutEffect for Restoring Scroll Position ---
+  React.useLayoutEffect(() => {
+    if (
+      scrollAnchorRef.current &&
+      messageContainerRef.current &&
+      !isLoadingOlder // Only adjust if not currently in the process of loading
+    ) {
+      const { scrollHeight: prevScrollHeight, scrollTop: prevScrollTop } =
+        scrollAnchorRef.current;
+      const currentScrollHeight = messageContainerRef.current.scrollHeight;
+
+      if (currentScrollHeight > prevScrollHeight) {
+        // Messages were prepended
+        const heightDifference = currentScrollHeight - prevScrollHeight;
+        messageContainerRef.current.scrollTop =
+          prevScrollTop + heightDifference;
+        console.log(
+          `Restored scroll. PrevTop: ${prevScrollTop}, HeightDiff: ${heightDifference}, NewTop: ${messageContainerRef.current.scrollTop}`
+        );
+      }
+      scrollAnchorRef.current = null; // Reset after applying
+    }
+  }, [allMessages, isLoadingOlder]); // Re-run when allMessages changes (new older messages added) or isLoadingOlder finishes
 
   // --- Input Change Handler ---
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -114,20 +244,17 @@ export function ChatRoom() {
   };
 
   // --- Callbacks for sendMessage ---
-  const handleSendConfirm = useCallback(
-    (tempId: number, messageId: number) => {
-      console.log(`ChatRoom: handleSendConfirm called for tempId: ${tempId}`); // Log entry
-      setPendingMessages((prev) => {
-        console.log(
-          `ChatRoom: Filtering pending messages. Current count: ${prev.length}. Removing tempId: ${tempId}`
-        ); // Log before filter
-        const newState = prev.filter((msg) => msg.tempId !== tempId);
-        console.log(`ChatRoom: New pending messages count: ${newState.length}`); // Log after filter
-        return newState;
-      });
-    },
-    []
-  );
+  const handleSendConfirm = useCallback((tempId: number, messageId: number) => {
+    console.log(`ChatRoom: handleSendConfirm called for tempId: ${tempId}`); // Log entry
+    setPendingMessages((prev) => {
+      console.log(
+        `ChatRoom: Filtering pending messages. Current count: ${prev.length}. Removing tempId: ${tempId}`
+      ); // Log before filter
+      const newState = prev.filter((msg) => msg.tempId !== tempId);
+      console.log(`ChatRoom: New pending messages count: ${newState.length}`); // Log after filter
+      return newState;
+    });
+  }, []);
 
   const handleSendError = useCallback((tempId: number, error: string) => {
     console.error(`Failed message for tempId: ${tempId}, Error: ${error}`);
@@ -203,7 +330,7 @@ export function ChatRoom() {
   // --- Create a map for quick user lookup ---
   const userMap = useMemo(() => {
     const map = new Map<number, SimpleUser>();
-    users.forEach(user => map.set(user.id, user));
+    users.forEach((user) => map.set(user.id, user));
     return map;
   }, [users]);
 
@@ -270,8 +397,23 @@ export function ChatRoom() {
       </header>
 
       {/* Message List */}
-      <div className="flex-grow overflow-y-auto p-4 space-y-1">
-        {displayedMessages.length === 0 && (
+      <div
+        ref={messageContainerRef}
+        className="flex-grow overflow-y-auto p-4 space-y-1"
+      >
+        {isLoadingOlder && (
+          <div className="text-center py-3 text-gray-500">
+            Loading older messages...
+          </div>
+        )}
+        {!hasMoreOlderMessages &&
+          confirmedMessages.length > 0 &&
+          !isLoadingOlder && (
+            <div className="text-center py-3 text-gray-400 text-sm">
+              You've reached the beginning of your conversation.
+            </div>
+          )}
+        {displayedMessages.length === 0 && !isLoadingOlder && (
           <div className="text-center text-gray-500 pt-10">
             No messages yet. Start the conversation!
           </div>
@@ -280,7 +422,9 @@ export function ChatRoom() {
         {displayedMessages.map((msg) => {
           // Find sender information
           const sender = msg.user_id ? userMap.get(msg.user_id) : null;
-          const senderDisplayName = sender?.username ?? (msg.user_id ? `User ${msg.user_id}` : 'Unknown User');
+          const senderDisplayName =
+            sender?.username ??
+            (msg.user_id ? `User ${msg.user_id}` : 'Unknown User');
 
           return (
             <MessageBubble
