@@ -230,19 +230,51 @@ export function ChatRoom() {
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const currentText = event.target.value;
     setNewMessage(currentText);
-    // Auto-resize logic...
+
     const textarea = event.target;
+    // Temporarily reset height to 'auto' to get the natural scrollHeight of the content
     textarea.style.height = 'auto';
     const scrollHeight = textarea.scrollHeight;
-    const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 20;
-    const lines = Math.ceil(scrollHeight / lineHeight);
-    const newRows = Math.min(Math.max(1, lines), 4);
+
+    // Get the computed line-height
+    const computedStyle = getComputedStyle(textarea);
+    const lineHeight = parseFloat(computedStyle.lineHeight);
+    const paddingTop = parseFloat(computedStyle.paddingTop);
+    const paddingBottom = parseFloat(computedStyle.paddingBottom);
+
+    // Calculate content height excluding padding
+    const contentHeight = scrollHeight - paddingTop - paddingBottom;
+    
+    let lines = 1; // Default to 1 line
+    if (lineHeight > 0 && contentHeight > lineHeight) { // Only calculate if content actually exceeds one line
+        lines = Math.max(1, Math.ceil(contentHeight / lineHeight));
+    } else if (currentText === '') { // If text is empty, reset to 1 line
+        lines = 1;
+    }
+
+
+    const newRows = Math.min(Math.max(1, lines), 4); // Clamp between 1 and 4 rows
+
     setTextareaRows(newRows);
-    textarea.style.height = `${scrollHeight}px`;
+
+    // If we are at max rows, allow scrolling, otherwise hide scrollbar
     if (newRows === 4) {
       textarea.style.overflowY = 'auto';
+      // Set height to match 4 rows explicitly if content is larger
+      // This helps prevent the textarea from exceeding the visual space of 4 rows
+      // before the scrollbar appears.
+      // You might need to adjust '20px' or 'lineHeight' based on your actual line height + padding/border
+      // For a more robust solution, calculate the height of 4 rows.
+      // Example: (lineHeight * 4) + paddingTop + paddingBottom
+      const maxHeightForFourRows = (lineHeight * 4) + paddingTop + paddingBottom;
+      textarea.style.height = `${maxHeightForFourRows}px`;
+
     } else {
       textarea.style.overflowY = 'hidden';
+      // When not at max rows, let the height be determined by its content up to its current row count
+      // by resetting to 'auto' then letting the 'rows' attribute and content dictate.
+      // Or, more reliably, set it to the scrollHeight if it's less than 4 rows.
+      textarea.style.height = `${scrollHeight}px`;
     }
   };
 
@@ -323,10 +355,10 @@ export function ChatRoom() {
 
       // 5. Clear input and reset UI
       setNewMessage('');
-      setTextareaRows(1);
+      setTextareaRows(1); // Reset to 1 row
       if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.overflowY = 'hidden';
+        textareaRef.current.style.height = 'auto'; // Reset height
+        textareaRef.current.style.overflowY = 'hidden'; // Reset overflow
         textareaRef.current.focus();
       }
     }
@@ -495,7 +527,6 @@ export function ChatRoom() {
           className="flex-grow p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mr-2 bg-white disabled:bg-gray-100"
           rows={textareaRows}
           disabled={!isConnected}
-          style={{ maxHeight: `${4 * 24}px` }}
         />
         <button
           onClick={handleSendMessage}
