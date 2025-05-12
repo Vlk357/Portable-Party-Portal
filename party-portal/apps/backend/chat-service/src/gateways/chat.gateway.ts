@@ -89,6 +89,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Call the service method to ensure membership in the General room
       await this.chatRoomService.ensureUserMembershipInGeneralRoom(userId);
 
+      await this.permissionService.ensureCreateChatRoomPermission(userId);
+
       // Get rooms the user has permission to access initially
       const permittedRooms =
         await this.chatService.getUserPermittedRooms(userId);

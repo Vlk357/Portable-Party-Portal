@@ -8,6 +8,9 @@ import { Ability } from 'src/entities/ability.entity';
 import { UserRole } from 'src/entities/user-role.entity';
 import { RoleAbility } from 'src/entities/role-ability.entity';
 import { Repository } from 'typeorm';
+import { ModuleEnum } from 'src/enums/module.enum';
+import { ResourceEnum } from 'src/enums/resource.enum';
+import { ActionEnum } from 'src/enums/action.enum';
 
 @Injectable()
 export class PermissionService {
@@ -332,6 +335,85 @@ export class PermissionService {
         `Error checking if user ${userId} has role "${roleName}": ${error instanceof Error ? error.message : String(error)}`,
       );
       return false; // Return false on error to prevent accidental permission grants
+    }
+  }
+
+  async ensureCreateChatRoomPermission(userId: number): Promise<void> {
+    const permissionString = `${ModuleEnum.CHAT}:${ResourceEnum.CHAT_ROOM}:${ActionEnum.CREATE}`;
+
+    this.logger.log(
+      `Ensuring user ${userId} has permission: ${permissionString}`,
+      PermissionService.name, // Or the name of your service class
+    );
+
+    try {
+      // 1. Check if the user already has the permission
+      const hasPermission = await this.permissionRepo.checkPermission(
+        userId,
+        ModuleEnum.CHAT,
+        ResourceEnum.CHAT_ROOM,
+        ActionEnum.CREATE,
+      );
+
+      if (hasPermission) {
+        this.logger.log(
+          `User ${userId} already has permission: ${permissionString}`,
+          PermissionService.name,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `User ${userId} does not have permission: ${permissionString}. Attempting to grant.`,
+        PermissionService.name,
+      );
+
+      // 2. Find or create the ability
+      let ability = await this.permissionRepo.findAbility(
+        ModuleEnum.CHAT,
+        ResourceEnum.CHAT_ROOM,
+        ActionEnum.CREATE,
+      );
+
+      if (!ability) {
+        this.logger.log(
+          `Ability ${permissionString} not found. Creating it...`,
+          PermissionService.name,
+        );
+        ability = await this.permissionRepo.createAbility(
+          ModuleEnum.CHAT,
+          ResourceEnum.CHAT_ROOM,
+          ActionEnum.CREATE,
+          undefined, // No constraint for this general permission
+          `Allows user to create a new chat room`,
+        );
+        this.logger.log(
+          `Ability ${permissionString} created with ID: ${ability.id}`,
+          PermissionService.name,
+        );
+      } else {
+        this.logger.log(
+          `Ability ${permissionString} found with ID: ${ability.id}`,
+          PermissionService.name,
+        );
+      }
+
+      // 3. Grant the ability to the user
+      await this.permissionRepo.grantAbilityToUser(userId, ability);
+      this.logger.log(
+        `Successfully granted permission ${permissionString} (Ability ID: ${ability.id}) to user ${userId}`,
+        PermissionService.name,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to ensure/grant permission ${permissionString} for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+        PermissionService.name,
+      );
+      // Depending on your error handling strategy, you might want to rethrow the error
+      // or handle it gracefully. For now, it's logged.
+      // If this permission is critical for connection, you might throw a WsException here.
+      // throw new WsException(`Failed to set up necessary permissions for user ${userId}.`);
     }
   }
 }
