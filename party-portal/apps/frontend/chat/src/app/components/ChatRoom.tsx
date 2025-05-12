@@ -25,9 +25,8 @@ export function ChatRoom() {
     rooms,
     getMessagesForRoom,
     sendMessage,
-    users, // Get users array from context
+    users,
     setOnSelfMessageConfirmedHandler,
-    // ---- This function is expected from your WebSocketContext ----
     requestOlderMessages,
   } = useWebSocket();
 
@@ -36,14 +35,14 @@ export function ChatRoom() {
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messageContainerRef = useRef<HTMLDivElement>(null); // Ref for the scrollable message list
+  const messageContainerRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<{
     scrollHeight: number;
     scrollTop: number;
-  } | null>(null); // For scroll preservation
+  } | null>(null);
 
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(true); // Assume true initially
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(true);
 
   const currentRoomId = parseInt(roomId || '0', 10);
 
@@ -64,12 +63,10 @@ export function ChatRoom() {
     return rooms.find((room) => room.id === currentRoomId);
   }, [rooms, currentRoomId]);
 
-  // Get confirmed messages
   const confirmedMessages = useMemo(() => {
     return getMessagesForRoom(currentRoomId);
   }, [getMessagesForRoom, currentRoomId]);
 
-  // --- Combine and Sort Confirmed and Pending Messages ---
   const allMessages = useMemo(() => {
     const mappedPending = pendingMessages.map((p) => ({ ...p, id: p.tempId }));
     const mappedConfirmed = confirmedMessages.map((c) => ({
@@ -81,27 +78,23 @@ export function ChatRoom() {
       (a, b) => a.created_at.getTime() - b.created_at.getTime()
     );
   }, [confirmedMessages, pendingMessages]);
-  // --- End Combine and Sort ---
 
   const displayedMessages = useMemo(() => {
-    return allMessages; // Display all loaded messages
+    return allMessages;
   }, [allMessages]);
 
-  // --- Scroll to Bottom for new messages (revised) ---
   const [lastMessageCount, setLastMessageCount] = useState(0);
   useEffect(() => {
     if (
       allMessages.length > lastMessageCount &&
       messageContainerRef.current &&
-      !isLoadingOlder // Don't auto-scroll if older messages are being loaded
+      !isLoadingOlder
     ) {
       const container = messageContainerRef.current;
       const isUserNearBottom =
         container.scrollHeight - container.scrollTop <=
-        container.clientHeight + 200; // 200px tolerance
+        container.clientHeight + 200;
 
-      // Only scroll if it's an initial load (lastMessageCount === 0)
-      // or if a new message arrived AND the user was already near the bottom.
       if (lastMessageCount === 0 || isUserNearBottom) {
         messagesEndRef.current?.scrollIntoView({
           behavior: lastMessageCount === 0 ? 'auto' : 'smooth',
@@ -111,7 +104,6 @@ export function ChatRoom() {
     setLastMessageCount(allMessages.length);
   }, [allMessages, isLoadingOlder]);
 
-  // --- Load Older Messages ---
   const loadOlderMessages = useCallback(async () => {
     if (
       isLoadingOlder ||
@@ -127,8 +119,6 @@ export function ChatRoom() {
       return;
     }
 
-    // Confirmed messages should be sorted: oldest first, newest last.
-    // So, confirmedMessages[0] is the oldest one currently displayed.
     const oldestConfirmedMessage =
       confirmedMessages.length > 0 ? confirmedMessages[0] : null;
     const beforeMessageId = oldestConfirmedMessage
@@ -162,16 +152,12 @@ export function ChatRoom() {
           'Failed to load older messages from context:',
           result.error
         );
-        // Optionally set an error state here to display to the user
       }
       if (!result.hasMore) {
         setHasMoreOlderMessages(false);
       }
-      // The WebSocketContext's requestOlderMessages should handle updating the
-      // global message store, which will then update `confirmedMessages` via `getMessagesForRoom`.
     } catch (error) {
       console.error('Error calling requestOlderMessages:', error);
-      // Optionally set an error state here
     } finally {
       setIsLoadingOlder(false);
     }
@@ -180,16 +166,38 @@ export function ChatRoom() {
     hasMoreOlderMessages,
     currentRoomId,
     confirmedMessages,
-    requestOlderMessages, // Added to dependencies
+    requestOlderMessages,
   ]);
 
-  // --- Scroll Event Listener for Loading Older Messages ---
+  // --- Effect to auto-load older messages if screen is not full ---
+  useEffect(() => {
+    const container = messageContainerRef.current;
+    if (
+      container &&
+      !isLoadingOlder &&
+      !isContextLoading && // Ensure initial context loading is complete
+      hasMoreOlderMessages &&
+      container.scrollHeight <= container.clientHeight // Check if content fills the viewport
+    ) {
+      console.log(
+        "ChatRoom: Content doesn't fill screen, auto-loading older messages."
+      );
+      loadOlderMessages();
+    }
+  }, [
+    allMessages, // Re-check when messages are added
+    isLoadingOlder, // Re-check when a load finishes
+    hasMoreOlderMessages, // To stop if no more messages
+    isContextLoading, // Wait for initial context load
+    loadOlderMessages, // The function to call
+  ]);
+  // --- End auto-load effect ---
+
   useEffect(() => {
     const container = messageContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      // Trigger if scrolled very close to the top
       if (container.scrollTop < 50 && !isLoadingOlder && hasMoreOlderMessages) {
         loadOlderMessages();
       }
@@ -197,31 +205,26 @@ export function ChatRoom() {
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [loadOlderMessages, isLoadingOlder, hasMoreOlderMessages]); // loadOlderMessages is stable due to useCallback
+  }, [loadOlderMessages, isLoadingOlder, hasMoreOlderMessages]);
 
-  // --- useLayoutEffect for Restoring Scroll Position ---
   React.useLayoutEffect(() => {
     if (
       scrollAnchorRef.current &&
       messageContainerRef.current &&
-      !isLoadingOlder // Only adjust if not currently in the process of loading
+      !isLoadingOlder
     ) {
       const { scrollHeight: prevScrollHeight, scrollTop: prevScrollTop } =
         scrollAnchorRef.current;
       const currentScrollHeight = messageContainerRef.current.scrollHeight;
 
       if (currentScrollHeight > prevScrollHeight) {
-        // Messages were prepended
         const heightDifference = currentScrollHeight - prevScrollHeight;
         messageContainerRef.current.scrollTop =
           prevScrollTop + heightDifference;
-        console.log(
-          `Restored scroll. PrevTop: ${prevScrollTop}, HeightDiff: ${heightDifference}, NewTop: ${messageContainerRef.current.scrollTop}`
-        );
       }
-      scrollAnchorRef.current = null; // Reset after applying
+      scrollAnchorRef.current = null;
     }
-  }, [allMessages, isLoadingOlder]); // Re-run when allMessages changes (new older messages added) or isLoadingOlder finishes
+  }, [allMessages, isLoadingOlder]);
 
   // --- Input Change Handler ---
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -422,17 +425,6 @@ export function ChatRoom() {
         ref={messageContainerRef}
         className="flex-grow overflow-y-auto p-4 space-y-1"
       >
-        {/* Load More Messages Button */}
-        {!isLoadingOlder && hasMoreOlderMessages && (
-          <div className="text-center py-2">
-            <button
-              onClick={loadOlderMessages}
-              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 focus:outline-none"
-            >
-              Load more messages
-            </button>
-          </div>
-        )}
         {isLoadingOlder && (
           <div className="text-center py-3 flex justify-center items-center text-gray-500">
             <svg
@@ -470,9 +462,7 @@ export function ChatRoom() {
             No messages yet. Start the conversation!
           </div>
         )}
-        {/* Use the combined 'displayedMessages' list */}
         {displayedMessages.map((msg) => {
-          // Find sender information
           const sender = msg.user_id ? userMap.get(msg.user_id) : null;
           const senderDisplayName =
             sender?.username ??
@@ -480,16 +470,13 @@ export function ChatRoom() {
 
           return (
             <MessageBubble
-              // Use tempId for pending, id for confirmed as key
               key={
                 msg.status === 'pending' || msg.status === 'failed'
                   ? msg.tempId
                   : msg.id
               }
-              // Pass the whole combined message object
               message={msg}
               isOwnMessage={msg.user_id === currentUserId}
-              // Pass the sender's name
               senderName={senderDisplayName}
             />
           );
