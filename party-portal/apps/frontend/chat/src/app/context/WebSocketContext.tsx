@@ -811,20 +811,118 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     [socket, isConnected]
   );
 
-  const value: WebSocketContextType = {
-    socket,
+  const createRoom = useCallback(
+    async (payload: { name: string; description?: string; users: number[] }): Promise<{ success: boolean; room?: BackendRoom; error?: string; message?: string; cause?:any }> => {
+      return new Promise((resolve) => {
+        const currentSocket = socketInstanceRef.current; // Capture current socket instance for this promise
+
+        if (!currentSocket || !currentSocket.connected) {
+          console.warn('createRoom: Socket not connected.');
+          resolve({
+            success: false,
+            error: 'Not connected to chat server.',
+            message: 'Not connected to chat server.',
+          });
+          return;
+        }
+
+        let settled = false; // To ensure resolve is called only once
+        const REQUEST_TIMEOUT = 15000; // 15 seconds
+        let timeoutId: NodeJS.Timeout | null = null;
+
+        // Centralized function to resolve the promise and clean up
+        const doResolve = (response: { success: boolean; room?: BackendRoom; error?: string; message?: string; cause?:any }) => {
+          if (!settled) {
+            settled = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            currentSocket.off('exception', exceptionListenerForCreateRoom);
+            // Note: The ACK callback is a one-time callback for the emit,
+            // so no explicit 'off' is needed for it in the same way as a regular event listener.
+            resolve(response);
+          }
+        };
+
+        // Scoped listener for the 'exception' event
+        const exceptionListenerForCreateRoom = (exceptionData: any) => {
+          // Check if the exception is relevant to 'createRoom'
+          if (exceptionData && exceptionData.cause && exceptionData.cause.pattern === 'createRoom') {
+            console.error('createRoom: Caught "exception" event relevant to createRoom:', exceptionData);
+            doResolve({
+              success: false,
+              message: exceptionData.message || 'Server exception occurred during room creation.',
+              error: exceptionData.error || exceptionData.message || 'Server exception occurred.', // Prioritize specific error fields
+              cause: exceptionData.cause,
+            });
+          }
+          // If the exception is not for 'createRoom', this specific listener ignores it.
+          // A global 'exception' listener (if you add one) could handle other cases.
+        };
+
+        // ACK Callback for the emit
+        const ackCallback = (ackResponse: { success: boolean; room?: BackendRoom; error?: string; message?: string; cause?: any }) => {
+          console.log('createRoom ACK response:', ackResponse);
+          // The ACK is the direct response to the emit. If it comes, it's usually authoritative.
+          // If the server sends an error via ACK, it should be structured.
+          // If it's a success, it will also be structured.
+          // The `exception` event might be a parallel notification or a different error path.
+          // By calling doResolve, we ensure that if ACK comes first, it's used.
+          // If 'exception' came first, 'settled' would be true, and this ACK would be ignored by doResolve.
+          doResolve(ackResponse);
+        };
+        
+        // Start listening for a relevant 'exception' event
+        currentSocket.on('exception', exceptionListenerForCreateRoom);
+
+        // Set up the timeout
+        timeoutId = setTimeout(() => {
+          console.error('createRoom: Request timed out. Neither ACK nor relevant exception received.');
+          // It's important to remove the listener here too, to prevent it from acting on a late response
+          currentSocket.off('exception', exceptionListenerForCreateRoom);
+          doResolve({
+            success: false,
+            error: 'Request timed out. The server did not respond in time.',
+            message: 'Request timed out. The server did not respond in time.',
+          });
+        }, REQUEST_TIMEOUT);
+
+        // Emit the 'createRoom' event
+        console.log('Emitting createRoom with payload:', payload);
+        currentSocket.emit('createRoom', payload, ackCallback);
+      });
+    },
+    [] // socketInstanceRef is a ref, its .current is accessed inside the callback when invoked.
+  );
+
+  const value: WebSocketContextType = useMemo(() => ({
+    socket: socketInstanceRef.current, // Use the ref's current value
     isConnected,
     isLoading,
     error,
     rooms,
     messages,
     users,
+    currentUserId, // Make sure currentUserId is derived and available in the provider's scope
     sendMessage,
     getMessagesForRoom,
     requestUsers,
     setOnSelfMessageConfirmedHandler,
-    requestOlderMessages, // Add to context value
-  };
+    requestOlderMessages,
+    createRoom, // Add createRoom to context value
+  }), [
+    isConnected, 
+    isLoading, 
+    error, 
+    rooms, 
+    messages, 
+    users, 
+    currentUserId, 
+    sendMessage, 
+    getMessagesForRoom, 
+    requestUsers, 
+    setOnSelfMessageConfirmedHandler, 
+    requestOlderMessages, 
+    createRoom
+  ]);
 
   return (
     <WebSocketContext.Provider value={value}>

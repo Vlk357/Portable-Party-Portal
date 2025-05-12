@@ -1,14 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/WebSocketContext';
 
 export function ChatList() {
-  const {
-    isLoading,
-    error,
-    rooms,
-    getMessagesForRoom,
-  } = useWebSocket();
+  const { isLoading, error, rooms, getMessagesForRoom } = useWebSocket();
+
+  const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -29,20 +26,35 @@ export function ChatList() {
     console.log(`Messages found for room ${roomId}:`, roomMessages);
     // --- End Log ---
 
-    const lastMessage = roomMessages.length > 0 ? roomMessages[roomMessages.length - 1] : undefined;
+    const lastMessage =
+      roomMessages.length > 0
+        ? roomMessages[roomMessages.length - 1]
+        : undefined;
     // --- Add Log for lastMessage ---
-    console.log(`Last message object for room ${roomId}:`, lastMessage, `typeof Last message: ${typeof lastMessage}`);
+    console.log(
+      `Last message object for room ${roomId}:`,
+      lastMessage,
+      `typeof Last message: ${typeof lastMessage}`
+    );
     // --- End Log ---
-
 
     let formattedTimestamp: string | null = null;
     // Check if lastMessage exists AND createdAt is a Date
     if (lastMessage && lastMessage.created_at instanceof Date) {
       try {
-        formattedTimestamp = lastMessage.created_at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        console.log(`Formatted timestamp for room ${roomId}: ${formattedTimestamp}`);
+        formattedTimestamp = lastMessage.created_at.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        console.log(
+          `Formatted timestamp for room ${roomId}: ${formattedTimestamp}`
+        );
       } catch (e) {
-        console.error(`Error formatting date for room ${roomId}:`, lastMessage.created_at, e);
+        console.error(
+          `Error formatting date for room ${roomId}:`,
+          lastMessage.created_at,
+          e
+        );
         formattedTimestamp = 'Invalid Date';
       }
     } else {
@@ -50,9 +62,15 @@ export function ChatList() {
       if (!lastMessage) {
         console.log(`No last message found for room ${roomId}.`);
       } else if (!(lastMessage.created_at instanceof Date)) {
-        console.log(`Timestamp for room ${roomId} is not a Date object. Type: ${typeof lastMessage.created_at}, Value:`, lastMessage.created_at);
+        console.log(
+          `Timestamp for room ${roomId} is not a Date object. Type: ${typeof lastMessage.created_at}, Value:`,
+          lastMessage.created_at
+        );
       } else {
-         console.log(`Unknown reason for timestamp issue in room ${roomId}. Last message:`, lastMessage);
+        console.log(
+          `Unknown reason for timestamp issue in room ${roomId}. Last message:`,
+          lastMessage
+        );
       }
     }
 
@@ -69,11 +87,22 @@ export function ChatList() {
         <button
           className="p-2 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Create new chat"
-          onClick={() => alert('Navigate to Create Chat screen')}
+          onClick={() => navigate('/chat/new')}
         >
-           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-           </svg>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            className="w-6 h-6"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
+          </svg>
         </button>
       </header>
 
@@ -90,7 +119,9 @@ export function ChatList() {
 
       <div className="flex-grow overflow-y-auto">
         {isLoading && (
-          <div className="p-4 text-center text-gray-500">{error || 'Connecting...'}</div>
+          <div className="p-4 text-center text-gray-500">
+            {error || 'Connecting...'}
+          </div>
         )}
         {!isLoading && error && !error.includes('refresh') && (
           <div className="p-4 text-center text-red-500">{error}</div>

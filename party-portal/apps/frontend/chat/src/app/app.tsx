@@ -5,6 +5,7 @@ import { ChatList } from './components/ChatList';
 import { WebSocketProvider } from './context/WebSocketContext';
 import { ChatRoom } from './components/ChatRoom';
 import { RedirectToLogin } from '../utils/RedirectToLogin';
+import { CreateChatRoom } from './components/CreateChatRoom';
 // import ChatView from './components/ChatView'; // Example: Component for a specific chat
 // import Page2 from './components/Page2'; // Example: If you keep Page 2
 
@@ -20,13 +21,13 @@ export function App() {
             hasToken ? <Navigate to="/chat" replace /> : <RedirectToLogin />
           }
         />
-
         {/* Route for the chat list */}
         <Route
           path="/chat"
           element={hasToken ? <ChatList /> : <RedirectToLogin />}
         />
-
+        <Route path="/chat/new" element={<CreateChatRoom />} />{' '}
+        {/* Add this route */}
         {/* Example: Route for viewing a specific chat */}
         <Route
           path="/chat/:roomId" // Use a parameter for room ID
@@ -34,7 +35,6 @@ export function App() {
         />
         {/* Example: If you want to keep Page 2 */}
         {/* <Route path="/page-2" element={<Page2 />} /> */}
-
         {/* Optional: Add a 404 Not Found route */}
         {/* <Route path="*" element={<div>404 Not Found</div>} /> */}
       </Routes>

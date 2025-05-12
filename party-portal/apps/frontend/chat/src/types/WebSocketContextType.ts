@@ -2,7 +2,8 @@ import { Socket } from 'socket.io-client';
 import { BackendRoom } from './BackendRoom';
 import { BackendMessage } from './BackendMessage';
 import { SimpleUser } from './SimpleUser';
-import { RawBackendMessage } from './RawBackendMessage';
+import { CreateRoomPayload } from './CreateRoomPayload';
+import { CreateRoomResponse } from './CreateRoomResponse';
 
 export interface WebSocketContextType {
   socket: Socket | null;
@@ -12,6 +13,7 @@ export interface WebSocketContextType {
   rooms: BackendRoom[];
   messages: Record<number, BackendMessage[]>;
   users: SimpleUser[];
+  currentUserId: number | null;
   sendMessage: (
     roomId: number,
     content: string,
@@ -27,4 +29,5 @@ export interface WebSocketContextType {
     beforeId: number | null,
     limit: number
   ) => Promise<{ messagesFetched: number; hasMore: boolean; error?: string }>;
+  createRoom: (payload: CreateRoomPayload) => Promise<CreateRoomResponse>;
 }
