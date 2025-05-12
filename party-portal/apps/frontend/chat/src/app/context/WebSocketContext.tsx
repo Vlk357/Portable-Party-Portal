@@ -91,64 +91,87 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   );
 
   useEffect(() => {
-    const { token } = getAuthTokens();
+    const { token: initialToken } = getAuthTokens(); // Get token at the start of the effect
 
-    if (!token) {
-      console.log('No token found, skipping WebSocket connection.');
+    if (!initialToken) {
+      console.log('useEffect: No token found, skipping WebSocket connection.');
       setError('Authentication token not found.');
       setIsLoading(false);
       return;
     }
 
-    // Only run setup if there's no existing, connected, or connecting socket instance
-    // that matches what we expect.
-    if (socketInstanceRef.current && socketInstanceRef.current.active) {
+    // If currentUserId changes, we definitely need a new socket with new auth.
+    // The cleanup from the PREVIOUS effect run (due to currentUserId change)
+    // should have disconnected the old socket.
+
+    console.log(
+      'WebSocketProvider effect: Starting setup. currentUserId:',
+      currentUserId
+    );
+    setIsLoading(true);
+    setError(null);
+    hasProcessedInitialDataRef.current = false;
+
+    // Ensure any previous socket instance managed by this ref is fully disconnected
+    // This is a bit aggressive but helps ensure a clean slate if the ref wasn't cleared properly.
+    if (socketInstanceRef.current) {
       console.log(
-        'WebSocketProvider effect: Skipping setup, socket instance already active.'
+        'useEffect: Disconnecting existing socketInstanceRef before creating new one:',
+        socketInstanceRef.current.id
       );
-      return;
-    }
-
-    console.log('WebSocketProvider effect: Starting setup');
-    let currentToken = localStorage.getItem('token');
-
-    if (!currentToken) {
-      setError('Authentication token not found.');
-      setIsLoading(false);
-      return;
+      socketInstanceRef.current.disconnect();
+      socketInstanceRef.current.offAny(); // Remove all listeners
+      socketInstanceRef.current = null;
     }
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/chat`;
-    console.log('Attempting to connect to WebSocket:', wsUrl);
-
-    setIsLoading(true);
-    setError(null);
-    hasProcessedInitialDataRef.current = false; // Reset flag for new connection
+    console.log(
+      'Attempting to connect to WebSocket:',
+      wsUrl,
+      'with token from effect start.'
+    );
 
     const newSocket = io(wsUrl, {
-      auth: { token: currentToken },
+      auth: { token: initialToken }, // Use token captured at effect start
       transports: ['websocket'],
-      reconnection: false,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
     });
 
-    socketInstanceRef.current = newSocket;
+    console.log('Created new socket instance:', newSocket.id);
+    socketInstanceRef.current = newSocket; // Assign the new socket to the ref
+    setSocket(newSocket); // Update state for consumers
 
     newSocket.on('connect', () => {
       console.log('WebSocket connected:', newSocket.id);
       if (socketInstanceRef.current === newSocket) {
-        setSocket(newSocket);
         setIsConnected(true);
         setError(null);
+        setIsLoading(false);
         isRefreshingTokenRef.current = false;
+      } else {
+        console.warn(
+          'connect event for a stale socket instance:',
+          newSocket.id,
+          'current is',
+          socketInstanceRef.current?.id
+        );
+        newSocket.disconnect(); // Disconnect this stale socket
       }
     });
 
     newSocket.on('initialData', (data: InitialData) => {
       console.log('Received initialData:', data);
-      if (socketInstanceRef.current !== newSocket || hasProcessedInitialDataRef.current) {
+      if (
+        socketInstanceRef.current !== newSocket ||
+        hasProcessedInitialDataRef.current
+      ) {
         if (hasProcessedInitialDataRef.current) {
-          console.log('initialData: Already processed for this connection, skipping.');
+          console.log(
+            'initialData: Already processed for this connection, skipping.'
+          );
         }
         return;
       }
@@ -164,13 +187,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
             .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
         }
       }
-      
+
       // Merge initial data with existing messages if any (though typically messages would be empty here)
       // This provides a safety net if initialData were to be emitted later unexpectedly.
       // A more robust merge would be needed if initialData could truly arrive mid-session
       // and potentially overlap with messages loaded via requestOlderMessages.
       // For now, a simple overwrite if messages state is empty, otherwise merge.
-      setMessages(prevMessages => {
+      setMessages((prevMessages) => {
         // If prevMessages is empty, just use the newProcessedMessages
         if (Object.keys(prevMessages).length === 0) {
           console.log('initialData: Setting messages from initial load.');
@@ -179,21 +202,28 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
         // More complex merge: only add messages from initialData if they don't already exist
         // This is a basic merge. A more sophisticated one might be needed depending on backend behavior.
-        console.log('initialData: Merging with existing messages (should be rare).');
+        console.log(
+          'initialData: Merging with existing messages (should be rare).'
+        );
         const mergedMessages = { ...prevMessages };
         for (const roomIdStr in newProcessedMessages) {
-            const roomId = parseInt(roomIdStr, 10);
-            const existingRoomMessages = mergedMessages[roomId] || [];
-            const initialRoomMessages = newProcessedMessages[roomId] || [];
+          const roomId = parseInt(roomIdStr, 10);
+          const existingRoomMessages = mergedMessages[roomId] || [];
+          const initialRoomMessages = newProcessedMessages[roomId] || [];
 
-            const uniqueInitialMessages = initialRoomMessages.filter(
-                initMsg => !existingRoomMessages.some(existMsg => existMsg.id === initMsg.id)
-            );
+          const uniqueInitialMessages = initialRoomMessages.filter(
+            (initMsg) =>
+              !existingRoomMessages.some(
+                (existMsg) => existMsg.id === initMsg.id
+              )
+          );
 
-            if (uniqueInitialMessages.length > 0) {
-                mergedMessages[roomId] = [...existingRoomMessages, ...uniqueInitialMessages]
-                    .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
-            }
+          if (uniqueInitialMessages.length > 0) {
+            mergedMessages[roomId] = [
+              ...existingRoomMessages,
+              ...uniqueInitialMessages,
+            ].sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+          }
         }
         return mergedMessages;
       });
@@ -274,10 +304,18 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     });
 
     newSocket.on('connect_error', async (err) => {
-      console.error('WebSocket connection error:', err.message);
-      if (socketInstanceRef.current !== newSocket) return;
+      console.error(`connect_error for socket ${newSocket.id}:`, err.message);
+      if (socketInstanceRef.current !== newSocket) {
+        console.warn(
+          'connect_error: Stale event for socket',
+          newSocket.id,
+          'current is',
+          socketInstanceRef.current?.id
+        );
+        return;
+      }
 
-      setIsConnected(false);
+      setIsConnected(false); // Definitely not connected
 
       const authErrorMessages = [
         'Invalid or expired token',
@@ -292,61 +330,117 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         err.message.includes(msg)
       );
 
-      if (isAuthError && !isRefreshingTokenRef.current) {
-        console.log('Auth error detected, attempting token refresh...');
-        isRefreshingTokenRef.current = true;
-        setError('Authentication expired, attempting to refresh...');
-        setIsLoading(true);
+      if (isAuthError) {
+        if (!isRefreshingTokenRef.current) {
+          isRefreshingTokenRef.current = true;
+          setError('Authentication issue, attempting to refresh session...');
+          setIsLoading(true);
+          const refreshed = await refreshToken();
+          isRefreshingTokenRef.current = false; // Reset after attempt
 
-        const refreshed = await refreshToken();
-
-        if (refreshed) {
-          console.log(
-            'Token refresh successful. Retrying WebSocket connection...'
-          );
-          currentToken = localStorage.getItem('token');
-          if (currentToken && socketInstanceRef.current === newSocket) {
-            newSocket.auth = { token: currentToken };
-            newSocket.connect();
+          if (refreshed) {
+            const newToken = localStorage.getItem('token');
+            if (newToken && socketInstanceRef.current === newSocket) {
+              console.log(
+                'Token refreshed, updating auth and retrying connect for socket:',
+                newSocket.id
+              );
+              socketInstanceRef.current.auth = { token: newToken };
+              socketInstanceRef.current.connect(); // Retry with new auth on the SAME instance
+              // setError(null); // Clear auth error, connection attempt will follow
+              // setIsLoading(true) // Stays true as we are connecting
+            } else {
+              console.error(
+                'Token refresh successful, but no new token or socket instance changed. Logging out.'
+              );
+              handleLogout(); // This will likely cause a redirect and component unmount
+              setError('Session expired. Please log in again.');
+              setIsLoading(false);
+              if (socketInstanceRef.current === newSocket)
+                socketInstanceRef.current.disconnect();
+            }
           } else {
-            console.error(
-              'Failed to get new token or socket instance changed after refresh. Logging out.'
+            // Token refresh failed
+            console.error('Token refresh failed for socket:', newSocket.id);
+            setError(
+              localStorage.getItem('refreshToken')
+                ? 'Failed to refresh session.'
+                : 'Session expired. Please log in again.'
             );
-            handleLogout();
-            setError('Session expired. Please log in again.');
             setIsLoading(false);
+            if (socketInstanceRef.current === newSocket)
+              socketInstanceRef.current.disconnect(); // Stop this instance
+            // Potentially call handleLogout() if no refresh token
+            if (!localStorage.getItem('refreshToken')) {
+              handleLogout();
+            }
           }
         } else {
-          console.error('Token refresh failed.');
-          if (!localStorage.getItem('refreshToken')) {
-            setError('Session expired. Please log in again.');
-          } else {
-            setError(
-              'Failed to refresh session. Please try again later or log in again.'
-            );
-          }
-          setIsLoading(false);
-          isRefreshingTokenRef.current = false;
-          if (socketInstanceRef.current === newSocket) {
-            socketInstanceRef.current.disconnect();
-            socketInstanceRef.current = null;
-          }
-          setSocket(null);
+          console.log(
+            'connect_error: Auth error, but refresh already in progress for socket:',
+            newSocket.id
+          );
         }
-      } else if (isAuthError && isRefreshingTokenRef.current) {
-        console.log(
-          'Refresh already in progress, ignoring subsequent auth error.'
-        );
       } else {
-        console.error('Non-authentication connection error.');
-        setError(`Connection failed: ${err.message}`);
+        // Non-authentication connection error
+        console.log(
+          `connect_error: Non-auth error for socket ${newSocket.id}: ${err.message}. Socket.IO will attempt to reconnect.`
+        );
+        setError(`Connection error: ${err.message}. Retrying...`);
+        setIsLoading(true); // Indicate that connection attempts are ongoing
+        // DO NOT manually disconnect newSocket here. Let Socket.IO manage its retries.
+      }
+    });
+
+    // Add Socket.IO's own reconnection event listeners for better UI feedback
+    newSocket.on('reconnect_attempt', (attempt) => {
+      console.log(
+        `Socket ${newSocket.id} attempting to reconnect: attempt ${attempt}`
+      );
+      if (socketInstanceRef.current === newSocket) {
+        setError(`Connection lost. Reconnecting (attempt ${attempt})...`);
+        setIsLoading(true);
+        setIsConnected(false);
+      }
+    });
+
+    newSocket.on('reconnect_failed', () => {
+      console.error(`Socket ${newSocket.id} failed all reconnection attempts.`);
+      if (socketInstanceRef.current === newSocket) {
+        setError(
+          'Failed to reconnect to the server. Please check your connection or try refreshing the page.'
+        );
         setIsLoading(false);
-        isRefreshingTokenRef.current = false;
-        if (socketInstanceRef.current === newSocket) {
-          socketInstanceRef.current.disconnect();
-          socketInstanceRef.current = null;
-        }
-        setSocket(null);
+        setIsConnected(false);
+        // At this point, this socket instance has given up.
+        // The main useEffect might eventually run again if currentUserId changes,
+        // or the user navigates away and back.
+      }
+    });
+
+    newSocket.on('reconnect_error', (err) => {
+      console.error(
+        `Socket ${newSocket.id} error during reconnection attempt:`,
+        err.message
+      );
+      if (socketInstanceRef.current === newSocket) {
+        setError(`Reconnection error: ${err.message}. Still trying...`);
+        setIsLoading(true);
+      }
+    });
+
+    newSocket.on('reconnect', (attemptNumber) => {
+      console.log(
+        `Socket ${newSocket.id} successfully reconnected on attempt ${attemptNumber}!`
+      );
+      if (socketInstanceRef.current === newSocket) {
+        // The 'connect' event should also fire, which handles setting isConnected, error, isLoading.
+        // setError(null);
+        // setIsLoading(false);
+        // setIsConnected(true);
+        console.log(
+          'Reconnect event implies a connect event will follow or has just fired.'
+        );
       }
     });
 
@@ -444,41 +538,51 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log(`WebSocket disconnected: ${reason}`);
+      console.log(
+        `WebSocket disconnected: ${reason} for socket: ${newSocket.id}`
+      );
       if (socketInstanceRef.current === newSocket) {
-        if (!error?.includes('Session expired')) {
-          setError(`Disconnected: ${reason}.`);
-        }
         setIsConnected(false);
-        setSocket(null);
-        socketInstanceRef.current = null;
-        isRefreshingTokenRef.current = false;
+        if (
+          reason !== 'io client disconnect' &&
+          reason !== 'io server disconnect'
+        ) {
+          if (
+            !error ||
+            (!error.includes('Session expired') &&
+              !error.includes('Authentication'))
+          ) {
+            setError(`Disconnected: ${reason}.`);
+          }
+        }
+        // Don't nullify socketInstanceRef.current here if Socket.IO is meant to be reconnecting this instance.
+        // Only nullify if the disconnect is terminal for this instance (e.g., reconnect_failed or explicit logout).
+      } else {
+        console.warn(
+          'disconnect event for a stale socket instance:',
+          newSocket.id
+        );
       }
     });
 
     return () => {
-      console.log('Running WebSocketProvider effect cleanup for socket:', newSocket.id);
-      if (newSocket) { // Check if newSocket was actually created
-        console.log('Disconnecting WebSocket in cleanup for ID:', newSocket.id);
-        newSocket.off('connect');
-        newSocket.off('initialData');
-        newSocket.off('newMessage');
-        newSocket.off('connect_error');
-        newSocket.off('error');
-        newSocket.off('disconnect');
-        newSocket.disconnect();
-      }
+      console.log(
+        'Running WebSocketProvider effect cleanup for socket created in this effect run:',
+        newSocket.id
+      );
+      newSocket.offAny();
+      newSocket.disconnect();
+
+      // Only clear the ref if it's still pointing to the socket this cleanup is for.
+      // This prevents a delayed cleanup from nullifying a newer, active socket.
       if (socketInstanceRef.current === newSocket) {
-        socketInstanceRef.current = null; // Clear the ref if it's the one we are cleaning up
+        console.log('Cleanup: Clearing socketInstanceRef for:', newSocket.id);
+        socketInstanceRef.current = null;
+        // setSocket(null); // Let the next effect run set the new socket
       }
-      // Do not set setSocket(null) or setIsConnected(false) here directly
-      // The 'disconnect' event handler should manage that for the specific socket instance.
-      isRefreshingTokenRef.current = false; // Reset refresh flag
+      isRefreshingTokenRef.current = false;
     };
-  // Critical: Removed pendingAckMap. 'error' might also be a candidate for removal
-  // if it causes too many re-runs, but let's start with pendingAckMap.
-  // setOnSelfMessageConfirmedHandler is stable due to useCallback.
-  }, [currentUserId, error, setOnSelfMessageConfirmedHandler]);
+  }, [currentUserId, setOnSelfMessageConfirmedHandler]); // Keep dependencies minimal
 
   const sendMessage = useCallback(
     (
@@ -591,7 +695,11 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       roomId: number,
       beforeId: number | null,
       limit: number
-    ): Promise<{ messagesFetched: number; hasMore: boolean; error?: string }> => {
+    ): Promise<{
+      messagesFetched: number;
+      hasMore: boolean;
+      error?: string;
+    }> => {
       if (!socket || !isConnected) {
         console.warn(
           'requestOlderMessages: Cannot fetch, socket not connected.'
@@ -644,14 +752,16 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
                 );
 
                 if (uniqueNewMessages.length === 0) {
-                   console.log('requestOlderMessages: All fetched older messages were duplicates.');
-                   resolve({
+                  console.log(
+                    'requestOlderMessages: All fetched older messages were duplicates.'
+                  );
+                  resolve({
                     messagesFetched: 0,
                     hasMore: fetchedMessages.length === limit, // Use checked fetchedMessages
                   });
                   return prevMessages;
                 }
-                
+
                 const updatedRoomMessages = [
                   ...uniqueNewMessages,
                   ...existingRoomMessages,
@@ -664,7 +774,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
                   [roomId]: updatedRoomMessages,
                 };
               });
-              
+
               console.log(
                 `requestOlderMessages: Successfully fetched and processed ${processedNewMessages.length} older messages for room ${roomId}.`
               );
@@ -674,13 +784,15 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
               });
             } else if (response.success && !response.messages) {
               // Success but no messages array, means 0 messages fetched
-              console.log('requestOlderMessages: Success, but no messages array returned (0 messages).');
+              console.log(
+                'requestOlderMessages: Success, but no messages array returned (0 messages).'
+              );
               resolve({
                 messagesFetched: 0,
                 hasMore: false, // No messages, so no more from this batch
               });
-            }
-             else { // Handles !response.success or other unexpected cases
+            } else {
+              // Handles !response.success or other unexpected cases
               console.error(
                 'requestOlderMessages: Failed to fetch older messages -',
                 response.error
@@ -696,7 +808,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       });
     },
     // Remove processRawMessage from dependencies if it's a stable import/function
-    [socket, isConnected] 
+    [socket, isConnected]
   );
 
   const value: WebSocketContextType = {
