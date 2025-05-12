@@ -42,31 +42,41 @@ export function ChatList() {
   }, [rooms, searchTerm]);
 
   const getRoomDisplayData = (roomId: number) => {
-    // console.log(`Starting Display data function for room ID: ${roomId}`);
-
     const roomMessages = getMessagesForRoom(roomId);
-    // console.log(`Messages found for room ${roomId}:`, roomMessages);
-
     const lastMessage =
       roomMessages.length > 0
         ? roomMessages[roomMessages.length - 1]
         : undefined;
-    // console.log(
-    //   `Last message object for room ${roomId}:`,
-    //   lastMessage,
-    //   `typeof Last message: ${typeof lastMessage}`
-    // );
 
     let formattedTimestamp: string | null = null;
     if (lastMessage && lastMessage.created_at instanceof Date) {
       try {
-        formattedTimestamp = lastMessage.created_at.toLocaleTimeString([], {
+        const messageDate = lastMessage.created_at;
+        const now = new Date();
+
+        const timeString = messageDate.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
+          hour12: false, // Ensure 24-hour format
         });
-        // console.log(
-        //   `Formatted timestamp for room ${roomId}: ${formattedTimestamp}`
-        // );
+
+        // Check if message is from today
+        const isToday =
+          messageDate.getDate() === now.getDate() &&
+          messageDate.getMonth() === now.getMonth() &&
+          messageDate.getFullYear() === now.getFullYear();
+
+        if (isToday) {
+          formattedTimestamp = timeString; // Only show time if today
+        } else {
+          // For older messages, show date and time
+          const dateString = messageDate.toLocaleDateString([], {
+            day: '2-digit',
+            month: '2-digit', // Use '2-digit' for month for consistency like DD/MM
+            year: messageDate.getFullYear() === now.getFullYear() ? undefined : 'numeric', // Show year if not current year
+          });
+          formattedTimestamp = `${dateString}, ${timeString}`;
+        }
       } catch (e) {
         console.error(
           `Error formatting date for room ${roomId}:`,
@@ -75,20 +85,6 @@ export function ChatList() {
         );
         formattedTimestamp = 'Invalid Date';
       }
-    } else {
-      // if (!lastMessage) {
-      //   console.log(`No last message found for room ${roomId}.`);
-      // } else if (!(lastMessage.created_at instanceof Date)) {
-      //   console.log(
-      //     `Timestamp for room ${roomId} is not a Date object. Type: ${typeof lastMessage.created_at}, Value:`,
-      //     lastMessage.created_at
-      //   );
-      // } else {
-      //   console.log(
-      //     `Unknown reason for timestamp issue in room ${roomId}. Last message:`,
-      //     lastMessage
-      //   );
-      // }
     }
 
     let lastMessageContentDisplay = lastMessage?.content || 'No messages yet';
