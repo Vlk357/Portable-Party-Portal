@@ -1,13 +1,36 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/WebSocketContext';
+import { jwtDecode } from 'jwt-decode'; // Import jwt-decode
+import { DecodedToken } from '../../types/DecodedToken'; // Assuming you have this type
 
 export function ChatList() {
-  const { isLoading, error, rooms, getMessagesForRoom } = useWebSocket();
+  const { isLoading, error, rooms, getMessagesForRoom, users, currentUserId: contextCurrentUserId } = useWebSocket(); // Add users and contextCurrentUserId
 
   const navigate = useNavigate();
-
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Get currentUserId, similar to ChatRoom.tsx
+  const currentUserId = useMemo(() => {
+    if (typeof contextCurrentUserId === 'number') return contextCurrentUserId;
+    // Fallback, though contextCurrentUserId should ideally be reliable
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      const userId = parseInt(decoded.sub, 10);
+      return isNaN(userId) ? null : userId;
+    } catch (e) {
+      console.error('ChatList: Failed to decode token:', e);
+      return null;
+    }
+  }, [contextCurrentUserId]);
+
+  const userMap = useMemo(() => {
+    const map = new Map<number, { id: number; username: string }>();
+    users.forEach((user) => map.set(user.id, user));
+    return map;
+  }, [users]);
 
   const filteredRooms = useMemo(() => {
     if (!searchTerm) {
@@ -19,36 +42,31 @@ export function ChatList() {
   }, [rooms, searchTerm]);
 
   const getRoomDisplayData = (roomId: number) => {
-    console.log(`Starting Display data function for room ID: ${roomId}`); // Log room ID
+    // console.log(`Starting Display data function for room ID: ${roomId}`);
 
     const roomMessages = getMessagesForRoom(roomId);
-    // --- Add Log for roomMessages ---
-    console.log(`Messages found for room ${roomId}:`, roomMessages);
-    // --- End Log ---
+    // console.log(`Messages found for room ${roomId}:`, roomMessages);
 
     const lastMessage =
       roomMessages.length > 0
         ? roomMessages[roomMessages.length - 1]
         : undefined;
-    // --- Add Log for lastMessage ---
-    console.log(
-      `Last message object for room ${roomId}:`,
-      lastMessage,
-      `typeof Last message: ${typeof lastMessage}`
-    );
-    // --- End Log ---
+    // console.log(
+    //   `Last message object for room ${roomId}:`,
+    //   lastMessage,
+    //   `typeof Last message: ${typeof lastMessage}`
+    // );
 
     let formattedTimestamp: string | null = null;
-    // Check if lastMessage exists AND createdAt is a Date
     if (lastMessage && lastMessage.created_at instanceof Date) {
       try {
         formattedTimestamp = lastMessage.created_at.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
         });
-        console.log(
-          `Formatted timestamp for room ${roomId}: ${formattedTimestamp}`
-        );
+        // console.log(
+        //   `Formatted timestamp for room ${roomId}: ${formattedTimestamp}`
+        // );
       } catch (e) {
         console.error(
           `Error formatting date for room ${roomId}:`,
@@ -58,24 +76,34 @@ export function ChatList() {
         formattedTimestamp = 'Invalid Date';
       }
     } else {
-      // Log why formatting failed
-      if (!lastMessage) {
-        console.log(`No last message found for room ${roomId}.`);
-      } else if (!(lastMessage.created_at instanceof Date)) {
-        console.log(
-          `Timestamp for room ${roomId} is not a Date object. Type: ${typeof lastMessage.created_at}, Value:`,
-          lastMessage.created_at
-        );
-      } else {
-        console.log(
-          `Unknown reason for timestamp issue in room ${roomId}. Last message:`,
-          lastMessage
-        );
+      // if (!lastMessage) {
+      //   console.log(`No last message found for room ${roomId}.`);
+      // } else if (!(lastMessage.created_at instanceof Date)) {
+      //   console.log(
+      //     `Timestamp for room ${roomId} is not a Date object. Type: ${typeof lastMessage.created_at}, Value:`,
+      //     lastMessage.created_at
+      //   );
+      // } else {
+      //   console.log(
+      //     `Unknown reason for timestamp issue in room ${roomId}. Last message:`,
+      //     lastMessage
+      //   );
+      // }
+    }
+
+    let lastMessageContentDisplay = lastMessage?.content || 'No messages yet';
+    if (lastMessage && lastMessage.user_id !== currentUserId) {
+      const sender = userMap.get(lastMessage.user_id);
+      if (sender) {
+        lastMessageContentDisplay = `${sender.username}: ${lastMessage.content}`;
+      } else if (lastMessage.user_id) { // If sender not in map but user_id exists
+        lastMessageContentDisplay = `User ${lastMessage.user_id}: ${lastMessage.content}`;
       }
     }
 
+
     return {
-      lastMessageContent: lastMessage?.content,
+      lastMessageContent: lastMessageContentDisplay,
       timestamp: formattedTimestamp,
     };
   };
@@ -155,7 +183,7 @@ export function ChatList() {
                       </div>
                       <div className="flex justify-between items-center mt-1">
                         <p className="text-sm text-gray-600 truncate">
-                          {displayData.lastMessageContent || 'No messages yet'}
+                          {displayData.lastMessageContent}
                         </p>
                       </div>
                     </div>
