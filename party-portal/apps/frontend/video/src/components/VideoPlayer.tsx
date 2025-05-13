@@ -310,59 +310,70 @@ const VideoPlayer: React.FC = () => {
     }
 
     const serverWantsToPlay = streamState.playbackState === 'playing';
+    const serverWantsToPause = streamState.playbackState === 'paused' || streamState.playbackState === 'stopped';
     const videoIsActuallyPaused = videoElement.paused;
 
-    // Grace period for user actions
-    if (lastUserAction && Date.now() < lastUserAction.time + 750) {
+    // --- Server-commanded Pause takes precedence ---
+    if (serverWantsToPause) {
+      if (!videoIsActuallyPaused) {
+        console.log(`PlaybackEffect (${effectId}): Server state is ${streamState.playbackState}, video is PLAYING. Forcing PAUSE.`);
+        videoElement.pause();
+      } else {
+        // console.log(`PlaybackEffect (${effectId}): Server state is ${streamState.playbackState}, video is already PAUSED.`);
+      }
+      // If server commands pause, we clear any conflicting user 'play' action.
+      // User 'pause' action is fine, it aligns.
+      if (lastUserAction?.type === 'play') {
+        console.log(`PlaybackEffect (${effectId}): Server commanded PAUSE, clearing user 'play' action.`);
+        setLastUserAction(null); // This will cause a re-run, but next time server pause will be handled.
+      }
+      return; // Server pause is definitive for this run.
+    }
+
+    // --- Handle User Actions & Server Play State ---
+    if (lastUserAction && Date.now() < lastUserAction.time + 750) { // 750ms grace period
       console.log(`PlaybackEffect (${effectId}): Within user action grace period. Action: ${lastUserAction.type}`);
       if (lastUserAction.type === 'pause') {
+        // User explicitly paused. If video is indeed paused, respect it even if server wants to play.
         if (videoIsActuallyPaused) {
-          console.log(`PlaybackEffect (${effectId}): Respecting user PAUSE. Video is paused. Server wants: ${serverWantsToPlay ? 'play' : 'pause'}. Holding off.`);
-          return; // User explicitly paused, video is paused. Do nothing.
+          console.log(`PlaybackEffect (${effectId}): Respecting user PAUSE. Video is paused. Server wants to PLAY. Holding off play.`);
+          return;
         } else {
           // This case should be rare if pause is immediate, but if somehow video is playing after user pause intent:
-          console.log(`PlaybackEffect (${effectId}): User action was PAUSE, but video is playing. Forcing pause.`);
-          videoElement.pause();
+          console.log(`PlaybackEffect (${effectId}): User action was PAUSE, but video is playing. Forcing pause (within grace).`);
+          videoElement.pause(); // Ensure it's paused
           return;
         }
       } else if (lastUserAction.type === 'play') {
-        // If user explicitly played, and server wants to pause, hold off pausing.
-        if (!videoIsActuallyPaused && !serverWantsToPlay) {
-           console.log(`PlaybackEffect (${effectId}): Respecting user PLAY. Video is playing. Server wants to PAUSE. Holding off pause.`);
-           return;
-        }
-        // If user wants to play, and initial seek is not yet complete (because they just clicked play which sets hasInitialSeekCompleted to false),
-        // this effect needs to wait for seek completion.
+        // User wants to play. Server also wants to play (since serverWantsToPause was false).
+        // If initial seek is not yet complete (because user just clicked play), wait for seek.
         if (!hasInitialSeekCompleted && serverWantsToPlay) {
             console.log(`PlaybackEffect (${effectId}): User wants PLAY, server wants PLAY, but initial seek not done. Waiting for seek.`);
             return;
         }
+        // If seek is complete, and video is paused, proceed to play (handled below by main play logic).
+        // If video is already playing, this 'play' action is effectively a confirmation, do nothing extra here.
       }
     } else if (lastUserAction) {
-        // Grace period ended, clear lastUserAction so server state takes full precedence
+        // Grace period ended for a user action that wasn't a server-commanded pause override.
         console.log(`PlaybackEffect (${effectId}): Grace period for user action ${lastUserAction.type} ended. Clearing lastUserAction.`);
-        setLastUserAction(null); // Clear here, so subsequent logic uses fresh server state
-        // Note: This will cause a re-render and PlaybackEffect will run again without lastUserAction.
-        return; // Important to return here to let the next run of PlaybackEffect handle state without user action override
+        setLastUserAction(null);
+        return; // Re-run effect with server state taking full precedence.
     }
 
     // If initial seek is not completed, and server wants to play, defer action until seek is done.
-    // This is crucial after a user 'play' action that triggers a re-seek.
+    // This is crucial after a user 'play' action that triggers a re-seek, or initial load.
     if (!hasInitialSeekCompleted && serverWantsToPlay) {
       console.log(`PlaybackEffect (${effectId}): Server wants to PLAY, but initial seek not complete. Waiting for seek.`);
       return;
     }
 
-    // --- Main Play/Pause Logic (No active user override) ---
+    // --- Main Play Logic (Server wants to play, no conflicting user pause in grace period) ---
     if (serverWantsToPlay) {
       if (videoIsActuallyPaused) {
         console.log(`PlaybackEffect (${effectId}): Server state is PLAYING, video is PAUSED. Attempting to play...`);
-        if (isMutedForAutoplay && videoElement.muted === false) {
-            // This can happen if unmute happened but play was blocked by autoplay, then server confirms play
-            console.log(`PlaybackEffect (${effectId}): Video was unmuted, ensuring it's muted for this play attempt if isMutedForAutoplay is still true.`);
-             videoElement.muted = true; // Re-apply mute if needed for autoplay
-        } else if (isMutedForAutoplay && videoElement.muted === undefined) { // Should not happen with HTMLVideoElement
-            videoElement.muted = true;
+        if (isMutedForAutoplay) { // Ensure muted if still in autoplay phase
+            if (videoElement.muted === false) videoElement.muted = true;
         }
 
         const playPromise = videoElement.play();
@@ -382,15 +393,8 @@ const VideoPlayer: React.FC = () => {
       } else {
         // console.log(`PlaybackEffect (${effectId}): Server state is PLAYING, video is already playing or attempting to.`);
       }
-    } else { // Server state is 'paused' or 'stopped'
-      if (!videoIsActuallyPaused) {
-        console.log(`PlaybackEffect (${effectId}): Server state is PAUSED/STOPPED, video is PLAYING. Attempting to pause.`);
-        videoElement.pause();
-      } else {
-        // console.log(`PlaybackEffect (${effectId}): Server state is PAUSED/STOPPED, video is already paused.`);
-      }
     }
-
+    // No explicit 'else' for serverWantsToPause here, as it's handled at the top.
   }, [
     streamState?.playbackState,
     streamState?.manifestUrl,
