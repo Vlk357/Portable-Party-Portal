@@ -70,12 +70,16 @@ export function ChatList() {
           formattedTimestamp = timeString; // Only show time if today
         } else {
           // For older messages, show date and time
-          const dateString = messageDate.toLocaleDateString([], {
-            day: '2-digit',
-            month: '2-digit', // Use '2-digit' for month for consistency like DD/MM
-            year: messageDate.getFullYear() === now.getFullYear() ? undefined : 'numeric', // Show year if not current year
-          });
-          formattedTimestamp = `${dateString}, ${timeString}`;
+          const day = String(messageDate.getDate()).padStart(2, '0');
+          const month = String(messageDate.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+          const year = messageDate.getFullYear();
+          const currentYear = now.getFullYear();
+
+          if (year === currentYear) {
+            formattedTimestamp = `${day}.${month}. ${timeString}`;
+          } else {
+            formattedTimestamp = `${day}.${month}.${year} ${timeString}`;
+          }
         }
       } catch (e) {
         console.error(
