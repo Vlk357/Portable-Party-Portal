@@ -43,6 +43,77 @@ export function ChatRoom() {
 
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState<number | string>('100vh'); // Initial height
+
+  // Refs for header and footer elements
+  const headerRef = useRef<HTMLElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null); // Assuming your input area is a div
+
+  // State for the dynamically calculated message list height
+  const [messageListHeight, setMessageListHeight] = useState<number | string>('auto');
+
+  // --- Effect to handle visual viewport changes and calculate heights ---
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+
+    const updateLayout = () => {
+      if (visualViewport) {
+        const vvHeight = visualViewport.height;
+        setViewportHeight(vvHeight); // Set overall container height
+
+        const headerActualHeight = headerRef.current?.offsetHeight || 0;
+        const footerActualHeight = footerRef.current?.offsetHeight || 0;
+        
+        // Calculate available height for the message list
+        const availableHeightForMessages = vvHeight - headerActualHeight - footerActualHeight;
+        
+        // Ensure a minimum height (e.g., 0) to prevent negative values
+        setMessageListHeight(Math.max(0, availableHeightForMessages));
+
+      } else {
+        // Fallback for browsers that might not support visualViewport fully
+        const windowH = window.innerHeight;
+        setViewportHeight(windowH);
+        // Basic fallback for message list height (less accurate)
+        const estimatedHeaderHeight = headerRef.current?.offsetHeight || 60; // Estimate
+        const estimatedFooterHeight = footerRef.current?.offsetHeight || 70; // Estimate
+        setMessageListHeight(Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight));
+      }
+    };
+
+    if (visualViewport) {
+      // Initial layout update. offsetHeight might not be ready immediately on mount.
+      // Using requestAnimationFrame can help ensure layout is computed.
+      const initialUpdate = () => requestAnimationFrame(updateLayout);
+      
+      initialUpdate(); // Call once for initial setup
+
+      visualViewport.addEventListener('resize', updateLayout);
+      // Some mobile browsers trigger scroll on visualViewport when toolbars appear/disappear
+      visualViewport.addEventListener('scroll', updateLayout); 
+
+      // Also listen to window resize as a broader fallback or for desktop
+      window.addEventListener('resize', updateLayout);
+
+      return () => {
+        visualViewport.removeEventListener('resize', updateLayout);
+        visualViewport.removeEventListener('scroll', updateLayout);
+        window.removeEventListener('resize', updateLayout);
+      };
+    } else {
+      // Fallback for older browsers using window.innerHeight
+      const handleWindowResize = () => {
+        const windowH = window.innerHeight;
+        setViewportHeight(windowH);
+        const estimatedHeaderHeight = headerRef.current?.offsetHeight || 60;
+        const estimatedFooterHeight = footerRef.current?.offsetHeight || 70;
+        setMessageListHeight(Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight));
+      };
+      requestAnimationFrame(handleWindowResize); // Initial call
+      window.addEventListener('resize', handleWindowResize);
+      return () => window.removeEventListener('resize', handleWindowResize);
+    }
+  }, []); // Empty dependency array: refs don't change, visualViewport is stable
 
   const currentRoomId = parseInt(roomId || '0', 10);
 
@@ -416,9 +487,12 @@ export function ChatRoom() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 p-3 sm:p-4 flex items-center shadow-sm flex-shrink-0">
+    <div
+      className="flex flex-col bg-gray-100 overflow-hidden" // Added overflow-hidden
+      style={{ height: typeof viewportHeight === 'number' ? `${viewportHeight}px` : viewportHeight }}
+    >
+      {/* Header - ensure it doesn't shrink */}
+      <header ref={headerRef} className="bg-white border-b border-gray-200 p-3 sm:p-4 flex items-center shadow-sm flex-shrink-0">
         <Link
           to="/chat"
           className="mr-3 text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-gray-100"
@@ -452,10 +526,14 @@ export function ChatRoom() {
         )}
       </header>
 
-      {/* Message List */}
+      {/* Message List - explicit height, overflow scroll */}
       <div
         ref={messageContainerRef}
-        className="flex-grow overflow-y-auto p-4 space-y-1"
+        className="overflow-y-auto p-4 space-y-1" // Removed flex-grow
+        style={{ 
+          height: typeof messageListHeight === 'number' ? `${messageListHeight}px` : messageListHeight,
+          minHeight: 0 // Still good practice
+        }}
       >
         {isLoadingOlder && (
           <div className="text-center py-3 flex justify-center items-center text-gray-500">
@@ -516,8 +594,8 @@ export function ChatRoom() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Area */}
-      <div className="bg-gray-50 border-t border-gray-200 p-3 flex items-end flex-shrink-0">
+      {/* Message Input Area - ensure it doesn't shrink */}
+      <div ref={footerRef} className="bg-gray-50 border-t border-gray-200 p-3 flex items-end flex-shrink-0">
         <textarea
           ref={textareaRef}
           value={newMessage}
