@@ -32,11 +32,13 @@ const VideoPlayer: React.FC = () => {
   const [shakaPlayerInstance, setShakaPlayerInstance] = useState<shaka.Player | null>(null);
   const [isMutedForAutoplay, setIsMutedForAutoplay] = useState(true); // New state for muted autoplay
   const [hasInitialSeekCompleted, setHasInitialSeekCompleted] = useState(false); // New state
+  const [isPlayingVisual, setIsPlayingVisual] = useState(false);
+  const [lastUserAction, setLastUserAction] = useState<{ type: 'play' | 'pause', time: number } | null>(null);
 
   // Control visibility timer
   useEffect(() => {
     let hideTimeout: number;
-    if (isControlsVisible && streamState?.playbackState === 'playing' && !isMutedForAutoplay) { // Only hide if playing and unmuted
+    if (isControlsVisible && streamState?.playbackState === 'playing' && !isMutedForAutoplay && !videoElement?.paused) { // Hide only if playing and unmuted AND video not paused
       hideTimeout = window.setTimeout(() => {
         setIsControlsVisible(false);
       }, 3000);
@@ -44,7 +46,7 @@ const VideoPlayer: React.FC = () => {
     return () => {
       clearTimeout(hideTimeout);
     };
-  }, [isControlsVisible, streamState?.playbackState, isMutedForAutoplay]);
+  }, [isControlsVisible, streamState?.playbackState, isMutedForAutoplay, videoElement?.paused]);
 
   // Fetch initial stream state and set up Mercure listener
   useEffect(() => {
@@ -202,8 +204,7 @@ const VideoPlayer: React.FC = () => {
       console.log('ShakaInit: videoElement available and NO shakaPlayerInstance (state). Initializing...');
       if (window.shaka && window.shaka.Player.isBrowserSupported()) {
         console.log('ShakaInit: Browser supports Shaka Player. Creating new instance...');
-        // const player = new window.shaka.Player(videoElement); // Old way
-        const player = new window.shaka.Player(); // New way (Shaka v3.1+)
+        const player = new window.shaka.Player(videoElement);
         
         player.addEventListener('error', (event: shaka.extern.ErrorEvent) => {
           console.error('Shaka Player Error Event:', event.detail);
@@ -300,41 +301,105 @@ const VideoPlayer: React.FC = () => {
 
   // Handle playback state (play/pause)
   useEffect(() => {
-    console.log('PlaybackEffect: Fired. manifestUrl:', streamState?.manifestUrl, 'PlaybackState:', streamState?.playbackState, 'IsPlayerReady:', isPlayerReady, 'isMutedForAutoplay:', isMutedForAutoplay, 'HasInitialSeekCompleted:', hasInitialSeekCompleted);
-    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady || !hasInitialSeekCompleted) {
-      console.log('PlaybackEffect: Skipping - conditions not met (videoElement, manifestUrl, isPlayerReady, or initial seek not done).');
+    const effectId = Date.now(); // Unique ID for this effect run for logging
+    console.log(`PlaybackEffect (${effectId}): Fired. Manifest:`, streamState?.manifestUrl, 'ServerState:', streamState?.playbackState, 'PlayerReady:', isPlayerReady, 'MutedAutoplay:', isMutedForAutoplay, 'InitialSeekDone:', hasInitialSeekCompleted, 'LastUser:', lastUserAction, 'VideoActuallyPaused:', videoElement?.paused);
+
+    if (!videoElement || !streamState?.manifestUrl || !isPlayerReady) {
+      console.log(`PlaybackEffect (${effectId}): Skipping - conditions not met.`);
       return;
     }
 
-    if (streamState.playbackState === 'playing') {
-      console.log('PlaybackEffect: Attempting to play...');
-      if (isMutedForAutoplay) { // Ensure video is muted before attempting to play if muted autoplay is intended
-          videoElement.muted = true;
-          console.log('PlaybackEffect: Ensured video is muted for autoplay attempt.');
+    const serverWantsToPlay = streamState.playbackState === 'playing';
+    const videoIsActuallyPaused = videoElement.paused;
+
+    // Grace period for user actions
+    if (lastUserAction && Date.now() < lastUserAction.time + 750) {
+      console.log(`PlaybackEffect (${effectId}): Within user action grace period. Action: ${lastUserAction.type}`);
+      if (lastUserAction.type === 'pause') {
+        if (videoIsActuallyPaused) {
+          console.log(`PlaybackEffect (${effectId}): Respecting user PAUSE. Video is paused. Server wants: ${serverWantsToPlay ? 'play' : 'pause'}. Holding off.`);
+          return; // User explicitly paused, video is paused. Do nothing.
+        } else {
+          // This case should be rare if pause is immediate, but if somehow video is playing after user pause intent:
+          console.log(`PlaybackEffect (${effectId}): User action was PAUSE, but video is playing. Forcing pause.`);
+          videoElement.pause();
+          return;
+        }
+      } else if (lastUserAction.type === 'play') {
+        // If user explicitly played, and server wants to pause, hold off pausing.
+        if (!videoIsActuallyPaused && !serverWantsToPlay) {
+           console.log(`PlaybackEffect (${effectId}): Respecting user PLAY. Video is playing. Server wants to PAUSE. Holding off pause.`);
+           return;
+        }
+        // If user wants to play, and initial seek is not yet complete (because they just clicked play which sets hasInitialSeekCompleted to false),
+        // this effect needs to wait for seek completion.
+        if (!hasInitialSeekCompleted && serverWantsToPlay) {
+            console.log(`PlaybackEffect (${effectId}): User wants PLAY, server wants PLAY, but initial seek not done. Waiting for seek.`);
+            return;
+        }
       }
-      const playPromise = videoElement.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          console.log('PlaybackEffect: Play command successful.');
-          // If play succeeded and was muted for autoplay, it remains muted until user interaction.
-        }).catch(error => {
-          if (error.name === 'NotAllowedError') {
-            console.warn('PlaybackEffect: Play was prevented by browser autoplay policy. Video remains muted. User interaction needed to unmute and play.');
-            // isMutedForAutoplay remains true. User interaction will handle unmuting.
-            // Optionally, show a "Tap to unmute/play" UI element here.
-          } else if (error.name !== 'AbortError') {
-            console.error('PlaybackEffect: Error playing video:', error.name, error.message, error);
-          } else {
-            console.warn('PlaybackEffect: Play command aborted (likely by another action).');
-          }
-        });
-      }
-    } else { 
-      console.log('PlaybackEffect: Attempting to pause.');
-      videoElement.pause();
-      console.log('PlaybackEffect: Pause command issued.');
+    } else if (lastUserAction) {
+        // Grace period ended, clear lastUserAction so server state takes full precedence
+        console.log(`PlaybackEffect (${effectId}): Grace period for user action ${lastUserAction.type} ended. Clearing lastUserAction.`);
+        setLastUserAction(null); // Clear here, so subsequent logic uses fresh server state
+        // Note: This will cause a re-render and PlaybackEffect will run again without lastUserAction.
+        return; // Important to return here to let the next run of PlaybackEffect handle state without user action override
     }
-  }, [streamState?.playbackState, streamState?.manifestUrl, isPlayerReady, videoElement, isMutedForAutoplay, hasInitialSeekCompleted]);
+
+    // If initial seek is not completed, and server wants to play, defer action until seek is done.
+    // This is crucial after a user 'play' action that triggers a re-seek.
+    if (!hasInitialSeekCompleted && serverWantsToPlay) {
+      console.log(`PlaybackEffect (${effectId}): Server wants to PLAY, but initial seek not complete. Waiting for seek.`);
+      return;
+    }
+
+    // --- Main Play/Pause Logic (No active user override) ---
+    if (serverWantsToPlay) {
+      if (videoIsActuallyPaused) {
+        console.log(`PlaybackEffect (${effectId}): Server state is PLAYING, video is PAUSED. Attempting to play...`);
+        if (isMutedForAutoplay && videoElement.muted === false) {
+            // This can happen if unmute happened but play was blocked by autoplay, then server confirms play
+            console.log(`PlaybackEffect (${effectId}): Video was unmuted, ensuring it's muted for this play attempt if isMutedForAutoplay is still true.`);
+             videoElement.muted = true; // Re-apply mute if needed for autoplay
+        } else if (isMutedForAutoplay && videoElement.muted === undefined) { // Should not happen with HTMLVideoElement
+            videoElement.muted = true;
+        }
+
+        const playPromise = videoElement.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => console.log(`PlaybackEffect (${effectId}): Play command successful.`))
+            .catch(error => {
+              if (error.name === 'NotAllowedError') {
+                console.warn(`PlaybackEffect (${effectId}): Play was prevented by browser autoplay policy. isMutedForAutoplay: ${isMutedForAutoplay}, video.muted: ${videoElement.muted}`);
+              } else if (error.name !== 'AbortError') {
+                console.error(`PlaybackEffect (${effectId}): Error playing video:`, error);
+              } else {
+                console.warn(`PlaybackEffect (${effectId}): Play command aborted (e.g., by a subsequent pause).`);
+              }
+            });
+        }
+      } else {
+        // console.log(`PlaybackEffect (${effectId}): Server state is PLAYING, video is already playing or attempting to.`);
+      }
+    } else { // Server state is 'paused' or 'stopped'
+      if (!videoIsActuallyPaused) {
+        console.log(`PlaybackEffect (${effectId}): Server state is PAUSED/STOPPED, video is PLAYING. Attempting to pause.`);
+        videoElement.pause();
+      } else {
+        // console.log(`PlaybackEffect (${effectId}): Server state is PAUSED/STOPPED, video is already paused.`);
+      }
+    }
+
+  }, [
+    streamState?.playbackState,
+    streamState?.manifestUrl,
+    isPlayerReady,
+    videoElement,
+    isMutedForAutoplay,
+    hasInitialSeekCompleted,
+    lastUserAction
+  ]);
 
   // Handle seeking
   useEffect(() => {
@@ -345,7 +410,7 @@ const VideoPlayer: React.FC = () => {
     }
 
     let targetTimeSeconds: number;
-    const SYNC_OFFSET_MS = 200; // User requested 200ms offset
+    const FORWARD_BUFFER_MS = 1000; // Try to buffer 1 second ahead when playing
 
     if (streamState.playbackState === 'playing') {
       if (typeof streamState.stateUpdateServerTime === 'number' && streamState.stateUpdateServerTime > 0) {
@@ -355,22 +420,22 @@ const VideoPlayer: React.FC = () => {
         const elapsedTimeSinceLastUpdateMs = currentTimeMs - serverTimeAtLastUpdateMs;
         
         if (elapsedTimeSinceLastUpdateMs < 0) {
-          console.warn(`SeekEffect (Playing): Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs + offset.`);
-          targetTimeSeconds = (videoTimeAtLastUpdateMs + SYNC_OFFSET_MS) / 1000;
+          console.warn(`SeekEffect (Playing): Clock skew detected or future server time? Elapsed: ${elapsedTimeSinceLastUpdateMs}ms. Using raw videoPlaybackTimeMs + forward buffer.`);
+          targetTimeSeconds = (videoTimeAtLastUpdateMs + FORWARD_BUFFER_MS) / 1000;
         } else {
-          const calculatedTargetTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs + SYNC_OFFSET_MS;
-          targetTimeSeconds = calculatedTargetTimeMs / 1000;
-          console.log(`SeekEffect (Playing): Calculated current video time: ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s, Offset: ${SYNC_OFFSET_MS/1000}s)`);
+          const estimatedCurrentVideoTimeMs = videoTimeAtLastUpdateMs + elapsedTimeSinceLastUpdateMs;
+          targetTimeSeconds = (estimatedCurrentVideoTimeMs + FORWARD_BUFFER_MS) / 1000;
+          console.log(`SeekEffect (Playing): Calculated target video time (with forward buffer): ${targetTimeSeconds.toFixed(3)}s (Base: ${videoTimeAtLastUpdateMs/1000}s, Elapsed: ${elapsedTimeSinceLastUpdateMs/1000}s, Buffer: ${FORWARD_BUFFER_MS/1000}s)`);
         }
       } else {
         // Fallback if server time is not available while playing
-        targetTimeSeconds = (streamState.videoPlaybackTimeMs + SYNC_OFFSET_MS) / 1000;
-        console.log(`SeekEffect (Playing): Using raw videoPlaybackTimeMs + offset: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
+        targetTimeSeconds = (streamState.videoPlaybackTimeMs + FORWARD_BUFFER_MS) / 1000;
+        console.log(`SeekEffect (Playing): Using raw videoPlaybackTimeMs + forward buffer: ${targetTimeSeconds.toFixed(3)}s (stateUpdateServerTime not available).`);
       }
     } else { // Includes 'paused' or 'stopped'
-      // If paused or stopped, use the videoPlaybackTimeMs directly from the state update (plus offset)
-      targetTimeSeconds = (streamState.videoPlaybackTimeMs + SYNC_OFFSET_MS) / 1000;
-      console.log(`SeekEffect (${streamState.playbackState}): Using direct videoPlaybackTimeMs + offset: ${targetTimeSeconds.toFixed(3)}s.`);
+      // If paused or stopped, use the videoPlaybackTimeMs directly from the state update (no forward buffer)
+      targetTimeSeconds = streamState.videoPlaybackTimeMs / 1000;
+      console.log(`SeekEffect (${streamState.playbackState}): Using direct videoPlaybackTimeMs: ${targetTimeSeconds.toFixed(3)}s.`);
     }
     
     let canSeek = false;
@@ -497,32 +562,102 @@ const VideoPlayer: React.FC = () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, [requestOrientationLock, videoElement]); // Added videoElement here
 
-  const handleUserInteraction = () => {
-    console.log('handleUserInteraction: Fired.');
-    setIsControlsVisible(true); // Show controls on any interaction
-
+  const handleUnmuteInteraction = useCallback((event: React.MouseEvent | React.TouchEvent) => {
+    event.stopPropagation(); // Prevent this event from bubbling up to container tap handlers
     if (videoElement && isMutedForAutoplay) {
-      console.log('handleUserInteraction: Unmuting video.');
+      console.log('VideoPlayer: handleUnmuteInteraction: Unmuting and attempting play.');
       videoElement.muted = false;
       setIsMutedForAutoplay(false);
-      // If the desired state is 'playing' and the video was paused (e.g. due to autoplay restrictions initially failing silently or by other means)
-      // then attempt to play. If it was already playing (muted), unmuting is enough.
-      if (streamState?.playbackState === 'playing' && videoElement.paused) {
-        console.log('handleUserInteraction: Video was paused and should be playing, attempting to play after unmute.');
-        videoElement.play().then(() => {
-          console.log('handleUserInteraction: Play after unmute successful.');
-        }).catch(error => {
-          // It's possible the play() here is interrupted if a seek happens immediately after due to state updates.
-          // This is usually fine as the SeekEffect and PlaybackEffect will take over.
-          if (error.name !== 'AbortError') {
-            console.error('handleUserInteraction: Error playing after unmute:', error);
-          } else {
-            console.warn('handleUserInteraction: Play after unmute aborted, likely by other player actions (e.g., seek).');
+      setLastUserAction({ type: 'play', time: Date.now() });
+      if (streamState?.playbackState === 'playing') {
+        setHasInitialSeekCompleted(false); // Trigger resync
+      }
+      // Attempt to play directly after unmuting
+      const playPromise = videoElement.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.warn("Play from unmute interaction failed. PlaybackEffect will try.", err);
+          // If play fails (e.g. NotAllowedError), and it was an unmuted attempt,
+          // we might need to set isMutedForAutoplay back to true to show the unmute prompt again.
+          if (err.name === 'NotAllowedError' && !videoElement.muted) {
+            // Revert if unmuted play was disallowed
+            // setIsMutedForAutoplay(true); // Consider this if issues persist
           }
         });
-      } else if (streamState?.playbackState === 'playing' && !videoElement.paused) {
-        console.log('handleUserInteraction: Video was already playing (muted), now unmuted.');
       }
+    }
+  }, [videoElement, isMutedForAutoplay, streamState?.playbackState, setIsMutedForAutoplay, setLastUserAction, setHasInitialSeekCompleted]);
+
+  const handleContainerTap = (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    // This handler is for the main video container background.
+    // It should not fire if a more specific control (like a button or the unmute message) was the target.
+    // The stopPropagation in other handlers should prevent this.
+
+    if (videoElement && isMutedForAutoplay) {
+      // If still muted for autoplay, a tap on the container background should also unmute.
+      console.log('VideoPlayer: handleContainerTap: Initial unmute by container tap.');
+      handleUnmuteInteraction(event); // Use the centralized unmute logic
+    } else {
+      // If already unmuted, taps on the container toggle general controls visibility.
+      console.log('VideoPlayer: handleContainerTap: Toggling controls visibility.');
+      setIsControlsVisible(prev => !prev);
+    }
+  };
+
+  const handleUserInteraction = (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    setIsControlsVisible(prev => !prev); // Toggle controls visibility on any container interaction
+
+    if (videoElement && isMutedForAutoplay) {
+      console.log('VideoPlayer: handleUserInteraction (Container): Initial unmute interaction.');
+      videoElement.muted = false;
+      setIsMutedForAutoplay(false); // This should make the "Tap to unmute" message disappear
+      
+      setLastUserAction({ type: 'play', time: Date.now() });
+      if (streamState?.playbackState === 'playing') {
+          setHasInitialSeekCompleted(false); // Trigger resync
+      }
+
+      // Attempt to play directly after unmuting, as browsers often require this for unmuted playback.
+      console.log('VideoPlayer: handleUserInteraction (Container): Attempting direct play after unmute.');
+      const playPromise = videoElement.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('VideoPlayer: Direct play after unmute successful.');
+          })
+          .catch(error => {
+            console.warn('VideoPlayer: Direct play after unmute failed. PlaybackEffect will try.', error);
+            // If direct play fails (e.g. NotAllowedError), PlaybackEffect will still try based on state.
+            // It might be necessary to set isMutedForAutoplay back to true if this fails consistently
+            // and the video doesn't start, to allow the user to try again.
+            // However, PlaybackEffect should handle the muted play if serverWantsToPlay.
+          });
+      }
+    }
+    // After initial unmute, subsequent taps on the container only toggle controls.
+    // Play/Pause is handled by the dedicated button.
+  };
+
+  const handleTogglePlayPauseClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); 
+    
+    if (!videoElement) return;
+    setIsControlsVisible(true); 
+
+    if (videoElement.paused) { 
+      console.log('VideoPlayer: handleTogglePlayPauseClick: User wants to PLAY. Triggering resync.');
+      setLastUserAction({ type: 'play', time: Date.now() });
+      setHasInitialSeekCompleted(false); 
+      // We can also try a direct play here, followed by PlaybackEffect's reconciliation
+      const playPromise = videoElement.play();
+      if (playPromise !== undefined) {
+          playPromise.catch(err => console.warn("Play from toggle button failed, PlaybackEffect will retry", err));
+      }
+
+    } else { 
+      console.log('VideoPlayer: handleTogglePlayPauseClick: User wants to PAUSE.');
+      setLastUserAction({ type: 'pause', time: Date.now() });
+      videoElement.pause(); 
     }
   };
 
@@ -558,35 +693,90 @@ const VideoPlayer: React.FC = () => {
     <div
       ref={playerContainerRef}
       className={playerContainerClasses}
-      onClick={handleUserInteraction} // This will now also handle unmuting
-      onTouchStart={handleUserInteraction} // For touch devices
+      // onClick={handleUserInteraction} // Let's use onTouchEnd for mobile tap-to-show-controls
+      // onTouchStart={handleUserInteraction} // Potentially problematic due to passive listener issue
+      // A single tap on the container should toggle controls.
+      // The initial unmute is also handled here.
+      onClick={(e) => {
+        // If the click target is the video element itself or the container,
+        // and not one of the buttons, then run handleUserInteraction.
+        // This helps prevent buttons from also triggering this.
+        if (e.target === playerContainerRef.current || e.target === videoElement) {
+            handleContainerTap(e);
+        }
+      }}
+      onTouchEndCapture={(e) => { // Using onTouchEndCapture might be more reliable for taps
+        if (e.target === playerContainerRef.current || e.target === videoElement) {
+            // Check if it's a "quick tap" to avoid issues with scrolling/swiping
+            // This is a heuristic and might need adjustment
+            // For simplicity, we'll call handleUserInteraction directly for now
+            handleContainerTap(e);
+        }
+      }}
     >
       <video
         ref={videoRef}
         className={videoElementClasses}
         onLoadedMetadata={handleMetadataLoaded}
         playsInline
-        autoPlay={false} // Explicitly false, we control play via effect
-        muted // Start muted - this attribute is key for attempting autoplay
+        autoPlay={false} // Autoplay is handled by PlaybackEffect after conditions met
+        muted // Start muted, user interaction will unmute
+        onPlay={() => {
+          console.log('VideoPlayer: Native video event: play');
+          setIsPlayingVisual(true);
+        }}
+        onPause={() => {
+          console.log('VideoPlayer: Native video event: pause');
+          setIsPlayingVisual(false);
+        }}
+        onPlaying={() => {
+          console.log('VideoPlayer: Native video event: playing');
+          setIsPlayingVisual(true);
+        }}
+        onWaiting={() => console.log('VideoPlayer: Native video event: waiting (buffering)')}
+        onStalled={() => console.log('VideoPlayer: Native video event: stalled')}
+        onError={(e) => console.error('VideoPlayer: Native video event: error', e.target?.error)}
       />
 
+      {/* Tap to Unmute Overlay - Separate from main controls for independent interactivity */}
+      {isMutedForAutoplay && streamState?.playbackState === 'playing' && (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-20" // Ensure high z-index
+          onClick={handleUnmuteInteraction}
+          onTouchEndCapture={handleUnmuteInteraction}
+          style={{ cursor: 'pointer' }} // Indicate the whole area is clickable for unmuting
+        >
+          <div
+            className="p-4 bg-black/70 rounded-lg text-white text-center"
+            // Apply user-select: none to the div containing the text
+            style={{ 
+              userSelect: 'none', 
+              WebkitUserSelect: 'none', /* Safari */
+              MozUserSelect: 'none',    /* Firefox */
+              msUserSelect: 'none'      /* IE10+/Edge */
+            }}
+          >
+            <p>Tap to unmute</p> {/* This p tag itself won't have handlers, parent div does */}
+          </div>
+        </div>
+      )}
+
+      {/* Main Controls Overlay */}
+      {/* This overlay's visibility is controlled by isControlsVisible */}
       <div className={controlsClasses}>
         <div className="flex justify-between items-center w-full">
           <button
             className={buttonClasses}
-            onClick={handleBack}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent parent div's onClick
+              handleBack();
+            }}
             aria-label="Back to app"
           >
             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
             </svg>
           </button>
-
-          {isMutedForAutoplay && streamState?.playbackState === 'playing' && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-4 bg-black/70 rounded-lg text-white text-center">
-              <p>Tap to unmute</p>
-            </div>
-          )}
 
           <div
             className="text-white text-lg font-bold truncate px-2"
@@ -605,7 +795,10 @@ const VideoPlayer: React.FC = () => {
 
           <button
             className={buttonClasses}
-            onClick={toggleFullScreen}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent parent div's onClick
+              toggleFullScreen();
+            }}
             aria-label={isFullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
@@ -617,7 +810,33 @@ const VideoPlayer: React.FC = () => {
             </svg>
           </button>
         </div>
-        <div></div> {/* Placeholder for bottom controls */}
+
+        {/* Central Controls Area */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {isMutedForAutoplay && streamState?.playbackState === 'playing' && (
+            <div className="p-4 bg-black/70 rounded-lg text-white text-center pointer-events-auto">
+              <p>Tap to unmute</p>
+            </div>
+          )}
+          {!isMutedForAutoplay && videoElement && (
+            <button
+              className={`${buttonClasses} w-16 h-16 pointer-events-auto`} // Larger button
+              onClick={handleTogglePlayPauseClick}
+              aria-label={isPlayingVisual ? 'Pause' : 'Play'}
+            >
+              {isPlayingVisual ? (
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor"> {/* Larger icon */}
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor"> {/* Larger icon */}
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+        <div></div> {/* Placeholder for bottom controls (e.g., timeline) */}
       </div>
     </div>
   );
