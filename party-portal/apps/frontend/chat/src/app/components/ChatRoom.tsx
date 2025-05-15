@@ -43,14 +43,18 @@ export function ChatRoom() {
 
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(true);
-  const [viewportHeight, setViewportHeight] = useState<number | string>('100vh'); // Initial height
+  const [viewportHeight, setViewportHeight] = useState<number | string>(
+    '100vh'
+  ); // Initial height
 
   // Refs for header and footer elements
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLDivElement>(null); // Assuming your input area is a div
 
   // State for the dynamically calculated message list height
-  const [messageListHeight, setMessageListHeight] = useState<number | string>('auto');
+  const [messageListHeight, setMessageListHeight] = useState<number | string>(
+    'auto'
+  );
 
   // --- Effect to handle visual viewport changes and calculate heights ---
   useEffect(() => {
@@ -63,13 +67,13 @@ export function ChatRoom() {
 
         const headerActualHeight = headerRef.current?.offsetHeight || 0;
         const footerActualHeight = footerRef.current?.offsetHeight || 0;
-        
+
         // Calculate available height for the message list
-        const availableHeightForMessages = vvHeight - headerActualHeight - footerActualHeight;
-        
+        const availableHeightForMessages =
+          vvHeight - headerActualHeight - footerActualHeight;
+
         // Ensure a minimum height (e.g., 0) to prevent negative values
         setMessageListHeight(Math.max(0, availableHeightForMessages));
-
       } else {
         // Fallback for browsers that might not support visualViewport fully
         const windowH = window.innerHeight;
@@ -77,7 +81,9 @@ export function ChatRoom() {
         // Basic fallback for message list height (less accurate)
         const estimatedHeaderHeight = headerRef.current?.offsetHeight || 60; // Estimate
         const estimatedFooterHeight = footerRef.current?.offsetHeight || 70; // Estimate
-        setMessageListHeight(Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight));
+        setMessageListHeight(
+          Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight)
+        );
       }
     };
 
@@ -85,12 +91,12 @@ export function ChatRoom() {
       // Initial layout update. offsetHeight might not be ready immediately on mount.
       // Using requestAnimationFrame can help ensure layout is computed.
       const initialUpdate = () => requestAnimationFrame(updateLayout);
-      
+
       initialUpdate(); // Call once for initial setup
 
       visualViewport.addEventListener('resize', updateLayout);
       // Some mobile browsers trigger scroll on visualViewport when toolbars appear/disappear
-      visualViewport.addEventListener('scroll', updateLayout); 
+      visualViewport.addEventListener('scroll', updateLayout);
 
       // Also listen to window resize as a broader fallback or for desktop
       window.addEventListener('resize', updateLayout);
@@ -107,7 +113,9 @@ export function ChatRoom() {
         setViewportHeight(windowH);
         const estimatedHeaderHeight = headerRef.current?.offsetHeight || 60;
         const estimatedFooterHeight = footerRef.current?.offsetHeight || 70;
-        setMessageListHeight(Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight));
+        setMessageListHeight(
+          Math.max(0, windowH - estimatedHeaderHeight - estimatedFooterHeight)
+        );
       };
       requestAnimationFrame(handleWindowResize); // Initial call
       window.addEventListener('resize', handleWindowResize);
@@ -297,56 +305,18 @@ export function ChatRoom() {
     }
   }, [allMessages, isLoadingOlder]);
 
-  // --- Input Change Handler ---
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const currentText = event.target.value;
+    const textarea = event.target;
+    const currentText = textarea.value;
+
+    // Update the state with the new message
     setNewMessage(currentText);
 
-    const textarea = event.target;
-    // Temporarily reset height to 'auto' to get the natural scrollHeight of the content
+    // Reset the height to 'auto' to allow shrinking
     textarea.style.height = 'auto';
-    const scrollHeight = textarea.scrollHeight;
 
-    // Get the computed line-height
-    const computedStyle = getComputedStyle(textarea);
-    const lineHeight = parseFloat(computedStyle.lineHeight);
-    const paddingTop = parseFloat(computedStyle.paddingTop);
-    const paddingBottom = parseFloat(computedStyle.paddingBottom);
-
-    // Calculate content height excluding padding
-    const contentHeight = scrollHeight - paddingTop - paddingBottom;
-    
-    let lines = 1; // Default to 1 line
-    if (lineHeight > 0 && contentHeight > lineHeight) { // Only calculate if content actually exceeds one line
-        lines = Math.max(1, Math.ceil(contentHeight / lineHeight));
-    } else if (currentText === '') { // If text is empty, reset to 1 line
-        lines = 1;
-    }
-
-
-    const newRows = Math.min(Math.max(1, lines), 4); // Clamp between 1 and 4 rows
-
-    setTextareaRows(newRows);
-
-    // If we are at max rows, allow scrolling, otherwise hide scrollbar
-    if (newRows === 4) {
-      textarea.style.overflowY = 'auto';
-      // Set height to match 4 rows explicitly if content is larger
-      // This helps prevent the textarea from exceeding the visual space of 4 rows
-      // before the scrollbar appears.
-      // You might need to adjust '20px' or 'lineHeight' based on your actual line height + padding/border
-      // For a more robust solution, calculate the height of 4 rows.
-      // Example: (lineHeight * 4) + paddingTop + paddingBottom
-      const maxHeightForFourRows = (lineHeight * 4) + paddingTop + paddingBottom;
-      textarea.style.height = `${maxHeightForFourRows}px`;
-
-    } else {
-      textarea.style.overflowY = 'hidden';
-      // When not at max rows, let the height be determined by its content up to its current row count
-      // by resetting to 'auto' then letting the 'rows' attribute and content dictate.
-      // Or, more reliably, set it to the scrollHeight if it's less than 4 rows.
-      textarea.style.height = `${scrollHeight}px`;
-    }
+    // Dynamically adjust the height based on the scrollHeight
+    textarea.style.height = `${textarea.scrollHeight}px`;
   };
 
   // --- Callbacks for sendMessage ---
@@ -445,7 +415,9 @@ export function ChatRoom() {
 
   const isMobileDevice = useMemo(() => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|iemobile|mobile/i.test(userAgent);
+    return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|iemobile|mobile/i.test(
+      userAgent
+    );
   }, []);
 
   // --- Key Down Handler (Send on Ctrl+Enter) ---
@@ -505,10 +477,18 @@ export function ChatRoom() {
   return (
     <div
       className="flex flex-col bg-gray-100 overflow-hidden" // Added overflow-hidden
-      style={{ height: typeof viewportHeight === 'number' ? `${viewportHeight}px` : viewportHeight }}
+      style={{
+        height:
+          typeof viewportHeight === 'number'
+            ? `${viewportHeight}px`
+            : viewportHeight,
+      }}
     >
       {/* Header - ensure it doesn't shrink */}
-      <header ref={headerRef} className="bg-white border-b border-gray-200 p-3 sm:p-4 flex items-center shadow-sm flex-shrink-0">
+      <header
+        ref={headerRef}
+        className="bg-white border-b border-gray-200 p-3 sm:p-4 flex items-center shadow-sm flex-shrink-0"
+      >
         <Link
           to="/chat"
           className="mr-3 text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-gray-100"
@@ -546,9 +526,12 @@ export function ChatRoom() {
       <div
         ref={messageContainerRef}
         className="overflow-y-auto p-4 space-y-1" // Removed flex-grow
-        style={{ 
-          height: typeof messageListHeight === 'number' ? `${messageListHeight}px` : messageListHeight,
-          minHeight: 0 // Still good practice
+        style={{
+          height:
+            typeof messageListHeight === 'number'
+              ? `${messageListHeight}px`
+              : messageListHeight,
+          minHeight: 0, // Still good practice
         }}
       >
         {isLoadingOlder && (
@@ -611,15 +594,22 @@ export function ChatRoom() {
       </div>
 
       {/* Message Input Area - ensure it doesn't shrink */}
-      <div ref={footerRef} className="bg-gray-50 border-t border-gray-200 p-3 flex items-end flex-shrink-0">
+      <div
+        ref={footerRef}
+        className="bg-gray-50 border-t border-gray-200 p-3 flex items-end flex-shrink-0"
+      >
         <textarea
           ref={textareaRef}
           value={newMessage}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={isConnected ? 'Type a message...' : 'Connecting...'}
-          className="flex-grow p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mr-2 bg-white disabled:bg-gray-100"
-          rows={textareaRows}
+          className="flex-grow p-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mr-2 bg-white disabled:bg-gray-100 overflow-hidden"
+          style={{
+            minHeight: 'calc(1rem * 1.5 + 1rem)', // 1 line height + padding
+            maxHeight: 'calc(1rem * 1.5 * 4 + 1rem)', // 4 lines height + padding
+          }}
+          rows={1}
           disabled={!isConnected}
         />
         <button
