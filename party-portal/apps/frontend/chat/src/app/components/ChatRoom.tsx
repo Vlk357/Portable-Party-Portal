@@ -443,15 +443,31 @@ export function ChatRoom() {
     handleSendError,
   ]);
 
+  const isMobileDevice = useMemo(() => {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|iemobile|mobile/i.test(userAgent);
+  }, []);
+
   // --- Key Down Handler (Send on Ctrl+Enter) ---
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === 'Enter' && event.ctrlKey && !event.shiftKey) {
+      if (isMobileDevice) {
+        // On mobile, allow Enter for new lines
+        return;
+      }
+
+      // On desktop, Enter sends the message, Shift+Enter adds a new line
+      if (event.key === 'Enter') {
+        if (event.shiftKey) {
+          // Allow new line
+          return;
+        }
+        // Send message
         event.preventDefault();
         handleSendMessage();
       }
     },
-    [handleSendMessage]
+    [handleSendMessage, isMobileDevice]
   );
 
   // --- Create a map for quick user lookup ---
