@@ -1,34 +1,22 @@
-import React, { useState } from 'react';
+import React from 'react'; // Removed useState as currentPageTitle is removed
 import { Outlet, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // Assuming you have an AuthContext
-import { useShell } from '../context/ShellContext'; // Import useShell
+import { useAuth } from '../context/AuthContext';
+import { useShell } from '../context/ShellContext';
 
-// A simple hamburger icon component
-const HamburgerIcon: React.FC<{ onClick: () => void; className?: string }> = ({ onClick, className }) => (
-  <button
-    onClick={onClick}
-    className={`p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white ${className}`}
-    aria-label="Open navigation menu"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-    </svg>
-  </button>
-);
 
 export function MainLayout() {
   const { user, logout } = useAuth();
-  const { isDrawerOpen, toggleDrawer, closeDrawer } = useShell(); // Use context state and functions
-  const [currentPageTitle, setCurrentPageTitle] = useState('Party Portal'); // This can be improved later to reflect current page
+  const { isDrawerOpen, closeDrawer } = useShell(); // Removed toggleDrawer if Hamburger is managed by apps
 
   const handleLogout = () => {
-    closeDrawer(); // Close drawer on logout
+    closeDrawer();
     logout();
-    // navigate('/login'); // AuthProvider should handle redirect on logout
   };
 
   return (
-    <div className="flex h-screen bg-gray-100"> {/* Changed bg for contrast if needed */}
+    // The main div no longer needs to be flex h-screen if apps manage their own full height
+    // It primarily serves as a container for the sidebar and the app's content (Outlet)
+    <>
       {/* Sidebar */}
       <aside
         className={`bg-gray-800 text-white w-64 h-full p-4 transform transition-transform duration-300 ease-in-out
@@ -38,10 +26,9 @@ export function MainLayout() {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold">Navigation</h2>
-          {/* Optional: Add a close button inside the sidebar for mobile */}
           <button
             onClick={closeDrawer}
-            className="p-1 rounded-md hover:bg-gray-700" // Removed md:hidden
+            className="p-1 rounded-md hover:bg-gray-700"
             aria-label="Close navigation menu"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -53,35 +40,26 @@ export function MainLayout() {
           <Link
             to="/app/chat"
             className="block py-2 px-4 rounded hover:bg-gray-700"
-            onClick={() => {
-              setCurrentPageTitle('Chat'); // Example: Update title
-              closeDrawer();
-            }}
+            onClick={closeDrawer} // Simplified, title is managed by app
           >
             Chat
           </Link>
           <Link
             to="/app/cinema"
             className="block py-2 px-4 rounded hover:bg-gray-700"
-            onClick={() => {
-              setCurrentPageTitle('Cinema'); // Example: Update title
-              closeDrawer();
-            }}
+            onClick={closeDrawer} // Simplified
           >
             Cinema
           </Link>
           <Link
             to="/app/profile"
             className="block py-2 px-4 rounded hover:bg-gray-700"
-            onClick={() => {
-              setCurrentPageTitle('Profile'); // Example: Update title
-              closeDrawer();
-            }}
+            onClick={closeDrawer} // Simplified
           >
             Profile
           </Link>
         </nav>
-        <div className="mt-auto pt-4 border-t border-gray-700"> {/* Use mt-auto to push to bottom if sidebar is flex column */}
+        <div className="mt-auto pt-4 border-t border-gray-700">
           {user ? (
             <button onClick={handleLogout} className="block w-full text-left py-2 px-3 rounded hover:bg-gray-700">
               Logout ({user.username})
@@ -94,36 +72,22 @@ export function MainLayout() {
         </div>
       </aside>
 
-      {/* Content Area */}
-      {/* Overlay to close sidebar when clicking outside on mobile */}
+      {/* Overlay to close sidebar when clicking outside */}
       {isDrawerOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black opacity-50" // Removed md:hidden
+          className="fixed inset-0 z-20 bg-black opacity-50"
           onClick={closeDrawer}
           aria-hidden="true"
         ></div>
       )}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-10"> {/* Lowered z-index from sidebar */}
-          <div className="flex items-center">
-            <button
-              className="p-2 mr-2 rounded-full hover:bg-blue-700 focus:outline-none" /* Removed md:hidden */
-              aria-label="Toggle menu"
-              onClick={toggleDrawer} // Use toggleDrawer from context
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-4 6h4"></path>
-              </svg>
-            </button>
-            <h1 className="text-xl font-semibold">{currentPageTitle}</h1>
-          </div>
-          {/* Global actions could go here */}
-        </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-white"> {/* Added bg-white to content for clarity */}
-          <Outlet /> {/* ChatModule or CinemaModule content renders here */}
-        </main>
+      {/* Content Area - The Outlet will render the specific app module */}
+      {/* Removed the wrapping div and header from here */}
+      {/* The individual apps (ChatModule, CinemaModule) will now be responsible for their own layout, including any headers */}
+      <div className="flex-1"> {/* This div might need adjustment based on how apps structure themselves */}
+        {/* Removed p-6 and other shell-specific main styling */}
+        <Outlet /> {/* ChatModule or CinemaModule content renders here, taking full space */}
       </div>
-    </div>
+    </> // Using React Fragment as the outermost element
   );
 }

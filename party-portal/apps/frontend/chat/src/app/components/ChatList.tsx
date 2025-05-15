@@ -3,12 +3,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../context/WebSocketContext';
 import { jwtDecode } from 'jwt-decode'; // Import jwt-decode
 import { DecodedToken } from '../../types/DecodedToken'; // Assuming you have this type
+import { useShell } from '../../../../shell/src/app/context/ShellContext';
+import { HamburgerIcon } from '../../../../shell/src/app/components/HamburgerIcon';
 
 export function ChatList() {
-  const { isLoading, error, rooms, getMessagesForRoom, users, currentUserId: contextCurrentUserId } = useWebSocket(); // Add users and contextCurrentUserId
+  const {
+    isLoading,
+    error,
+    rooms,
+    getMessagesForRoom,
+    users,
+    currentUserId: contextCurrentUserId,
+  } = useWebSocket(); // Add users and contextCurrentUserId
 
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+
+  const { toggleDrawer } = useShell();
 
   // Get currentUserId, similar to ChatRoom.tsx
   const currentUserId = useMemo(() => {
@@ -96,11 +107,11 @@ export function ChatList() {
       const sender = userMap.get(lastMessage.user_id);
       if (sender) {
         lastMessageContentDisplay = `${sender.username}: ${lastMessage.content}`;
-      } else if (lastMessage.user_id) { // If sender not in map but user_id exists
+      } else if (lastMessage.user_id) {
+        // If sender not in map but user_id exists
         lastMessageContentDisplay = `User ${lastMessage.user_id}: ${lastMessage.content}`;
       }
     }
-
 
     return {
       lastMessageContent: lastMessageContentDisplay,
@@ -111,7 +122,16 @@ export function ChatList() {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <header className="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Chats</h1>
+        <div className="flex items-center">
+          {' '}
+          {/* Wrapper for hamburger and title */}
+          <HamburgerIcon
+            onClick={toggleDrawer}
+            className="mr-2 text-white"
+          />{' '}
+          {/* Added text-white for visibility */}
+          <h1 className="text-xl font-semibold">Chats</h1>
+        </div>
         <button
           className="p-2 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Create new chat"
@@ -137,7 +157,7 @@ export function ChatList() {
       <div className="p-4 bg-white border-b border-gray-200">
         <input
           type="text"
-          name='search'
+          name="search"
           placeholder="Search chats..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
