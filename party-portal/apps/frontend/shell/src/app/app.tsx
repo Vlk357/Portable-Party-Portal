@@ -7,10 +7,17 @@ import { ChatModule } from './modules/ChatModule';
 import { CinemaModule } from './modules/CinemaModule';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />;
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    // Show a loading spinner or placeholder while authentication is being validated
+    return <div>Loading...</div>;
   }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/auth/login" replace state={{ from: window.location.pathname }} />;
+  }
+
   return children;
 }
 

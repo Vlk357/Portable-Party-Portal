@@ -1,6 +1,6 @@
 import { AuthForm as ImportedAuthForm } from '../../../../auth/src/AuthForm'; // Use the path alias
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 
 // Define the expected props structure for AuthForm here for testing
@@ -17,6 +17,8 @@ const AuthForm: React.FC<ExpectedAuthFormProps> = ImportedAuthForm as any; // Ca
 export function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/app/chat'; // Default to chat list
 
   const handleLoginSuccess = (
     token: string,
@@ -24,7 +26,7 @@ export function LoginPage() {
     refreshTokenExpiration: string
   ) => {
     login(token, refreshToken, refreshTokenExpiration);
-    // Navigation will be handled by the effect below or ProtectedRoute
+    navigate(from, { replace: true }); // Redirect to the original route
   };
 
   useEffect(() => {

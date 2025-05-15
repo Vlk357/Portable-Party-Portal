@@ -10,13 +10,13 @@ interface DecodedToken {
 
 interface AuthContextType {
   token: string | null;
-  refreshTokenVal: string | null; // Renamed to avoid conflict with a function
+  refreshTokenVal: string | null;
   isAuthenticated: boolean;
-  isLoading: boolean; // To handle initial loading of token
+  isLoading: boolean; // Correctly named as isLoading
   user: { id: string; username?: string } | null;
   login: (newToken: string, newRefreshToken?: string, newRefreshTokenExpiration?: string) => void;
   logout: () => void;
-  triggerTokenRefresh: () => Promise<boolean>; // Function to attempt token refresh
+  triggerTokenRefresh: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
