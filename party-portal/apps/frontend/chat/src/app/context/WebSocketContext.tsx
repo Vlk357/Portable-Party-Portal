@@ -333,7 +333,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       if (isAuthError) {
         if (!isRefreshingTokenRef.current) {
           isRefreshingTokenRef.current = true;
-          setError('Authentication issue, attempting to refresh session...');
+          setError('Session issue. Attempting to refresh...'); // Neutral message
           setIsLoading(true);
           const refreshed = await refreshToken();
           isRefreshingTokenRef.current = false; // Reset after attempt
@@ -347,33 +347,31 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
               );
               socketInstanceRef.current.auth = { token: newToken };
               socketInstanceRef.current.connect(); // Retry with new auth on the SAME instance
-              // setError(null); // Clear auth error, connection attempt will follow
-              // setIsLoading(true) // Stays true as we are connecting
+              setError('Re-establishing connection...'); // Optimistic message
+              // isLoading remains true as we are connecting
             } else {
               console.error(
-                'Token refresh successful, but no new token or socket instance changed. Logging out.'
+                'Token refresh reported success, but new token is missing or socket instance changed. Logging out.'
               );
-              handleLogout(); // This will likely cause a redirect and component unmount
-              setError('Session expired. Please log in again.');
+              setError('Error applying refreshed session. Please log in again.'); // More specific
               setIsLoading(false);
               if (socketInstanceRef.current === newSocket)
                 socketInstanceRef.current.disconnect();
+              handleLogout(); // Treat as unrecoverable for this specific path
             }
           } else {
             // Token refresh failed
             console.error('Token refresh failed for socket:', newSocket.id);
-            setError(
-              localStorage.getItem('refreshToken')
-                ? 'Failed to refresh session.'
-                : 'Session expired. Please log in again.'
-            );
+            if (localStorage.getItem('refreshToken')) {
+              setError('Failed to refresh session. Please check your connection or try refreshing the page.');
+              // Do not logout yet. User might recover by other means or another component might trigger refresh.
+            } else {
+              setError('Session expired. Please log in again.'); // No refresh token, so it's final
+              handleLogout(); // Only logout if no refresh token means it's truly unrecoverable by this mechanism
+            }
             setIsLoading(false);
             if (socketInstanceRef.current === newSocket)
               socketInstanceRef.current.disconnect(); // Stop this instance
-            // Potentially call handleLogout() if no refresh token
-            if (!localStorage.getItem('refreshToken')) {
-              handleLogout();
-            }
           }
         } else {
           console.log(
@@ -388,7 +386,91 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         );
         setError(`Connection error: ${err.message}. Retrying...`);
         setIsLoading(true); // Indicate that connection attempts are ongoing
-        // DO NOT manually disconnect newSocket here. Let Socket.IO manage its retries.
+      }
+    });
+
+    newSocket.on('error', async (errorData: { message: string } | string) => {
+      const errorMessage =
+        typeof errorData === 'string' ? errorData : errorData.message;
+      console.error('WebSocket post-connection error:', errorMessage);
+
+      if (socketInstanceRef.current !== newSocket) {
+        console.log(
+          'Ignoring post-connection error for non-current socket instance.'
+        );
+        return;
+      }
+
+      const postConnectAuthErrors = [
+        'Invalid or expired token',
+        'Unauthorized',
+      ];
+
+      const isAuthError = postConnectAuthErrors.some((msg) =>
+        errorMessage.includes(msg)
+      );
+
+      if (isAuthError && !isRefreshingTokenRef.current) {
+        console.log(
+          'Post-connection auth error detected, attempting token refresh...'
+        );
+        isRefreshingTokenRef.current = true;
+        setError('Session issue detected, attempting to refresh...');
+        setIsLoading(true); 
+
+        const refreshed = await refreshToken();
+
+        if (refreshed) {
+          console.log('Token refresh successful after post-connection error.');
+          const currentToken = localStorage.getItem('token');
+          if (currentToken && socketInstanceRef.current === newSocket) {
+            socketInstanceRef.current.auth = { token: currentToken };
+            console.log('Socket auth updated.');
+            if (!socketInstanceRef.current.connected) {
+              console.log(
+                'Socket disconnected after error, attempting reconnect...'
+              );
+              socketInstanceRef.current.connect();
+              setError('Re-establishing connection...');
+            } else {
+              setError(null); // Clear error if already connected and refresh was preemptive
+            }
+          } else {
+            console.error(
+              'Failed to get new token or socket instance changed after refresh (post-connection). Logging out.'
+            );
+            setError('Error applying refreshed session. Please log in again.');
+            if (socketInstanceRef.current === newSocket) {
+              socketInstanceRef.current.disconnect();
+            }
+            handleLogout();
+          }
+        } else {
+          // Refresh failed
+          console.error(
+            'Token refresh failed after post-connection error.'
+          );
+          if (localStorage.getItem('refreshToken')) {
+            setError('Failed to refresh session. Please check your connection or try refreshing the page.');
+            // The connection might have been severed by the server due to the error.
+            // Do not logout.
+          } else {
+            setError('Session expired. Please log in again.');
+            if (socketInstanceRef.current === newSocket) {
+              socketInstanceRef.current.disconnect();
+            }
+            handleLogout();
+          }
+        }
+        setIsLoading(false); // Reset loading after attempt
+        isRefreshingTokenRef.current = false;
+      } else if (isAuthError && isRefreshingTokenRef.current) {
+        console.log(
+          'Refresh already in progress, ignoring subsequent post-connection auth error.'
+        );
+      } else {
+        // Handle non-auth errors
+        setError(`Chat error: ${errorMessage}`);
       }
     });
 
@@ -441,99 +523,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         console.log(
           'Reconnect event implies a connect event will follow or has just fired.'
         );
-      }
-    });
-
-    newSocket.on('error', async (errorData: { message: string } | string) => {
-      // Make handler async
-      const errorMessage =
-        typeof errorData === 'string' ? errorData : errorData.message;
-      console.error('WebSocket post-connection error:', errorMessage);
-
-      // Check if this error is for the current socket instance
-      if (socketInstanceRef.current !== newSocket) {
-        console.log(
-          'Ignoring post-connection error for non-current socket instance.'
-        );
-        return;
-      }
-
-      const postConnectAuthErrors = [
-        'Invalid or expired token',
-        'Unauthorized',
-        // Add other specific error messages that indicate an auth issue after connection
-      ];
-
-      const isAuthError = postConnectAuthErrors.some((msg) =>
-        errorMessage.includes(msg)
-      );
-
-      if (isAuthError && !isRefreshingTokenRef.current) {
-        console.log(
-          'Post-connection auth error detected, attempting token refresh...'
-        );
-        isRefreshingTokenRef.current = true;
-        setError('Session issue detected, attempting to refresh...');
-        setIsLoading(true); // Indicate loading during refresh
-
-        const refreshed = await refreshToken();
-
-        if (refreshed) {
-          console.log('Token refresh successful after post-connection error.');
-          const currentToken = localStorage.getItem('token');
-          if (currentToken && socketInstanceRef.current === newSocket) {
-            // Update auth details for subsequent operations
-            socketInstanceRef.current.auth = { token: currentToken };
-            console.log('Socket auth updated.');
-            // Check if the socket is still connected. If not, attempt reconnect.
-            if (!socketInstanceRef.current.connected) {
-              console.log(
-                'Socket disconnected after error, attempting reconnect...'
-              );
-              socketInstanceRef.current.connect();
-            } else {
-              // If still connected, clear the error potentially caused by the auth issue
-              setError(null);
-            }
-          } else {
-            console.error(
-              'Failed to get new token or socket instance changed after refresh. Logging out.'
-            );
-            handleLogout();
-            setError('Session expired. Please log in again.');
-            setIsConnected(false);
-            setSocket(null);
-            if (socketInstanceRef.current === newSocket) {
-              socketInstanceRef.current.disconnect();
-              socketInstanceRef.current = null;
-            }
-          }
-        } else {
-          // Refresh failed, proceed with logout
-          console.error(
-            'Token refresh failed after post-connection error. Logging out.'
-          );
-          handleLogout();
-          setError('Session expired. Please log in again.');
-          setIsConnected(false);
-          setSocket(null);
-          if (socketInstanceRef.current === newSocket) {
-            socketInstanceRef.current.disconnect();
-            socketInstanceRef.current = null;
-          }
-        }
-        // Reset flags after handling
-        setIsLoading(false);
-        isRefreshingTokenRef.current = false;
-      } else if (isAuthError && isRefreshingTokenRef.current) {
-        console.log(
-          'Refresh already in progress, ignoring subsequent post-connection auth error.'
-        );
-      } else {
-        // Handle non-auth errors
-        setError(`Chat error: ${errorMessage}`);
-        // Consider if disconnect is needed for non-auth errors too
-        // Example: newSocket.disconnect();
       }
     });
 

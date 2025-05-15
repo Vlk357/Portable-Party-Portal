@@ -1,0 +1,207 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { jwtDecode } from 'jwt-decode'; // For decoding token to get user info or expiration
+
+interface DecodedToken {
+  sub: string; // Subject (user ID)
+  username?: string; // Optional: if your token includes username
+  exp: number; // Expiration timestamp
+  // Add other fields your token might have
+}
+
+interface AuthContextType {
+  token: string | null;
+  refreshTokenVal: string | null; // Renamed to avoid conflict with a function
+  isAuthenticated: boolean;
+  isLoading: boolean; // To handle initial loading of token
+  user: { id: string; username?: string } | null;
+  login: (newToken: string, newRefreshToken?: string, newRefreshTokenExpiration?: string) => void;
+  logout: () => void;
+  triggerTokenRefresh: () => Promise<boolean>; // Function to attempt token refresh
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+// This would be your actual API call to refresh the token
+// For now, it's a placeholder. You'll need to implement this.
+async function apiRefreshToken(currentRefreshToken: string): Promise<{ token: string; refreshToken?: string; refreshTokenExpiration?: string } | null> {
+  console.log('Attempting to refresh token with:', currentRefreshToken);
+  // Replace with your actual API call
+  // Example:
+  const response = await fetch('/auth/api/token/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: currentRefreshToken }),
+  });
+  if (response.ok) {
+    const data = await response.json();
+    return { token: data.token, refreshToken: data.refreshToken, refreshTokenExpiration: data.refreshTokenExpiration };
+  }
+  return null;
+}
+
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [token, setToken] = useState<string | null>(null);
+  const [refreshTokenVal, setRefreshTokenVal] = useState<string | null>(null);
+  const [refreshTokenExpiration, setRefreshTokenExpiration] = useState<string | null>(null);
+  const [user, setUser] = useState<{ id: string; username?: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Start as true
+
+  const decodeAndSetUser = useCallback((currentToken: string | null) => {
+    if (currentToken) {
+      try {
+        const decoded = jwtDecode<DecodedToken>(currentToken);
+        setUser({ id: decoded.sub, username: decoded.username });
+        return decoded;
+      } catch (e) {
+        console.error("Failed to decode token:", e);
+        setUser(null);
+        return null;
+      }
+    } else {
+      setUser(null);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedRefreshToken = localStorage.getItem('refreshToken');
+    const storedRefreshTokenExp = localStorage.getItem('refreshTokenExpiration');
+
+    if (storedToken) {
+      const decoded = decodeAndSetUser(storedToken);
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        setToken(storedToken);
+        setRefreshTokenVal(storedRefreshToken);
+        setRefreshTokenExpiration(storedRefreshTokenExp);
+      } else {
+        // Token exists but is expired or invalid
+        localStorage.removeItem('token');
+        localStorage.removeItem('user'); // if you store user object separately
+        // Optionally attempt refresh here if refresh token exists and is valid
+      }
+    }
+    setIsLoading(false);
+  }, [decodeAndSetUser]);
+
+  const login = (
+    newToken: string,
+    newRefreshToken?: string,
+    newRefreshTokenExp?: string
+  ) => {
+    localStorage.setItem('token', newToken);
+    if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
+    if (newRefreshTokenExp) localStorage.setItem('refreshTokenExpiration', newRefreshTokenExp);
+
+    setToken(newToken);
+    if (newRefreshToken) setRefreshTokenVal(newRefreshToken);
+    if (newRefreshTokenExp) setRefreshTokenExpiration(newRefreshTokenExp);
+    decodeAndSetUser(newToken);
+  };
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('refreshTokenExpiration');
+    localStorage.removeItem('user'); // if you store user object separately
+
+    setToken(null);
+    setRefreshTokenVal(null);
+    setRefreshTokenExpiration(null);
+    setUser(null);
+    // Here you might want to navigate to the login page
+    // This is often handled by the ProtectedRoute component or similar logic.
+  }, [decodeAndSetUser]);
+
+
+  const triggerTokenRefresh = useCallback(async (): Promise<boolean> => {
+    const currentRefreshToken = localStorage.getItem('refreshToken');
+    const currentRefreshTokenExp = localStorage.getItem('refreshTokenExpiration');
+
+    if (!currentRefreshToken || !currentRefreshTokenExp) {
+      console.log('No refresh token or expiration found.');
+      logout(); // No way to refresh
+      return false;
+    }
+
+    if (parseFloat(currentRefreshTokenExp) * 1000 <= Date.now()) {
+      console.log('Refresh token expired.');
+      logout(); // Refresh token itself is expired
+      return false;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiRefreshToken(currentRefreshToken);
+      if (response && response.token) {
+        login(response.token, response.refreshToken, response.refreshTokenExpiration);
+        console.log('Token refresh successful.');
+        setIsLoading(false);
+        return true;
+      } else {
+        console.log('Token refresh failed (API did not return new token).');
+        logout();
+        setIsLoading(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error during token refresh:', error);
+      logout(); // Critical error during refresh
+      setIsLoading(false);
+      return false;
+    }
+  }, [login, logout]);
+
+
+  // Optional: Check token expiration periodically or on certain actions
+  useEffect(() => {
+    if (token) {
+      const decoded = jwtDecode<DecodedToken>(token);
+      const expiresIn = decoded.exp * 1000 - Date.now();
+      if (expiresIn < 0) { // Token is expired
+        console.log("Token expired, attempting refresh or logout.");
+        if (refreshTokenVal && refreshTokenExpiration && parseFloat(refreshTokenExpiration) * 1000 > Date.now()) {
+          triggerTokenRefresh();
+        } else {
+          logout();
+        }
+      } else {
+        // Optional: Set a timer to refresh token before it expires
+        // const refreshTimeout = expiresIn - (5 * 60 * 1000); // 5 minutes before expiry
+        // if (refreshTimeout > 0) {
+        //   const timerId = setTimeout(() => triggerTokenRefresh(), refreshTimeout);
+        //   return () => clearTimeout(timerId);
+        // }
+      }
+    }
+  }, [token, refreshTokenVal, refreshTokenExpiration, logout, triggerTokenRefresh]);
+
+
+  const isAuthenticated = !!token;
+
+  const contextValue: AuthContextType = {
+    token,
+    refreshTokenVal,
+    isAuthenticated,
+    isLoading,
+    user,
+    login,
+    logout,
+    triggerTokenRefresh,
+  };
+
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
+};

@@ -137,6 +137,7 @@ export function ChatList() {
       <div className="p-4 bg-white border-b border-gray-200">
         <input
           type="text"
+          name='search'
           placeholder="Search chats..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -164,7 +165,7 @@ export function ChatList() {
               return (
                 <li key={room.id} className="border-b border-gray-200">
                   <Link
-                    to={`/chat/${room.id}`}
+                    to={room.id.toString()} // Changed from `/chat/${room.id}`
                     className="flex items-center p-4 hover:bg-gray-50 transition duration-150 ease-in-out"
                   >
                     <div className="w-12 h-12 bg-gray-300 rounded-full mr-4 flex-shrink-0 flex items-center justify-center text-xl font-semibold text-gray-600">

@@ -103,15 +103,9 @@ services:
       context: ./party-portal/apps/frontend/chat
       dockerfile: ../../../../docker/node/Dockerfile
     volumes:
-      # Mount specific app code - adjust path relative to container WORKDIR if needed
-      - ./party-portal/apps/frontend/chat:/app # /party-portal/apps/frontend/chat
-      - ./node_modules:/app/node_modules
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
-      - ./party-portal/apps/frontend/chat/tsconfig.node.json:/app/tsconfig.node.json:ro
-
-      # - ./package.json:/app/package.json # Mount root package.json
-      # - ./package-lock.json:/app/package-lock.json # Mount root package-lock.json
-    # No working_dir needed here if command specifies path
+      - ./party-portal:/app # Mount entire monorepo to /app
+      - ./party-portal/node_modules:/app/node_modules
+    working_dir: /app/apps/frontend/chat # WORKDIR for this specific app
     environment:
       - VITE_CHAT_WEBSOCKET_URL=/chat
       - VITE_CHAT_API_URL=/chat/api
@@ -160,11 +154,9 @@ services:
       context: ./party-portal/apps/frontend/video
       dockerfile: ../../../../docker/node/Dockerfile
     volumes:
-      - ./party-portal/apps/frontend/video:/app
-      - ./node_modules:/app/node_modules
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
-      # Assuming tsconfig.node.json exists or will be created for video frontend similar to chat
-      - ./party-portal/apps/frontend/video/tsconfig.node.json:/app/tsconfig.node.json:ro
+      - ./party-portal:/app # Mount entire monorepo to /app
+      - ./party-portal/node_modules:/app/node_modules
+    working_dir: /app/apps/frontend/video # WORKDIR for this specific app
     environment:
       - PORT=5175 # Define port for video frontend
       # Add any VITE_ specific env vars if needed, e.g.:
@@ -172,6 +164,24 @@ services:
     networks:
       - backend
     command: sh -c "npm run dev -- --host --port 5175"
+
+  # --- NEW: Frontend Shell Service ---
+  frontend-shell:
+    build:
+      context: ./party-portal/apps/frontend/shell # Path to your shell app
+      dockerfile: ../../../../docker/node/Dockerfile # Assuming it uses the same Node Dockerfile
+    volumes:
+      - ./party-portal:/app # Mount entire monorepo to /app
+      - ./party-portal/node_modules:/app/node_modules
+    working_dir: /app/apps/frontend/shell # Set WORKDIR to the specific app's directory
+    environment:
+      - PORT=5176 # Assign a new port for the shell dev server
+      # Add any VITE_ specific env vars the shell app needs
+      # e.g., VITE_API_BASE_URL=/api (if shell makes its own API calls not covered by modules)
+    networks:
+      - backend
+    command: sh -c "npm run dev -- --host --port 5176" # Run shell dev server
+  # --- End NEW: Frontend Shell Service ---
 
   mercure: # Mercure Hub Service
     image: dunglas/mercure:latest # Use official Mercure image
@@ -204,7 +214,7 @@ services:
       # Mount backend code if nginx serves static files directly (less common for APIs)
       # - ./party-portal/apps/backend:/var/www/apps
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro # Mount nginx config
-      - ./party-portal/apps/frontend/auth/dist:/var/www/frontend-auth:ro
+      # - ./party-portal/apps/frontend/auth/dist:/var/www/frontend-auth:ro
       - ${MOVIES_DIRECTORY}:/var/www/media:ro # Read-only recommended
     depends_on: # Ensure backend services are started first
       - auth
@@ -214,6 +224,7 @@ services:
       - cinema
       - mercure
       - frontend-video
+      - frontend-shell # Add shell as a dependency for Nginx
     networks:
       - backend
 

@@ -1,8 +1,19 @@
 import { useState, FormEvent } from 'react';
-import type { LoginResponse } from './types/LoginResponse'; // Ensure this type includes refresh_token and expiration
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useAuth } from '../../shell/src/app/context/AuthContext'; // Adjust path to your shell's AuthContext
+import type { LoginResponse } from './types/LoginResponse';
 import type { ErrorResponse } from './types/ErrorResponse';
+import './index.css';
 
-function App() {
+interface AuthFormProps {
+  onLoginSuccess: (
+    token: string,
+    refreshToken: string,
+    refreshTokenExpiration: string
+  ) => void;
+}
+
+export function AuthForm({ onLoginSuccess }: AuthFormProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,10 +25,8 @@ function App() {
     setIsLoading(true);
 
     try {
-      // Use VITE_API_URL for consistency if defined, otherwise fallback
       const apiUrl = `${window.location.origin}/auth/api`;
-      console.log(`Origin url: ${window.location.origin}`);
-      const response = await fetch(`${apiUrl}/login`, { // Use apiUrl
+      const response = await fetch(`${apiUrl}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,16 +41,12 @@ function App() {
 
       const data: LoginResponse = await response.json();
 
-      // --- Store all token data ---
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('refreshToken', data.refresh_token);
-      // Store expiration as a string; parse it when needed
-      localStorage.setItem('refreshTokenExpiration', data.refresh_token_expiration.toString());
-      // --- End storing token data ---
-
-      console.log('Login successful', data);
-      // Redirect to the chat application base path
-      window.location.href = '/chat-app/'; // Adjust if your chat app base route is different
+      // Call the callback provided by the shell instead of direct manipulation
+      onLoginSuccess(
+        data.token,
+        data.refresh_token,
+        data.refresh_token_expiration.toString()
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'An unexpected error occurred'
@@ -60,13 +65,11 @@ function App() {
         <h1 className="text-2xl font-bold text-center text-gray-800">
           Sign In
         </h1>
-
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
             {error}
           </div>
         )}
-
         <div className="space-y-2">
           <input
             type="text"
@@ -76,7 +79,6 @@ function App() {
             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
             required
           />
-
           <input
             type="password"
             value={password}
@@ -86,7 +88,6 @@ function App() {
             required
           />
         </div>
-
         <button
           type="submit"
           disabled={isLoading}
@@ -104,4 +105,21 @@ function App() {
   );
 }
 
-export default App;
+function AuthApp() { // Renamed to avoid confusion if this file is directly used as LoginPage
+  const navigate = useNavigate(); // Hook for navigation
+  const auth = useAuth(); // Get the auth context
+
+  const handleLoginSuccess = (
+    token: string,
+    refreshToken: string,
+    refreshTokenExpiration: string
+  ) => {
+    auth.login(token, refreshToken, refreshTokenExpiration);
+    console.log('Login successful via AuthContext');
+    navigate('/app/chat'); // Or '/app' to let the default route in shell handle it
+  };
+
+  return <AuthForm onLoginSuccess={handleLoginSuccess} />;
+}
+
+export default AuthApp; // Export the component

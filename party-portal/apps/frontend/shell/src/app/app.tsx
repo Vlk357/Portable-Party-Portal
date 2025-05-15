@@ -1,52 +1,44 @@
-// Uncomment this line to use CSS modules
-// import styles from './app.module.css';
-import NxWelcome from './nx-welcome';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { MainLayout } from './components/MainLayout';
+import { ShellProvider } from './context/ShellContext'; // Import ShellProvider
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './modules/LoginPage';
+import { ChatModule } from './modules/ChatModule';
+import { CinemaModule } from './modules/CinemaModule';
 
-import { Route, Routes, Link } from 'react-router-dom';
+function ProtectedRoute({ children }: { children: JSX.Element }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/auth/login" replace />;
+  }
+  return children;
+}
 
 export function App() {
   return (
-    <div>
-      <NxWelcome title="shell" />
-
-      {/* START: routes */}
-      {/* These routes and navigation have been generated for you */}
-      {/* Feel free to move and update them to fit your needs */}
-      <br />
-      <hr />
-      <br />
-      <div role="navigation">
-        <ul>
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-          <li>
-            <Link to="/page-2">Page 2</Link>
-          </li>
-        </ul>
-      </div>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <div>
-              This is the generated root route.{' '}
-              <Link to="/page-2">Click here for page 2.</Link>
-            </div>
-          }
-        />
-        <Route
-          path="/page-2"
-          element={
-            <div>
-              <Link to="/">Click here to go back to root page.</Link>
-            </div>
-          }
-        />
-      </Routes>
-      {/* END: routes */}
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <ShellProvider>
+          {' '}
+          {/* Wrap with ShellProvider */}
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route
+              path="/app"
+              element={
+                <ProtectedRoute>
+                  <MainLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="chat/*" element={<ChatModule />} />
+              <Route path="cinema/*" element={<CinemaModule />} />
+              <Route index element={<Navigate to="chat" replace />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/app/chat" replace />} />
+          </Routes>
+        </ShellProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
-
-export default App;

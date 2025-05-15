@@ -14,7 +14,12 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@party-portal/auth": ["apps/frontend/auth/src/index.ts"],
+      "@party-portal/chat": ["apps/frontend/chat/src/index.ts"],
+      "@party-portal/video": ["apps/frontend/video/src/index.ts"],
+      "@party-portal/shell/*": ["apps/frontend/shell/src/*"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }

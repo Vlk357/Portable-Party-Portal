@@ -44,7 +44,7 @@ export class MessageService {
 
   async getRoomMessages(
     roomId: number,
-    limit: number = 50,
+    limit = 50,
     beforeId?: number,
     beforeDate?: Date,
   ): Promise<Message[]> {

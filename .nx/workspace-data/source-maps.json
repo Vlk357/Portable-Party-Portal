@@ -1,6 +1,200 @@
 {
+  "party-portal/apps/frontend/auth": {
+    "root": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.executor": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options.script": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.scriptContent": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.runCommand": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.executor": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options.script": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.scriptContent": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.runCommand": [
+      "party-portal/apps/frontend/auth/package.json",
+      "nx/core/package-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ],
+    "tags.scope:frontend-auth": [
+      "party-portal/apps/frontend/auth/project.json",
+      "nx/core/project-json"
+    ]
+  },
   "party-portal/apps/frontend/chat": {
     "root": [
+      "party-portal/apps/frontend/chat/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
       "party-portal/apps/frontend/chat/project.json",
       "nx/core/project-json"
     ],
@@ -8,11 +202,167 @@
       "party-portal/apps/frontend/chat/project.json",
       "nx/core/project-json"
     ],
-    "$schema": [
-      "party-portal/apps/frontend/chat/project.json",
-      "nx/core/project-json"
+    "tags": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
     ],
-    "sourceRoot": [
+    "tags.npm:private": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.executor": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options.script": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.scriptContent": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.runCommand": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.executor": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options.script": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.scriptContent": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.runCommand": [
+      "party-portal/apps/frontend/chat/package.json",
+      "nx/core/package-json"
+    ],
+    "$schema": [
       "party-portal/apps/frontend/chat/project.json",
       "nx/core/project-json"
     ],
@@ -24,12 +374,388 @@
       "party-portal/apps/frontend/chat/project.json",
       "nx/core/project-json"
     ],
-    "tags": [
+    "tags.scope:frontend-chat": [
       "party-portal/apps/frontend/chat/project.json",
       "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/shell": {
+    "root": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
     ],
     "targets": [
-      "party-portal/apps/frontend/chat/project.json",
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.executor": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options.script": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.scriptContent": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.runCommand": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.executor": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options.script": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.scriptContent": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.runCommand": [
+      "party-portal/apps/frontend/shell/package.json",
+      "nx/core/package-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ],
+    "tags.scope:frontend-shell": [
+      "party-portal/apps/frontend/shell/project.json",
+      "nx/core/project-json"
+    ]
+  },
+  "party-portal/apps/frontend/video": {
+    "root": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "name": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.executor": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.options.script": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.scriptContent": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint.metadata.runCommand": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.executor": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options.script": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.scriptContent": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.runCommand": [
+      "party-portal/apps/frontend/video/package.json",
+      "nx/core/package-json"
+    ],
+    "$schema": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "// targets": [
+      "party-portal/apps/frontend/video/project.json",
+      "nx/core/project-json"
+    ],
+    "tags.scope:frontend-video": [
+      "party-portal/apps/frontend/video/project.json",
       "nx/core/project-json"
     ]
   },
@@ -143,40 +869,6 @@
       "nx/core/project-json"
     ]
   },
-  "party-portal/apps/frontend/shell": {
-    "root": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "name": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "$schema": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "sourceRoot": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "projectType": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "// targets": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "tags": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ],
-    "targets": [
-      "party-portal/apps/frontend/shell/project.json",
-      "nx/core/project-json"
-    ]
-  },
   "party-portal/apps/frontend/shell-e2e": {
     "root": [
       "party-portal/apps/frontend/shell-e2e/project.json",
@@ -212,40 +904,6 @@
     ],
     "targets": [
       "party-portal/apps/frontend/shell-e2e/project.json",
-      "nx/core/project-json"
-    ]
-  },
-  "party-portal/apps/frontend/video": {
-    "root": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "name": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "$schema": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "sourceRoot": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "projectType": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "// targets": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "tags": [
-      "party-portal/apps/frontend/video/project.json",
-      "nx/core/project-json"
-    ],
-    "targets": [
-      "party-portal/apps/frontend/video/project.json",
       "nx/core/project-json"
     ]
   },

@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/app/app.spec.tsx","./src/app/app.tsx","./src/app/nx-welcome.tsx","./src/app/components/MainLayout.tsx","./src/app/context/AuthContext.tsx","./src/app/context/ShellContext.tsx","./src/app/modules/ChatModule.tsx","./src/app/modules/CinemaModule.tsx","./src/app/modules/LoginPage.tsx","./src/types/ShellContextType.ts"],"errors":true,"version":"5.7.3"}
