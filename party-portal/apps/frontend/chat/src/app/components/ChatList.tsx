@@ -135,7 +135,7 @@ export function ChatList() {
         <button
           className="p-2 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Create new chat"
-          onClick={() => navigate('/chat/new')}
+          onClick={() => navigate('new')}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

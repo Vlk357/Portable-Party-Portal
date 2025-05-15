@@ -325,33 +325,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         users: data.users,
       });
 
-      // Automatically join the creator to the new room's socket.io room
       await client.join(`room:${newRoom.id}`);
       this.logger.log(
         `Creator ${client.userId} joined socket room: room:${newRoom.id}`,
       );
 
-      // Join initial users to the socket.io room
       if (data.users && data.users.length > 0) {
         this.logger.log(
           `Attempting to join ${data.users.length} initial users to socket room: room:${newRoom.id}`,
         );
         for (const userId of data.users) {
-          // Don't try to rejoin the creator
           if (userId === client.userId) continue;
 
           const userSockets = this.userSockets.get(userId);
           if (userSockets && userSockets.length > 0) {
             // Join all active sockets for this user to the room
-            const joinPromises = userSockets.map((socket) =>
-              socket.join(`room:${newRoom.id}`),
+            await Promise.all(
+              userSockets.map((socket) => socket.join(`room:${newRoom.id}`)),
             );
-            await Promise.all(joinPromises);
             this.logger.log(
               `Joined user ${userId} (${userSockets.length} sockets) to socket room: room:${newRoom.id}`,
             );
           } else {
-            // User might not be connected, log this but don't fail
             this.logger.log(
               `User ${userId} not found or has no active sockets, cannot join to room:${newRoom.id}`,
             );
@@ -363,7 +358,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: true, room: newRoom };
     } catch (error) {
       this.handleError(client, error, 'Create room error:');
-      // Return error structure for WebSocket response
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create room',

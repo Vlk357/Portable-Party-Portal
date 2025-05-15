@@ -100,7 +100,8 @@ export function CreateChatRoom() {
             'Room created successfully (via context):',
             response.room
           );
-          navigate(`/chat/${response.room.id}`);
+          // navigate(`/app/chat/${response.room.id}`)
+          navigate(`../${response.room.id}`);
         } else {
           // Handle error messages, including the "Forbidden" one
           const errorMessage =

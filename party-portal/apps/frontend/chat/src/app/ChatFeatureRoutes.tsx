@@ -3,7 +3,6 @@ import { ChatList } from './components/ChatList';
 import { WebSocketProvider } from './context/WebSocketContext';
 import { ChatRoom } from './components/ChatRoom';
 import { CreateChatRoom } from './components/CreateChatRoom';
-import './../styles.css';
 
 // This component now defines routes relative to where it's mounted.
 // The WebSocketProvider wraps these routes.
