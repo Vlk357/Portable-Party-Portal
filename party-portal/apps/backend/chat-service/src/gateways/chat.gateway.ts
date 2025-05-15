@@ -86,41 +86,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const userId = await this.wsAuthMiddleware.authenticate(client);
       const authClient = this.setupUserConnection(client, userId);
 
-      // Call the service method to ensure membership in the General room
+      // Ensure membership in the General room
       await this.chatRoomService.ensureUserMembershipInGeneralRoom(userId);
 
+      // Ensure permissions
       await this.permissionService.ensureCreateChatRoomPermission(userId);
 
-      // Get rooms the user has permission to access initially
-      const permittedRooms =
-        await this.chatService.getUserPermittedRooms(userId);
-
-      this.logger.log(permittedRooms);
-
-      // Join all permitted rooms
+      // Get permitted rooms and join them
+      const permittedRooms = await this.chatService.getUserPermittedRooms(userId);
       for (const room of permittedRooms) {
         await authClient.join(`room:${room.roomId}`);
       }
 
-      // Get complete initial data
+      // Send initial data
       const initialData = await this.chatService.getUserInitialData(userId);
-
-      // Send initial data to client
       authClient.emit('initialData', initialData);
 
       this.logger.log(`Client connected: ${authClient.id} (User: ${userId})`);
     } catch (error) {
-      // Extract the specific error message to send to client
       let errorMessage = 'Authentication failed';
 
       if (error instanceof WsException) {
-        // Use the original WsException message
         errorMessage = error.message;
       } else if (error instanceof Error) {
-        // For other errors, use their message but don't expose internal details
         this.logger.error(`Connection failed: ${error.message}`, error.stack);
 
-        // For JWT errors, provide a more user-friendly message
         if (
           error.name === 'JsonWebTokenError' ||
           error.name === 'TokenExpiredError'
@@ -131,7 +121,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.logger.error('Connection failed with unknown error type', error);
       }
 
-      // Send the appropriate error message to the client
       client.emit('error', { message: errorMessage });
       client.disconnect();
     }

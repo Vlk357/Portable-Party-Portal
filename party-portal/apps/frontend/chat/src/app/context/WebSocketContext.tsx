@@ -90,6 +90,31 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     []
   );
 
+  const isTokenExpired = (token: string): boolean => {
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      return decoded.exp ? decoded.exp * 1000 < Date.now() : true;
+    } catch (error) {
+      console.error('Failed to decode token:', error);
+      return true;
+    }
+  };
+
+  const handleTokenExpiration = async () => {
+    const refreshed = await refreshToken();
+    if (!refreshed) {
+      console.error('Token refresh failed. Logging out.');
+      handleLogout();
+    }
+  };
+
+  useEffect(() => {
+    const { token: currentToken } = getAuthTokens();
+    if (currentToken && isTokenExpired(currentToken)) {
+      handleTokenExpiration();
+    }
+  }, []);
+
   useEffect(() => {
     const { token: initialToken } = getAuthTokens(); // Get token at the start of the effect
 
@@ -100,9 +125,21 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       return;
     }
 
-    // If currentUserId changes, we definitely need a new socket with new auth.
-    // The cleanup from the PREVIOUS effect run (due to currentUserId change)
-    // should have disconnected the old socket.
+    // Decode the token to log its expiration time
+    try {
+      const decoded = jwtDecode<DecodedToken>(initialToken);
+      if (decoded.exp) {
+        const expiryUnix = decoded.exp * 1000; // Convert to milliseconds
+        const expiryISO = new Date(expiryUnix).toISOString();
+        console.log(
+          `Token expires at: Unix timestamp = ${expiryUnix}, ISO format = ${expiryISO}`
+        );
+      } else {
+        console.warn('Token does not have an expiration field.');
+      }
+    } catch (error) {
+      console.error('Failed to decode token for expiration logging:', error);
+    }
 
     console.log(
       'WebSocketProvider effect: Starting setup. currentUserId:',
@@ -305,87 +342,40 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
     newSocket.on('connect_error', async (err) => {
       console.error(`connect_error for socket ${newSocket.id}:`, err.message);
+
       if (socketInstanceRef.current !== newSocket) {
-        console.warn(
-          'connect_error: Stale event for socket',
-          newSocket.id,
-          'current is',
-          socketInstanceRef.current?.id
-        );
+        console.warn('connect_error: Stale event for socket', newSocket.id);
         return;
       }
 
-      setIsConnected(false); // Definitely not connected
+      setIsConnected(false);
 
-      const authErrorMessages = [
-        'Invalid or expired token',
-        'Authentication failed',
-        'jwt expired',
-        'Unauthorized',
-        'Missing authentication token',
-        'Invalid token payload',
-        'No authentication token provided',
-      ];
-      const isAuthError = authErrorMessages.some((msg) =>
-        err.message.includes(msg)
-      );
-
-      if (isAuthError) {
+      const { token: currentToken } = getAuthTokens();
+      if (currentToken && isTokenExpired(currentToken)) {
+        console.warn('Token expired. Attempting to refresh...');
         if (!isRefreshingTokenRef.current) {
           isRefreshingTokenRef.current = true;
-          setError('Session issue. Attempting to refresh...'); // Neutral message
-          setIsLoading(true);
           const refreshed = await refreshToken();
-          isRefreshingTokenRef.current = false; // Reset after attempt
+          isRefreshingTokenRef.current = false;
 
           if (refreshed) {
             const newToken = localStorage.getItem('token');
             if (newToken && socketInstanceRef.current === newSocket) {
-              console.log(
-                'Token refreshed, updating auth and retrying connect for socket:',
-                newSocket.id
-              );
+              console.log('Token refreshed. Reconnecting WebSocket...');
               socketInstanceRef.current.auth = { token: newToken };
-              socketInstanceRef.current.connect(); // Retry with new auth on the SAME instance
-              setError('Re-establishing connection...'); // Optimistic message
-              // isLoading remains true as we are connecting
+              socketInstanceRef.current.connect();
             } else {
-              console.error(
-                'Token refresh reported success, but new token is missing or socket instance changed. Logging out.'
-              );
-              setError('Error applying refreshed session. Please log in again.'); // More specific
-              setIsLoading(false);
-              if (socketInstanceRef.current === newSocket)
-                socketInstanceRef.current.disconnect();
-              handleLogout(); // Treat as unrecoverable for this specific path
+              console.error('Failed to apply refreshed token. Logging out.');
+              handleLogout();
             }
           } else {
-            // Token refresh failed
-            console.error('Token refresh failed for socket:', newSocket.id);
-            if (localStorage.getItem('refreshToken')) {
-              setError('Failed to refresh session. Please check your connection or try refreshing the page.');
-              // Do not logout yet. User might recover by other means or another component might trigger refresh.
-            } else {
-              setError('Session expired. Please log in again.'); // No refresh token, so it's final
-              handleLogout(); // Only logout if no refresh token means it's truly unrecoverable by this mechanism
-            }
-            setIsLoading(false);
-            if (socketInstanceRef.current === newSocket)
-              socketInstanceRef.current.disconnect(); // Stop this instance
+            console.error('Token refresh failed. Logging out.');
+            handleLogout();
           }
-        } else {
-          console.log(
-            'connect_error: Auth error, but refresh already in progress for socket:',
-            newSocket.id
-          );
         }
       } else {
-        // Non-authentication connection error
-        console.log(
-          `connect_error: Non-auth error for socket ${newSocket.id}: ${err.message}. Socket.IO will attempt to reconnect.`
-        );
+        console.log('connect_error: Non-auth error. Retrying...');
         setError(`Connection error: ${err.message}. Retrying...`);
-        setIsLoading(true); // Indicate that connection attempts are ongoing
       }
     });
 
@@ -572,6 +562,51 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       isRefreshingTokenRef.current = false;
     };
   }, [currentUserId, setOnSelfMessageConfirmedHandler]); // Keep dependencies minimal
+
+  useEffect(() => {
+    const scheduleTokenRefresh = () => {
+      const { token: currentToken } = getAuthTokens();
+      if (!currentToken) {
+        console.warn('No token found. Skipping token refresh scheduling.');
+        return;
+      }
+
+      try {
+        const decoded = jwtDecode<DecodedToken>(currentToken);
+        if (decoded.exp) {
+          const expiryTime = decoded.exp * 1000; // Convert to milliseconds
+          const refreshTime = expiryTime - 5000; // 5 seconds before expiry
+          const timeUntilRefresh = refreshTime - Date.now();
+
+          if (timeUntilRefresh > 0) {
+            console.log(
+              `Scheduling token refresh in ${timeUntilRefresh / 1000} seconds.`
+            );
+            setTimeout(async () => {
+              console.log('Attempting to refresh token...');
+              const refreshed = await refreshToken();
+              if (refreshed) {
+                console.log('Token refreshed successfully.');
+                scheduleTokenRefresh(); // Schedule the next refresh
+              } else {
+                console.error('Token refresh failed. Logging out.');
+                handleLogout();
+              }
+            }, timeUntilRefresh);
+          } else {
+            console.warn('Token is already expired or close to expiry.');
+            handleTokenExpiration(); // Attempt immediate refresh
+          }
+        } else {
+          console.warn('Token does not have an expiration field.');
+        }
+      } catch (error) {
+        console.error('Failed to decode token for refresh scheduling:', error);
+      }
+    };
+
+    scheduleTokenRefresh();
+  }, []);
 
   const sendMessage = useCallback(
     (
