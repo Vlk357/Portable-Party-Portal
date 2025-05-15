@@ -10,7 +10,7 @@ export default defineConfig({
   cacheDir: '../../../node_modules/.vite/apps/frontend/shell',
   server: {
     port: 5176, // Match the port in docker-compose
-    host: true, // Allow access from network (Docker)
+    host: '0.0.0.0', // Allow access from network (Docker)
     fs: {
       // Allow serving files from the workspace root (important for monorepos)
       allow: [

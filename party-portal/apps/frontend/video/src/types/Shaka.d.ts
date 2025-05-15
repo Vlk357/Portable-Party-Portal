@@ -1,10 +1,10 @@
-// ...existing code...
 declare namespace shaka {
   namespace extern {
     interface Error {
+      code: number;
+      detail?: any; // Or more specific type if known
       severity: number;
       category: number;
-      code: number;
       data: any[];
       handled: boolean;
       message?: string;
@@ -12,7 +12,7 @@ declare namespace shaka {
       detail?: Error; // For nested errors
     }
 
-    interface ErrorEvent extends Event {
+    interface ErrorEvent extends Event { // Or use CustomEvent if that's more accurate
       type: 'error';
       detail: Error;
     }
@@ -23,38 +23,23 @@ declare namespace shaka {
     // interface Track {}
   }
 
-  class Player {
-    constructor(videoElement: HTMLVideoElement, dependencyInjector?: (player: Player) => void);
-
+  export class Player {
+    constructor(); // Constructor takes no arguments in modern versions
+    attach(videoElement: HTMLMediaElement, initializeMediaSource?: boolean): Promise<void>;
+    load(manifestUri: string, startTime?: number, manifestParserFactory?: shaka.extern.ManifestParser.Factory): Promise<void>;
+    unload(): Promise<void>;
     destroy(): Promise<void>;
-    load(
-      manifestUri: string,
-      startTime?: number,
-      manifestParserFactory?: unknown // Or a more specific factory type if known
-    ): Promise<void>;
-    configure(config: Record<string, unknown> | string, value?: unknown): void;
-    getNetworkingEngine(): unknown | null; // Adjust 'unknown' if a more specific type is available
-
-    static isBrowserSupported(): boolean;
-    static setLogLevel(level: number): void; // Consider using an enum for log levels if available
-
-    // Added missing methods and properties
-    addEventListener(type: string, listener: (event: any) => void): void; // Use specific event types if known e.g. shaka.extern.ErrorEvent
-    removeEventListener(type: string, listener: (event: any) => void): void;
-    getManifestUri(): string | null;
-    getMediaElement(): HTMLVideoElement | null;
-    isLive(): boolean;
     seekRange(): { start: number; end: number };
-    play(): Promise<void>;
-    pause(): void;
-    getStats(): any; // Define a more specific Stats type if needed
-    // Add other Player methods/properties as you use them
+    addEventListener(type: string, listener: (event: any) => void): void; // Simplified event listener
+    removeEventListener(type: string, listener: (event: any) => void): void; // Simplified event listener
+    // ... other Player methods and properties you use ...
+    static isBrowserSupported(): boolean;
   }
 }
 
 // Extend the global Window interface
 declare global {
   interface Window {
-    shaka: typeof shaka;
+    shaka?: typeof shaka;
   }
 }
