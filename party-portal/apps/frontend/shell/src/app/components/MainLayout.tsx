@@ -51,13 +51,6 @@ export function MainLayout() {
           >
             Cinema
           </Link>
-          <Link
-            to="/app/profile"
-            className="block py-2 px-4 rounded hover:bg-gray-700"
-            onClick={closeDrawer} // Simplified
-          >
-            Profile
-          </Link>
         </nav>
         <div className="mt-auto pt-4 border-t border-gray-700">
           {user ? (
