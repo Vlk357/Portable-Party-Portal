@@ -10,6 +10,7 @@ module.exports = {
     "./apps/frontend/auth/src/**/*.{js,jsx,ts,tsx,html}",
     "./apps/frontend/chat/src/**/*.{js,jsx,ts,tsx,html}", 
     "./apps/frontend/cinema/src/**/*.{js,jsx,ts,tsx,html}",
+    "./apps/frontend/gallery/src/**/*.{js,jsx,ts,tsx,html}",
     // Shared libraries
     "./libs/frontend/**/*.{js,jsx,ts,tsx,html}",
   ],

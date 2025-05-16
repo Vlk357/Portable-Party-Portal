@@ -13,6 +13,8 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\String\Slugger\SluggerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse; // Add this
+use Symfony\Component\HttpFoundation\Response; // Add this
 
 #[AsController]
 class CreateGalleryItemAction extends AbstractController
@@ -24,9 +26,10 @@ class CreateGalleryItemAction extends AbstractController
         private string $galleryUploadsDirectory, // Injected from services.yaml
         private string $galleryBaseUrl,          // Injected from services.yaml
         private LoggerInterface $logger
-    ) {}
+    ) {
+    }
 
-    public function __invoke(Request $request): GalleryItem
+    public function __invoke(Request $request): JsonResponse
     {
         $uploadedFile = $request->files->get('file');
 
@@ -57,10 +60,31 @@ class CreateGalleryItemAction extends AbstractController
             throw new BadRequestHttpException(implode("\n", $errorMessages));
         }
 
+        // Get MIME type and extension BEFORE moving the file
+        $actualMimeType = $uploadedFile->getMimeType(); // This uses MimeTypeGuesser
+        $actualExtension = $uploadedFile->guessExtension(); // Guess extension based on MIME type or client info
+
+        if (!$actualExtension) {
+            // Fallback or handle error if extension cannot be guessed
+            // For example, from client original name, but be cautious
+            $actualExtension = $uploadedFile->getClientOriginalExtension();
+            if (!$actualExtension) {
+                // If still no extension, you might want to throw an error or default
+                $this->logger->warning(sprintf('Could not determine extension for uploaded file "%s".', $uploadedFile->getClientOriginalName()));
+                // Consider throwing an error or using a default extension if appropriate
+                // For now, let's try to proceed if possible, or throw:
+                // throw new BadRequestHttpException('Could not determine file extension.');
+                // As a last resort, try to get it from the original filename, though less reliable
+                $actualExtension = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION);
+            }
+        }
+
+
         $originalFilename = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_FILENAME);
         $safeFilename = $this->slugger->slug($originalFilename);
         // Ensure a unique filename to prevent overwrites
-        $newFilename = $safeFilename.'-'.uniqid().'.'.$uploadedFile->guessExtension();
+        $newFilename = $safeFilename . '-' . uniqid() . '.' . $actualExtension;
+
 
         try {
             $uploadedFile->move(
@@ -70,18 +94,22 @@ class CreateGalleryItemAction extends AbstractController
             $this->logger->info(sprintf('File "%s" uploaded as "%s" by user "%s".', $uploadedFile->getClientOriginalName(), $newFilename, $user->getUserIdentifier()));
         } catch (\Exception $e) {
             $this->logger->error(sprintf('Failed to move uploaded file "%s": %s', $uploadedFile->getClientOriginalName(), $e->getMessage()));
-            throw new \RuntimeException('Failed to save uploaded file.');
+            // It's better to throw a more specific exception or rethrow with context
+            throw new \RuntimeException(sprintf('Failed to save uploaded file: %s', $e->getMessage()), 0, $e);
         }
 
         $galleryItem->setUserId($user->getUserIdentifier());
         $galleryItem->setOriginalFilename($uploadedFile->getClientOriginalName());
         $galleryItem->setStoredFilename($newFilename);
-        $galleryItem->setMimeType($uploadedFile->getMimeType() ?? $uploadedFile->getClientMimeType());
+        $galleryItem->setMimeType($actualMimeType ?? $uploadedFile->getClientMimeType()); // Use the determined MIME type
         $galleryItem->setGalleryBaseUrl($this->galleryBaseUrl); // Set base URL for getPublicUrl()
 
         $this->entityManager->persist($galleryItem);
         $this->entityManager->flush();
 
-        return $galleryItem;
+        // return $galleryItem; // Original line
+
+        // Temporary: Manually create a JsonResponse
+        return $this->json($galleryItem, Response::HTTP_CREATED, [], ['groups' => 'gallery:read']);
     }
 }

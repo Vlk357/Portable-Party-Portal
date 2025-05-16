@@ -51,6 +51,7 @@ export function MainLayout() {
           >
             Cinema
           </Link>
+          <Link to="/app/gallery">Gallery</Link>
         </nav>
         <div className="mt-auto pt-4 border-t border-gray-700">
           {user ? (

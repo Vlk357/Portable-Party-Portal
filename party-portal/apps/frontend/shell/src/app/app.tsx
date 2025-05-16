@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './modules/LoginPage';
 import { ChatModule } from './modules/ChatModule';
 import { CinemaModule } from './modules/CinemaModule';
+import { GalleryModule } from './modules/GalleryModule';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,6 +41,7 @@ export function App() {
             >
               <Route path="chat/*" element={<ChatModule />} />
               <Route path="cinema/*" element={<CinemaModule />} />
+              <Route path="gallery/*" element={<GalleryModule />} /> {/* Add this route */}
               <Route index element={<Navigate to="chat" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/app/chat" replace />} />

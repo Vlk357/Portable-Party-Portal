@@ -85,7 +85,7 @@ class GalleryItem
     // Used by the controller/form for validation.
     #[Assert\NotNull(groups: ['gallery:write'])]
     #[Assert\File(
-        // maxSize: "50M", // Example: 50 Megabytes, adjust as needed
+        maxSize: "100G",
         mimeTypes: [
             "image/jpeg", "image/png", "image/gif", "image/webp",
             "video/mp4", "video/quicktime", "video/webm"

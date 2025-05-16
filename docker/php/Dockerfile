@@ -44,6 +44,9 @@ RUN chown -R dev:www-data /var/www/html && \
 # Set PHP memory limit
 RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/memory-limit.ini
 
+# Add custom PHP settings for uploads
+COPY docker/php/custom-upload-settings.ini /usr/local/etc/php/conf.d/custom-upload-settings.ini
+
 WORKDIR /var/www/html
 
 # Copy composer files
@@ -63,6 +66,11 @@ RUN composer install --no-scripts --no-interaction && \
 
 # Copy the rest of the application
 COPY --chown=dev:www-data party-portal/apps/backend/auth-service .
+
+# Create the gallery uploads directory and set permissions
+RUN mkdir -p /var/www/apps/gallery/public/media/gallery_files && \
+    chown -R www-data:www-data /var/www/apps/gallery/public/media && \
+    chmod -R 775 /var/www/apps/gallery/public/media
 
 # Set development PHP configuration
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
