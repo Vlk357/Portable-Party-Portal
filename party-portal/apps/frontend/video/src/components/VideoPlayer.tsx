@@ -82,7 +82,7 @@ const VideoPlayer: React.FC = () => {
     type: 'play' | 'pause';
     time: number;
   } | null>(null);
-  const { toggleDrawer } = useShell();
+  const { toggleDrawer, isDrawerOpen } = useShell(); // Assuming isDrawerOpen is provided by your context
   const [shakaScriptLoaded, setShakaScriptLoaded] = useState(!!window.shaka); // Check if already loaded
 
   // Control visibility timer
@@ -1007,23 +1007,38 @@ const VideoPlayer: React.FC = () => {
     }
   };
 
-  if (!shakaScriptLoaded && !window.shaka) { // Check window.shaka as well in case it was loaded by another instance
-    return (
-      <div className="w-full h-screen flex justify-center items-center bg-black text-white">
-        <div className="text-2xl p-5 text-center">Loading video player library...</div>
+  // Helper function to render views that don't have an active stream
+  // This ensures the HamburgerIcon is always present in these states, unless drawer is open.
+  const renderNoStreamView = (message: string) => (
+    <div className="relative w-full h-screen flex flex-col bg-black text-white">
+      {/* Hamburger Icon - Positioned top-left, hidden if drawer is open */}
+      {!isDrawerOpen && (
+        <div className="absolute top-0 left-0 p-4 z-30"> {/* Ensure z-index is high enough */}
+          <HamburgerIcon
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              toggleDrawer();
+            }}
+            className="text-white"
+          />
+        </div>
+      )}
+      {/* Centered Message */}
+      <div className="flex-grow flex justify-center items-center">
+        <div className="text-2xl p-5 text-center">{message}</div>
       </div>
-    );
+    </div>
+  );
+
+  if (!shakaScriptLoaded && !window.shaka) {
+    return renderNoStreamView('Loading video player library...');
   }
 
   if (!streamState || !streamState.manifestUrl) {
-    return (
-      <div className="w-full h-screen flex justify-center items-center bg-black text-white">
-        <div className="text-2xl p-5 text-center">
-          {streamState === null
-            ? 'Loading stream information...'
-            : 'No active stream available.'}
-        </div>
-      </div>
+    return renderNoStreamView(
+      streamState === null
+        ? 'Loading stream information...'
+        : 'No active stream available.'
     );
   }
 
@@ -1096,11 +1111,23 @@ const VideoPlayer: React.FC = () => {
         {/* Top Bar (Hamburger, Title, Fullscreen) */}
         <div className="flex justify-between items-center w-full">
           <HamburgerIcon
-            onClick={(e: React.MouseEvent) => { // Explicitly type 'e'
-              e.stopPropagation(); // Prevent event from bubbling to container
-              toggleDrawer();
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (isFullScreen && document.fullscreenElement) {
+                document.exitFullscreen()
+                  .then(() => {
+                    // It's generally safer to toggle the drawer after fullscreen has exited
+                    toggleDrawer();
+                  })
+                  .catch(err => {
+                    console.error("Error exiting fullscreen:", err);
+                    toggleDrawer(); // Fallback: try to toggle drawer anyway
+                  });
+              } else {
+                toggleDrawer();
+              }
             }}
-            className="text-white" // Add text-white for visibility
+            className="text-white"
           />
           {/* <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
