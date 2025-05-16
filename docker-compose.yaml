@@ -216,6 +216,8 @@ services:
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro # Mount nginx config
       # - ./party-portal/apps/frontend/auth/dist:/var/www/frontend-auth:ro
       - ${MOVIES_DIRECTORY}:/var/www/media:ro # Read-only recommended
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/gallery_uploads:ro # NEW - Mount for gallery files
+
     depends_on: # Ensure backend services are started first
       - auth
       # - frontend-auth
@@ -224,7 +226,8 @@ services:
       - cinema
       - mercure
       - frontend-video
-      - frontend-shell # Add shell as a dependency for Nginx
+      - frontend-shell
+      - gallery
     networks:
       - backend
 
@@ -239,9 +242,14 @@ services:
       AUTH_DB_USER: ${AUTH_DB_USER}
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
       AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
+
       CHAT_DB_USER: ${CHAT_DB_USER}
       CHAT_DB_PASSWORD: ${CHAT_DB_PASSWORD}
       CHAT_DB_NAME: ${CHAT_DB_NAME:-chat_db}
+
+      GALLERY_DB_USER: ${GALLERY_DB_USER}
+      GALLERY_DB_PASSWORD: ${GALLERY_DB_PASSWORD}
+      GALLERY_DB_NAME: ${GALLERY_DB_NAME:-gallery_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persist data
       # Mount init scripts to create databases, users, schemas etc.
@@ -259,6 +267,42 @@ services:
       retries: 5
     networks:
       - backend
+
+  gallery: # Gallery Service (Symfony)
+    extends: php # Inherits build, network from 'php' base
+    volumes:
+      # Mount specific service code
+      - ./party-portal/apps/backend/gallery-service:/var/www/apps/gallery
+      # Mount the host gallery uploads directory to where Symfony will store files publicly
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/apps/gallery/public/media/gallery_files # Writable
+      # Mount JWT public key from auth-service for token validation
+      - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/var/www/apps/gallery/config/jwt/public.pem:ro
+    working_dir: /var/www/apps/gallery
+    environment:
+      # --- Framework/Runtime ---
+      APP_ENV: ${SYMFONY_ENV:-dev}
+      APP_SECRET: ${GALLERY_APP_SECRET}
+      # --- Database Connection ---
+      DATABASE_URL: "postgresql://${GALLERY_DB_USER}:${GALLERY_DB_PASSWORD}@postgres:5432/${GALLERY_DB_NAME}?serverVersion=17&charset=utf8"
+      # --- JWT Configuration (Path to public key inside this container) ---
+      JWT_PUBLIC_KEY_PATH: /var/www/apps/gallery/config/jwt/public.pem
+      # --- Service Specific Paths (must match volume mount and Nginx config) ---
+      # Path inside the container's public dir where Symfony will save files.
+      APP_GALLERY_STORAGE_PATH: '%kernel.project_dir%/public/media/gallery_files'
+      # Base URL for accessing files, relative to the app's public root.
+      APP_GALLERY_BASE_URL: /media/gallery_files
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: # Inherited from 'php' base if defined there
+      - backend
+    command: >
+      sh -c "
+        composer install --optimize-autoloader &&
+        php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
+        # php bin/console app:init-database --no-interaction &&
+        php-fpm
+      "
 
 networks:
   backend: # Define the shared network

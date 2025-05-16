@@ -1,0 +1,15 @@
+# API Platform routes will be automatically loaded if the bundle is registered
+# and there are ApiResource entities.
+# You can define a global prefix for all controllers if needed:
+controllers:
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+    prefix: /gallery # Global prefix for all controllers in this service
+
+# If you want API Platform routes under /gallery/api
+api_platform_routes:
+    resource: .
+    type: api_platform
+    prefix: /gallery/api # This will make API Platform routes like /gallery/api/gallery_items

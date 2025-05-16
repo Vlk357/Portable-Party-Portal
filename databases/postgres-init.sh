@@ -1,35 +1,38 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status.
 
+echo "Creating users and databases if they do not exist..."
 # Execute SQL commands using psql, substituting environment variables
 # Note: Use the default POSTGRES_USER (usually 'postgres') to create other users/dbs
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    -- Create users only if they don't exist
+    -- Create users if they don't exist
     DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${AUTH_DB_USER}') THEN
             CREATE USER ${AUTH_DB_USER} WITH PASSWORD '${AUTH_DB_PASSWORD}';
         END IF;
-    END
-    \$\$;
-
-    DO \$\$
-    BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${CHAT_DB_USER}') THEN
             CREATE USER ${CHAT_DB_USER} WITH PASSWORD '${CHAT_DB_PASSWORD}';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${GALLERY_DB_USER}') THEN
+            CREATE USER ${GALLERY_DB_USER} WITH PASSWORD '${GALLERY_DB_PASSWORD}';
         END IF;
     END
     \$\$;
 
-    -- Create databases only if they don't exist
+    -- Create databases if they don't exist
     SELECT 'CREATE DATABASE ${AUTH_DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${AUTH_DB_NAME}')\gexec
     SELECT 'CREATE DATABASE ${CHAT_DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${CHAT_DB_NAME}')\gexec
+    SELECT 'CREATE DATABASE ${GALLERY_DB_NAME}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${GALLERY_DB_NAME}')\gexec
 
     -- Grant privileges on auth_db
     GRANT ALL PRIVILEGES ON DATABASE ${AUTH_DB_NAME} TO ${AUTH_DB_USER};
 
     -- Grant privileges on chat_db
     GRANT ALL PRIVILEGES ON DATABASE ${CHAT_DB_NAME} TO ${CHAT_DB_USER};
+
+    -- Grant privileges on gallery_db
+    GRANT ALL PRIVILEGES ON DATABASE ${GALLERY_DB_NAME} TO ${GALLERY_DB_USER};
 EOSQL
 
 # Grant schema privileges - connect to each DB separately
@@ -53,6 +56,18 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "${CHAT_DB_NAME}" <
     -- Grant on existing objects just in case
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${CHAT_DB_USER};
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${CHAT_DB_USER};
+EOSQL
+
+# Add these lines for gallery schema privileges
+echo "Granting privileges on database: ${GALLERY_DB_NAME}"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "${GALLERY_DB_NAME}" <<-EOSQL
+    GRANT ALL PRIVILEGES ON SCHEMA public TO ${GALLERY_DB_USER};
+    ALTER DATABASE ${GALLERY_DB_NAME} OWNER TO ${GALLERY_DB_USER};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${GALLERY_DB_USER};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${GALLERY_DB_USER};
+    -- Grant on existing objects just in case
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${GALLERY_DB_USER};
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${GALLERY_DB_USER};
 EOSQL
 
 echo "PostgreSQL initialization script finished."

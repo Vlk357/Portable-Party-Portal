@@ -1,0 +1,9 @@
+lexik_jwt_authentication:
+    public_key: '%env(resolve:JWT_PUBLIC_KEY_PATH)%'
+    # These are the correct options for your version:
+    user_id_claim: username  # Use this instead of user_identity_field
+    token_extractors:
+        authorization_header:
+            enabled: true
+            prefix: Bearer
+            name: Authorization
