@@ -24,16 +24,13 @@ export function App() {
       const token = localStorage.getItem('token');
       
       if (!token) {
-        // setError('Authentication required'); // Set error
-        // setIsLoading(false); // Stop loading
-        // return; // Exit
         throw new Error('Authentication required');
       }
 
       const response = await fetch('/gallery/api/gallery_items', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Accept': 'application/ld+json', // Good practice to specify accept header for API Platform
+          'Accept': 'application/ld+json', 
         }
       });
 
@@ -43,9 +40,9 @@ export function App() {
       }
 
       const data = await response.json();
-      // API Platform Hydra collections are typically in 'hydra:member'
-      // If not using Hydra, it might just be an array directly or under 'member'
-      setGalleryItems(data['hydra:member'] || data.member || data || []);
+      const items = data['hydra:member'] || data.member || data || [];
+      console.log('Fetched gallery items from API:', JSON.stringify(items, null, 2)); // Log fetched items
+      setGalleryItems(items);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load gallery items');
@@ -162,31 +159,36 @@ export function App() {
       {/* Gallery Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {galleryItems.length > 0 ? (
-          galleryItems.map((item) => (
-            <div key={item.id} className="border border-gray-200 rounded-md overflow-hidden transition-transform duration-200 hover:translate-y-[-5px] hover:shadow-lg">
-              {/* Add a check to ensure item.publicUrl exists before calling .match */}
-              {item.publicUrl && item.publicUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                <img 
-                  src={item.publicUrl} 
-                  alt={item.originalFilename} 
-                  loading="lazy"
-                  className="w-full h-48 object-cover"
-                />
-              ) : item.publicUrl && item.publicUrl.match(/\.(mp4|webm|ogg)$/i) ? (
-                <video controls className="w-full h-48 object-cover">
-                  <source src={item.publicUrl} type={`video/${item.publicUrl.split('.').pop()}`} />
-                  Your browser does not support the video tag.
-                </video>
-              ) : (
-                <div className="h-48 bg-gray-100 flex items-center justify-center text-gray-500">
+          galleryItems.map((item) => {
+            // Log each item and its publicUrl right before rendering
+            console.log('Rendering item:', item.id, 'Public URL:', item.publicUrl, 'Original Filename:', item.originalFilename); 
+            return (
+              <div key={item.id} className="border border-gray-200 rounded-md overflow-hidden transition-transform duration-200 hover:translate-y-[-5px] hover:shadow-lg">
+                {/* Add a check to ensure item.publicUrl exists before calling .match */}
+                {item.publicUrl && typeof item.publicUrl === 'string' && item.publicUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                  <img 
+                    src={item.publicUrl} 
+                    alt={item.originalFilename} 
+                    loading="lazy"
+                    className="w-full h-48 object-cover"
+                    onError={(e) => console.error('Image load error for:', item.publicUrl, e)} // Log image load errors
+                  />
+                ) : item.publicUrl && typeof item.publicUrl === 'string' && item.publicUrl.match(/\.(mp4|webm|ogg)$/i) ? (
+                  <video controls className="w-full h-48 object-cover" onError={(e) => console.error('Video load error for:', item.publicUrl, e)}>
+                    <source src={item.publicUrl} type={`video/${item.publicUrl.split('.').pop()}`} />
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <div className="h-48 bg-gray-100 flex items-center justify-center text-gray-500">
+                    {item.publicUrl ? `Unsupported format: ${item.originalFilename}` : `No public URL: ${item.originalFilename}`}
+                  </div>
+                )}
+                <div className="p-2 text-center truncate bg-gray-50">
                   {item.originalFilename}
                 </div>
-              )}
-              <div className="p-2 text-center truncate bg-gray-50">
-                {item.originalFilename}
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           !isLoading && <p className="col-span-full text-center text-gray-500">No gallery items found.</p>
         )}

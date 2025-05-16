@@ -23,7 +23,7 @@ services:
         resource: '../src/'
         exclude:
             - '../src/DependencyInjection/'
-            - '../src/Entity/' # API Platform handles entities
+            - '../src/Entity/'
             - '../src/Kernel.php'
 
     # If you have custom controllers not handled by API Platform resource attributes
@@ -35,7 +35,24 @@ services:
     App\Controller\CreateGalleryItemAction:
         tags: ['controller.service_arguments']
         arguments:
-            $galleryUploadsDirectory: '%gallery_uploads_directory%'
-            $galleryBaseUrl: '%gallery_base_url%' # If needed in controller
+            $galleryUploadsDirectory: '%env(APP_GALLERY_STORAGE_PATH)%'
+            # $galleryBaseUrl: '%env(APP_GALLERY_BASE_URL)%' # No longer needed here if normalizer handles it
 
     App\Security\JwtUserProvider: ~
+
+    # Custom Normalizer for GalleryItem
+    App\Serializer\GalleryItemNormalizer:
+        decorates: 'serializer.normalizer.object' # <--- CHANGE THIS
+        # Provide an explicit alias for the inner service if decorating a generic one
+        # This helps Symfony resolve the decorated service correctly.
+        # The '.inner' suffix is a convention.
+        arguments:
+            $decorated: '@App\Serializer\GalleryItemNormalizer.inner' # <--- ADD/MODIFY THIS
+            $galleryBaseUrl: '%env(APP_GALLERY_BASE_URL)%'
+            # Logger will be autowired
+        # Add a tag with a priority.
+        # A higher number means higher priority (runs earlier among custom normalizers).
+        # We want it to run before other generic normalizers but after the one it decorates.
+        # Let's try a moderately high priority.
+        tags:
+            - { name: serializer.normalizer, priority: 100 } # Try a positive priority

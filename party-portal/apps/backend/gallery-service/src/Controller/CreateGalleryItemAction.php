@@ -5,111 +5,94 @@ namespace App\Controller;
 use App\Entity\GalleryItem;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\String\Slugger\SluggerInterface;
+use Symfony\Component\Security\Core\User\UserInterface; // For type hinting $this->getUser()
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\HttpFoundation\JsonResponse; // Add this
-use Symfony\Component\HttpFoundation\Response; // Add this
+
 
 #[AsController]
 class CreateGalleryItemAction extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private SluggerInterface $slugger,
         private ValidatorInterface $validator,
-        private string $galleryUploadsDirectory, // Injected from services.yaml
-        private string $galleryBaseUrl,          // Injected from services.yaml
+        private string $galleryUploadsDirectory, // Keep this
+        // private string $galleryBaseUrl,      // REMOVE THIS LINE
         private LoggerInterface $logger
     ) {
     }
 
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(Request $request): GalleryItem
     {
+        $this->logger->info('CreateGalleryItemAction invoked.');
+
         $uploadedFile = $request->files->get('file');
-
-        if (!$uploadedFile) {
-            throw new BadRequestHttpException('"file" is required in multipart/form-data.');
-        }
-        if (!$uploadedFile instanceof UploadedFile) {
-            throw new BadRequestHttpException('"file" must be a valid uploaded file.');
-        }
-
         $user = $this->getUser();
+
         if (!$user instanceof UserInterface) {
-            // This should be caught by the firewall, but good to double-check
-            $this->logger->warning('CreateGalleryItemAction invoked without authenticated user.');
-            throw $this->createAccessDeniedException('User not authenticated to upload files.');
+            $this->logger->warning('User not authenticated or not UserInterface.');
+            throw $this->createAccessDeniedException('User not authenticated.');
         }
+        $this->logger->info('User authenticated: ' . $user->getUserIdentifier());
+
+
+        if (!$uploadedFile instanceof UploadedFile) {
+            $this->logger->error('No file uploaded or invalid file data.');
+            throw new BadRequestHttpException('"file" is required');
+        }
+        $this->logger->info('File uploaded: ' . $uploadedFile->getClientOriginalName());
+
 
         $galleryItem = new GalleryItem();
         $galleryItem->file = $uploadedFile; // Assign for validation
 
-        // Validate the UploadedFile using constraints on the GalleryItem::$file property
-        $violations = $this->validator->validateProperty($galleryItem, 'file', ['gallery:write']);
-        if (count($violations) > 0) {
+        // Validate the GalleryItem entity (including the file assertions)
+        $errors = $this->validator->validate($galleryItem, null, ['gallery:write']);
+        if (count($errors) > 0) {
             $errorMessages = [];
-            foreach ($violations as $violation) {
-                $errorMessages[] = $violation->getMessage();
+            foreach ($errors as $error) {
+                $errorMessages[] = $error->getPropertyPath() . ': ' . $error->getMessage();
             }
-            throw new BadRequestHttpException(implode("\n", $errorMessages));
+            $this->logger->error('Validation failed for GalleryItem.', ['errors' => $errorMessages]);
+            throw new BadRequestHttpException(implode(', ', $errorMessages));
         }
-
-        // Get MIME type and extension BEFORE moving the file
-        $actualMimeType = $uploadedFile->getMimeType(); // This uses MimeTypeGuesser
-        $actualExtension = $uploadedFile->guessExtension(); // Guess extension based on MIME type or client info
-
-        if (!$actualExtension) {
-            // Fallback or handle error if extension cannot be guessed
-            // For example, from client original name, but be cautious
-            $actualExtension = $uploadedFile->getClientOriginalExtension();
-            if (!$actualExtension) {
-                // If still no extension, you might want to throw an error or default
-                $this->logger->warning(sprintf('Could not determine extension for uploaded file "%s".', $uploadedFile->getClientOriginalName()));
-                // Consider throwing an error or using a default extension if appropriate
-                // For now, let's try to proceed if possible, or throw:
-                // throw new BadRequestHttpException('Could not determine file extension.');
-                // As a last resort, try to get it from the original filename, though less reliable
-                $actualExtension = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION);
-            }
-        }
+        $this->logger->info('GalleryItem validated successfully.');
 
 
+        // Generate a unique filename
         $originalFilename = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_FILENAME);
-        $safeFilename = $this->slugger->slug($originalFilename);
-        // Ensure a unique filename to prevent overwrites
-        $newFilename = $safeFilename . '-' . uniqid() . '.' . $actualExtension;
+        // Sanitize filename (optional, but good practice)
+        $safeFilename = transliterator_transliterate('Any-Latin; Latin-ASCII; [^A-Za-z0-9_.-] remove; Lower()', $originalFilename);
+        $newFilename = $safeFilename . '-' . uniqid() . '.' . $uploadedFile->guessExtension();
 
-
+        // Move the file to the target directory
         try {
-            $uploadedFile->move(
-                $this->galleryUploadsDirectory,
-                $newFilename
-            );
-            $this->logger->info(sprintf('File "%s" uploaded as "%s" by user "%s".', $uploadedFile->getClientOriginalName(), $newFilename, $user->getUserIdentifier()));
+            $uploadedFile->move($this->galleryUploadsDirectory, $newFilename);
+            $this->logger->info('File moved successfully to: ' . $this->galleryUploadsDirectory . '/' . $newFilename);
         } catch (\Exception $e) {
-            $this->logger->error(sprintf('Failed to move uploaded file "%s": %s', $uploadedFile->getClientOriginalName(), $e->getMessage()));
-            // It's better to throw a more specific exception or rethrow with context
-            throw new \RuntimeException(sprintf('Failed to save uploaded file: %s', $e->getMessage()), 0, $e);
+            $this->logger->error('Failed to move uploaded file.', ['exception' => $e->getMessage()]);
+            // Consider throwing a more specific exception or handling it
+            throw new \RuntimeException('Failed to save uploaded file: ' . $e->getMessage(), 500, $e);
         }
 
+        // Populate the entity
         $galleryItem->setUserId($user->getUserIdentifier());
         $galleryItem->setOriginalFilename($uploadedFile->getClientOriginalName());
         $galleryItem->setStoredFilename($newFilename);
-        $galleryItem->setMimeType($actualMimeType ?? $uploadedFile->getClientMimeType()); // Use the determined MIME type
-        $galleryItem->setGalleryBaseUrl($this->galleryBaseUrl); // Set base URL for getPublicUrl()
+        
+        $actualMimeType = mime_content_type($this->galleryUploadsDirectory . '/' . $newFilename);
+        $galleryItem->setMimeType($actualMimeType ?: $uploadedFile->getClientMimeType());
+        
+        // $galleryItem->setGalleryBaseUrl($this->galleryBaseUrl); // This line should already be removed/commented
 
         $this->entityManager->persist($galleryItem);
         $this->entityManager->flush();
+        $this->logger->info('GalleryItem persisted with ID: ' . $galleryItem->getId());
 
-        // return $galleryItem; // Original line
-
-        // Temporary: Manually create a JsonResponse
-        return $this->json($galleryItem, Response::HTTP_CREATED, [], ['groups' => 'gallery:read']);
+        return $galleryItem; // API Platform will handle serialization
     }
 }
