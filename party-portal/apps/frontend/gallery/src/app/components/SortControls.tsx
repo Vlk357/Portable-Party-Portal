@@ -1,11 +1,6 @@
 import React from 'react';
-import { SortOptions, SortField, SortDirection } from '../hooks/useGallery';
-
-interface SortControlsProps {
-  sortOptions: SortOptions;
-  onChangeSort: (newSortOptions: Partial<SortOptions>) => void;
-  disabled?: boolean;
-}
+import { SortOptions, SortField, SortDirection } from '../hooks/useGallery'; // Ensure SortOptions is imported
+import { SortControlsProps } from '../interfaces/SortControlsProps';
 
 // Updated sortableFields
 const sortableFields: { label: string; value: SortField }[] = [
@@ -23,15 +18,15 @@ export function SortControls({
   disabled,
 }: SortControlsProps) {
   const handleFieldChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChangeSort({ field: e.target.value as SortField });
+    onChangeSort((prev: SortOptions) => ({ ...prev, field: e.target.value as SortField }));
   };
 
   const handleDirectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChangeSort({ direction: e.target.value as SortDirection });
+    onChangeSort((prev: SortOptions) => ({ ...prev, direction: e.target.value as SortDirection }));
   };
 
   return (
-    <div className="my-4 p-3 bg-gray-50 rounded-md shadow flex flex-col sm:flex-row sm:flex-wrap gap-3 items-center">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 items-center">
       <span className="text-sm font-medium text-gray-700">Sort by:</span>
       <div className="flex items-center gap-2">
         <label htmlFor="sortField" className="sr-only">

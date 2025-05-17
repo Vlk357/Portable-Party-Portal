@@ -5,8 +5,10 @@ namespace App\Entity;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Get; // <-- Add this
 use ApiPlatform\OpenApi\Model;
 use App\Controller\CreateGalleryItemAction;
+use App\Controller\GetUniqueUserIdsAction;
 use App\Repository\GalleryItemRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -23,9 +25,36 @@ use ApiPlatform\Metadata\ApiFilter;
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     operations: [
-        new GetCollection(
+        new GetCollection( // This is the standard collection endpoint
             normalizationContext: ['groups' => ['gallery:read']],
-            paginationItemsPerPage: 9 // You can adjust this as needed
+            paginationItemsPerPage: 9
+        ),
+        new Get( // Custom operation for unique user IDs, changed from GetCollection
+            uriTemplate: '/gallery_items/user_ids',
+            controller: GetUniqueUserIdsAction::class,
+            // No provider needed as the controller fetches and returns data directly.
+            // read: false, // With a custom controller and Get (not GetCollection), 'read' might not be necessary or could behave differently. Let's test without it first.
+            // deserialize: false, // Typically for POST/PUT, not strictly needed for GET but harmless.
+            // validate: false, // No validation needed.
+            paginationEnabled: false, // Explicitly disable pagination
+            openapi: new Model\Operation( // Define OpenAPI schema for the response
+                summary: 'Retrieves the list of unique user IDs that have uploaded gallery items.',
+                responses: [
+                    '200' => [
+                        'description' => 'Array of unique user IDs.',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => [
+                                    'type' => 'array',
+                                    'items' => ['type' => 'string'],
+                                ],
+                                'example' => ['user1', 'user2', 'Kanafasek123']
+                            ]
+                        ]
+                    ]
+                ]
+            ),
+            name: 'get_unique_user_ids'
         ),
         new Post(
             controller: CreateGalleryItemAction::class,
@@ -54,7 +83,7 @@ use ApiPlatform\Metadata\ApiFilter;
             )
         )
     ],
-    order: ['takenAt' => 'DESC', 'id' => 'DESC'], // Default order
+    order: ['takenAt' => 'DESC', 'id' => 'DESC'],
     normalizationContext: ['groups' => ['gallery:read']],
     denormalizationContext: ['groups' => ['gallery:write']]
 )]

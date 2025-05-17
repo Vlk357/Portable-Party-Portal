@@ -1,10 +1,12 @@
 // filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/frontend/gallery/src/app/app.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useShell } from '../../../shell/src/app/context/ShellContext';
-import { useGallery } from './hooks/useGallery';
+import { useGallery, SortOptions, FilterOptions } from './hooks/useGallery'; // Import types
 import { GalleryHeader } from './components/GalleryHeader';
-import { SortControls } from './components/SortControls';
-import { FilterControls } from './components/FilterControls'; // <-- Import FilterControls
+// SortControls and FilterControls are now used inside FilterSortPanel
+// import { SortControls } from './components/SortControls';
+// import { FilterControls } from './components/FilterControls';
+import { FilterSortPanel } from './components/FilterSortPanel'; // Import the new panel
 import { GalleryGrid } from './components/GalleryGrid';
 import { UploadFeedback } from './components/UploadFeedback';
 
@@ -24,7 +26,8 @@ export function App() {
     changeSortOptions,
     filterOptions,
     changeFilterOptions,
-    clearFilters,
+    clearFilters, // This will be used by the panel to signal clearing global filters
+    availableUserIds,
   } = useGallery();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -32,6 +35,8 @@ export function App() {
   const { toggleDrawer } = useShell();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const observer = useRef<IntersectionObserver | null>(null);
+
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false); // State for panel visibility
 
   // Infinite scroll observer setup (remains the same)
   useEffect(() => {
@@ -43,10 +48,15 @@ export function App() {
       }
     });
     const currentLoadMoreRef = loadMoreRef.current;
-    if (currentLoadMoreRef) observer.current.observe(currentLoadMoreRef);
+    if (currentLoadMoreRef && observer.current) { // Check if observer.current is not null
+        observer.current.observe(currentLoadMoreRef);
+    }
     return () => {
-      if (currentLoadMoreRef && observer.current) observer.current.unobserve(currentLoadMoreRef);
-      else if (currentLoadMoreRef && currentObserver) currentObserver.unobserve(currentLoadMoreRef);
+      if (currentLoadMoreRef && observer.current) { // Check if observer.current is not null
+        observer.current.unobserve(currentLoadMoreRef);
+      } else if (currentLoadMoreRef && currentObserver) {
+        currentObserver.unobserve(currentLoadMoreRef);
+      }
     };
   }, [fetchGalleryItems, isLoading, isLoadingMore, nextPageUrl]);
 
@@ -70,6 +80,23 @@ export function App() {
     }
   };
 
+
+  const handleApplyFiltersAndSort = (newSort: SortOptions, newFilters: FilterOptions) => {
+    // Check if sort options actually changed
+    if (JSON.stringify(newSort) !== JSON.stringify(sortOptions)) {
+      changeSortOptions(newSort);
+    }
+    // Check if filter options actually changed
+    if (JSON.stringify(newFilters) !== JSON.stringify(filterOptions)) {
+      changeFilterOptions(newFilters);
+    }
+    // If neither changed, but the user hit apply, we might still want to close the panel
+    // or the panel's apply button could be disabled if no pending changes.
+    // The useGallery hook's useEffect will trigger fetch if options changed.
+  };
+  
+  const toggleFilterPanel = () => setIsFilterPanelOpen(prev => !prev);
+
   const isActionDisabled = isUploading || isLoading || isLoadingMore;
 
   return (
@@ -83,6 +110,7 @@ export function App() {
       <GalleryHeader
         onToggleDrawer={toggleDrawer}
         onOpenFileDialog={openFileDialog}
+        onToggleFilterPanel={toggleFilterPanel} // Pass handler
         isActionDisabled={isActionDisabled}
       />
 
@@ -100,19 +128,8 @@ export function App() {
           filesToUploadCount={filesToUpload.length}
         />
 
-        {/* Add FilterControls */}
-        <FilterControls
-            currentFilters={filterOptions}
-            onChangeFilter={changeFilterOptions}
-            onClearFilters={clearFilters}
-            disabled={isActionDisabled}
-        />
-
-        <SortControls
-            sortOptions={sortOptions}
-            onChangeSort={changeSortOptions}
-            disabled={isActionDisabled}
-        />
+        {/* FilterControls and SortControls are now inside FilterSortPanel */}
+        {/* No longer directly rendered here */}
 
         {error && (
           <div className="my-4 text-red-700 p-4 bg-red-100 border border-red-300 rounded-md mb-4">
@@ -147,6 +164,16 @@ export function App() {
           <p className="text-center text-gray-500 py-6">You've reached the end!</p>
         )}
       </main>
+
+      <FilterSortPanel
+        isOpen={isFilterPanelOpen}
+        onClose={() => setIsFilterPanelOpen(false)}
+        currentSortOptions={sortOptions}
+        currentFilterOptions={filterOptions}
+        availableUserIds={availableUserIds}
+        onApply={handleApplyFiltersAndSort}
+        disabled={isActionDisabled}
+      />
     </div>
   );
 }

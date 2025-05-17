@@ -21,7 +21,7 @@ export interface FilterOptions {
 }
 
 const DEFAULT_SORT_OPTIONS: SortOptions = { field: 'takenAt', direction: 'desc' };
-const DEFAULT_FILTER_OPTIONS: FilterOptions = {};
+export const DEFAULT_FILTER_OPTIONS: FilterOptions = {}; // <-- Add export
 const API_BASE_URL = '/gallery/api/gallery_items';
 
 export function useGallery() {
@@ -36,6 +36,8 @@ export function useGallery() {
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [currentFileUpload, setCurrentFileUpload] = useState<{ name: string; progress: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [availableUserIds, setAvailableUserIds] = useState<string[]>([]);
 
   const buildApiUrl = useCallback((pageUrl?: string | null, isInitial = false) => {
     const baseUrl = pageUrl ? new URL(pageUrl, window.location.origin) : new URL(API_BASE_URL, window.location.origin);
@@ -213,6 +215,33 @@ export function useGallery() {
     setFilterOptions(DEFAULT_FILTER_OPTIONS);
   };
 
+  const fetchAvailableUserIds = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('No token found, cannot fetch user IDs.');
+        return;
+      }
+      // Adjust API_BASE_URL or use a full path if necessary
+      const response = await fetch(`${API_BASE_URL}/user_ids`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user IDs: ${response.statusText}`);
+      }
+      const data: string[] = await response.json();
+      setAvailableUserIds(data);
+    } catch (error) {
+      console.error("Error fetching available user IDs:", error);
+      // Optionally set an error state here
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAvailableUserIds();
+  }, [fetchAvailableUserIds]);
+
+
   return {
     galleryItems,
     isLoading,
@@ -229,5 +258,6 @@ export function useGallery() {
     filterOptions,        // Expose filter state
     changeFilterOptions,  // Expose function to update filters
     clearFilters,         // Expose function to clear filters
+    availableUserIds, // Expose available user IDs
   };
 }
