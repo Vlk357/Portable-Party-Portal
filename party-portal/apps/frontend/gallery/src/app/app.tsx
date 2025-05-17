@@ -1,17 +1,41 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useShell } from '../../../shell/src/app/context/ShellContext'; // Assuming path from ChatList.tsx
-import { HamburgerIcon } from '../../../shell/src/app/components/HamburgerIcon'; // Assuming path from ChatList.tsx
+import { useShell } from '../../../shell/src/app/context/ShellContext';
+import { HamburgerIcon } from '../../../shell/src/app/components/HamburgerIcon';
 
 interface GalleryItem {
+  '@id'?: string; 
   id: number;
   userId: string;
   originalFilename: string;
   publicUrl: string;
+  mimeType?: string; 
+  uploadedAt?: string; 
 }
+
+// Updated to match actual API response
+interface View { // Renamed from HydraView for clarity, as prefixes are not consistently used
+  '@id': string;
+  '@type': string;
+  first?: string; // No 'hydra:' prefix
+  last?: string;  // No 'hydra:' prefix
+  previous?: string; // No 'hydra:' prefix
+  next?: string;  // No 'hydra:' prefix
+}
+
+interface PaginatedGalleryResponse {
+  '@context'?: string;
+  '@id'?: string;
+  '@type'?: string;
+  member: GalleryItem[];         // No 'hydra:' prefix
+  totalItems?: number;          // No 'hydra:' prefix
+  view?: View;                  // No 'hydra:' prefix, and uses the updated View interface
+}
+
 
 export function App() {
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); 
+  const [isLoadingMore, setIsLoadingMore] = useState(false); 
   const [error, setError] = useState<string | null>(null);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [currentFileUpload, setCurrentFileUpload] = useState<{ name: string; progress: number } | null>(null);
@@ -20,66 +44,154 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toggleDrawer } = useShell();
 
-  const fetchGalleryItems = useCallback(async () => {
-    try {
+  const [nextPageUrl, setNextPageUrl] = useState<string | null>('/gallery/api/gallery_items?page=1');
+  const observer = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null); 
+
+  const fetchGalleryItems = useCallback(async (url: string, isInitialLoad = false) => {
+    console.log(`[fetchGalleryItems] Called with URL: ${url}, isInitialLoad: ${isInitialLoad}`); 
+    if (!url) {
+      console.warn('[fetchGalleryItems] URL is null, returning.');
+      return;
+    }
+
+    if (isInitialLoad) {
       setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    setError(null);
+
+    try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Authentication required');
 
-      const response = await fetch('/gallery/api/gallery_items', {
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Accept': 'application/ld+json',
+          'Accept': 'application/ld+json', 
         }
       });
 
+      console.log(`[fetchGalleryItems] Response status: ${response.status}`);
+      console.log(`[fetchGalleryItems] Response Content-Type: ${response.headers.get('Content-Type')}`);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `Error: ${response.status}` }));
-        throw new Error(errorData.message || `Error: ${response.status}`);
+        const errorText = await response.text(); 
+        console.error('[fetchGalleryItems] Response not OK. Raw error response:', errorText);
+        const errorData = JSON.parse(errorText || '{}'); 
+        throw new Error(errorData.message || errorData.detail || errorData.title || `Error: ${response.status}`);
       }
-      const data = await response.json();
-      const items = data['hydra:member'] || data.member || data || [];
-      setGalleryItems(items);
-      setError(null);
+
+      const rawText = await response.text();
+      console.log('[fetchGalleryItems] Raw response text:', rawText);
+
+      const data: PaginatedGalleryResponse = JSON.parse(rawText);
+      console.log('[fetchGalleryItems] Parsed data object:', data); 
+
+      // CORRECTED PROPERTY ACCESS:
+      const newItems = data.member || []; 
+      
+      console.log('[fetchGalleryItems] Extracted new items:', newItems); 
+      
+      setGalleryItems(prevItems => {
+        const updatedItems = isInitialLoad ? newItems : [...prevItems, ...newItems];
+        console.log('[fetchGalleryItems] Updating galleryItems state. Prev length:', prevItems.length, 'New/Updated length:', updatedItems.length); 
+        return updatedItems;
+      });
+
+      // CORRECTED PROPERTY ACCESS:
+      const nextUrl = data.view && data.view.next ? data.view.next : null;
+      setNextPageUrl(nextUrl);
+      console.log('[fetchGalleryItems] Next page URL set to:', nextUrl); 
+
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load gallery items');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load gallery items';
+      setError(errorMessage);
+      console.error('[fetchGalleryItems] Error in catch block:', errorMessage, err); 
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad) {
+        setIsLoading(false);
+        console.log('[fetchGalleryItems] setIsLoading(false) for initial load.'); 
+      } else {
+        setIsLoadingMore(false);
+        console.log('[fetchGalleryItems] setIsLoadingMore(false) for subsequent load.'); 
+      }
     }
-  }, []);
+  }, []); 
 
   useEffect(() => {
-    fetchGalleryItems();
-  }, [fetchGalleryItems]);
+    console.log('[useEffect initialLoad] Checking condition. nextPageUrl:', nextPageUrl, 'galleryItems.length:', galleryItems.length); 
+    // Simplified initial load condition: only fetch if it's the first page URL and items are empty.
+    // The double call might still happen due to rapid state changes, but let's fix data access first.
+    if (nextPageUrl === '/gallery/api/gallery_items?page=1' && galleryItems.length === 0 && !isLoading) { 
+        console.log('[useEffect initialLoad] Condition met, calling fetchGalleryItems.'); 
+        fetchGalleryItems('/gallery/api/gallery_items?page=1', true);
+    } else if (galleryItems.length === 0 && isLoading && nextPageUrl === '/gallery/api/gallery_items?page=1') {
+        // This handles the very first load when isLoading is true by default
+        console.log('[useEffect initialLoad] Initial component mount, calling fetchGalleryItems.');
+        fetchGalleryItems('/gallery/api/gallery_items?page=1', true);
+    }
+  }, [fetchGalleryItems, nextPageUrl, galleryItems.length, isLoading]);
+
+
+  useEffect(() => {
+    console.log(`[useEffect observerSetup] isLoading: ${isLoading}, isLoadingMore: ${isLoadingMore}, nextPageUrl: ${nextPageUrl}, loadMoreRef.current: ${!!loadMoreRef.current}`); 
+    if (isLoading || isLoadingMore || !nextPageUrl || !loadMoreRef.current) return;
+
+    const currentObserver = observer.current; 
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && nextPageUrl && !isLoadingMore) { 
+        console.log('[IntersectionObserver] Triggered, fetching next page:', nextPageUrl); 
+        fetchGalleryItems(nextPageUrl, false); 
+      }
+    });
+
+    const currentLoadMoreRef = loadMoreRef.current;
+    if (currentLoadMoreRef) {
+      observer.current.observe(currentLoadMoreRef);
+      console.log('[useEffect observerSetup] Observer attached.'); 
+    }
+
+    return () => {
+      if (currentLoadMoreRef && observer.current) {
+        observer.current.unobserve(currentLoadMoreRef);
+        console.log('[useEffect observerSetup] Observer detached (observer.current).'); 
+      } else if (currentLoadMoreRef && currentObserver) { 
+        currentObserver.unobserve(currentLoadMoreRef);
+        console.log('[useEffect observerSetup] Observer detached (currentObserver).'); 
+      }
+    };
+  }, [fetchGalleryItems, isLoading, isLoadingMore, nextPageUrl]); 
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFilesToUpload(Array.from(e.target.files));
-      // Automatically start upload after files are selected
-      handleUpload(Array.from(e.target.files));
-      // Clear the input value to allow selecting the same file(s) again
+      const newFiles = Array.from(e.target.files);
+      setFilesToUpload(prevFiles => [...prevFiles, ...newFiles]); 
+      handleUpload(newFiles); 
       if (fileInputRef.current) {
         fileInputRef.current.value = ""; 
       }
     }
   };
 
-  const uploadFile = (file: File): Promise<void> => {
+  const uploadFile = (file: File): Promise<GalleryItem> => { 
     return new Promise((resolve, reject) => {
       const token = localStorage.getItem('token');
       if (!token) {
         reject(new Error('Authentication required'));
         return;
       }
-
       const formData = new FormData();
       formData.append('file', file);
-
       setCurrentFileUpload({ name: file.name, progress: 0 });
-
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/gallery/api/gallery_items', true);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Accept', 'application/ld+json'); 
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
@@ -87,52 +199,68 @@ export function App() {
           setCurrentFileUpload({ name: file.name, progress: percentComplete });
         }
       };
-
       xhr.onload = () => {
-        if (xhr.status === 201) {
-          resolve();
+        if (xhr.status === 201) { 
+          try {
+            const newItemData = JSON.parse(xhr.responseText);
+            // Ensure the resolved object matches GalleryItem structure
+            const newItem: GalleryItem = {
+              id: newItemData.id,
+              userId: newItemData.userId,
+              originalFilename: newItemData.originalFilename,
+              publicUrl: newItemData.publicUrl,
+              mimeType: newItemData.mimeType,
+              uploadedAt: newItemData.uploadedAt,
+              '@id': newItemData['@id'],
+            };
+            resolve(newItem); 
+          } catch (parseError) {
+            reject(new Error('Failed to parse server response after upload.'));
+          }
         } else {
           const errorText = xhr.responseText || `Upload failed: ${xhr.statusText}`;
           try {
             const errorJson = JSON.parse(xhr.responseText);
-            reject(new Error(errorJson.detail || errorJson.message || errorText));
+            reject(new Error(errorJson.detail || errorJson.message || errorJson.title || errorText));
           } catch {
             reject(new Error(errorText));
           }
         }
       };
-
       xhr.onerror = () => {
         reject(new Error('Upload failed: Network error'));
       };
-
       xhr.send(formData);
     });
   };
 
   const handleUpload = async (files: File[]) => {
     if (files.length === 0) return;
-
     setIsUploading(true);
     setError(null);
-    let successCount = 0;
+    const successfullyUploadedItems: GalleryItem[] = [];
 
     for (const file of files) {
       try {
-        await uploadFile(file);
-        successCount++;
+        const newItem = await uploadFile(file); 
+        if (newItem) { 
+          successfullyUploadedItems.push(newItem);
+        }
       } catch (err) {
-        setError(err instanceof Error ? `Error uploading ${file.name}: ${err.message}` : `Failed to upload ${file.name}`);
-        // Optionally stop on first error or continue
-        // For now, we'll let it try to upload subsequent files
+        setError(prevError => 
+          prevError 
+          ? `${prevError}\nError uploading ${file.name}: ${err instanceof Error ? err.message : String(err)}`
+          : `Error uploading ${file.name}: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     }
 
     setCurrentFileUpload(null);
-    setFilesToUpload([]);
+    setFilesToUpload([]); 
     setIsUploading(false);
-    if (successCount > 0) {
-      fetchGalleryItems(); // Refresh the gallery if at least one upload was successful
+
+    if (successfullyUploadedItems.length > 0) {
+      setGalleryItems(prevItems => [...successfullyUploadedItems, ...prevItems]);
     }
   };
   
@@ -141,38 +269,27 @@ export function App() {
   };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingOver(true);
+    e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true);
   };
-  
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Check if the leave target is outside the dropzone
-    if (e.currentTarget.contains(e.relatedTarget as Node)) {
-      return;
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDraggingOver(false);
   };
-  
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingOver(true); // Keep it true while dragging over
+    e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); 
   };
-  
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingOver(false);
+    e.preventDefault(); e.stopPropagation(); setIsDraggingOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFiles = Array.from(e.dataTransfer.files);
-      setFilesToUpload(droppedFiles);
-      handleUpload(droppedFiles); // Automatically upload dropped files
+      setFilesToUpload(prev => [...prev, ...droppedFiles]);
+      handleUpload(droppedFiles);
       e.dataTransfer.clearData();
     }
   };
+
+  console.log(`[Render] isLoading: ${isLoading}, galleryItems.length: ${galleryItems.length}, error: ${error}, nextPageUrl: ${nextPageUrl}`); 
 
   return (
     <div 
@@ -184,17 +301,14 @@ export function App() {
     >
       <header className="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center flex-shrink-0">
         <div className="flex items-center">
-          <HamburgerIcon
-            onClick={toggleDrawer}
-            className="mr-2 text-white"
-          />
+          <HamburgerIcon onClick={toggleDrawer} className="mr-3 text-white h-6 w-6" />
           <h1 className="text-xl font-semibold">Gallery</h1>
         </div>
         <button
           onClick={openFileDialog}
           className="p-2 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Upload new media"
-          disabled={isUploading}
+          disabled={isUploading || isLoading || isLoadingMore} 
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -203,32 +317,26 @@ export function App() {
       </header>
 
       <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        multiple // Allow multiple file selection
-        accept="image/*, video/*"
-        className="hidden"
-        disabled={isUploading}
+        type="file" ref={fileInputRef} onChange={handleFileChange}
+        multiple accept="image/*, video/*, video/x-matroska" className="hidden" disabled={isUploading || isLoading || isLoadingMore}
       />
       
-      <main className={`flex-grow p-8 overflow-y-auto relative ${isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-400' : ''}`}>
+      <main className={`flex-grow p-4 sm:p-8 overflow-y-auto relative ${isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-400' : ''}`}>
         {isDraggingOver && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-blue-600 text-lg font-semibold">Drop files here to upload</p>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <p className="text-blue-600 text-lg font-semibold bg-white p-4 rounded-md shadow-lg">Drop files here to upload</p>
           </div>
         )}
 
-        {/* Upload Progress for current file */}
         {currentFileUpload && (
-          <div className="bg-gray-100 p-4 rounded-lg mb-6 shadow-sm">
+          <div className="fixed top-16 left-1/2 transform -translate-x-1/2 bg-gray-700 text-white p-4 rounded-lg mb-6 shadow-lg z-50 w-11/12 max-w-md">
             <p className="text-sm mb-1">Uploading: {currentFileUpload.name}</p>
-            <div className="w-full h-5 bg-gray-200 rounded-full overflow-hidden relative">
+            <div className="w-full h-5 bg-gray-600 rounded-full overflow-hidden relative">
               <div
                 className="h-full bg-green-500 transition-all duration-100"
                 style={{ width: `${currentFileUpload.progress}%` }}
               />
-              <span className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
+              <span className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-medium text-gray-100">
                 {currentFileUpload.progress}%
               </span>
             </div>
@@ -236,60 +344,68 @@ export function App() {
         )}
         
         {isUploading && !currentFileUpload && filesToUpload.length > 0 && (
-           <div className="bg-gray-100 p-4 rounded-lg mb-6 shadow-sm text-center">
+           <div className="fixed top-16 left-1/2 transform -translate-x-1/2 bg-gray-700 text-white p-4 rounded-lg mb-6 shadow-lg z-50 text-center">
              <p>Preparing to upload {filesToUpload.length} file(s)...</p>
            </div>
         )}
 
-
-        {/* Error Message */}
         {error && (
-          <div className="text-red-700 p-4 bg-red-50 rounded-md mb-4">
-            {error}
+          <div className="my-4 text-red-700 p-4 bg-red-100 border border-red-300 rounded-md mb-4">
+            <p className="font-semibold">Error:</p>
+            <pre className="whitespace-pre-wrap">{error}</pre>
           </div>
         )}
 
-        {/* Loading Indicator */}
-        {isLoading && (
-          <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-700 mx-auto"></div>
-            <p className="mt-2">Loading gallery items...</p>
+        {isLoading && galleryItems.length === 0 && (
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
+            <p className="mt-3 text-gray-600">Loading gallery items...</p>
           </div>
         )}
 
-        {/* Gallery Grid */}
-        {!isDraggingOver && (
+        {!isLoading && galleryItems.length === 0 && !error && (
+             <p className="col-span-full text-center text-gray-500 py-10">No gallery items found. Drag and drop files or use the '+' button to upload.</p>
+        )}
+
+        {galleryItems.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {galleryItems.length > 0 ? (
-              galleryItems.map((item) => (
-                <div key={item.id} className="border border-gray-200 rounded-md overflow-hidden transition-transform duration-200 hover:translate-y-[-5px] hover:shadow-lg">
-                  {item.publicUrl && typeof item.publicUrl === 'string' && item.publicUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                    <img
-                      src={item.publicUrl}
-                      alt={item.originalFilename}
-                      loading="lazy"
-                      className="w-full h-48 object-cover"
-                      onError={(e) => console.error('Image load error for:', item.publicUrl, e)}
-                    />
-                  ) : item.publicUrl && typeof item.publicUrl === 'string' && item.publicUrl.match(/\.(mp4|webm|ogg)$/i) ? (
-                    <video controls className="w-full h-48 object-cover" onError={(e) => console.error('Video load error for:', item.publicUrl, e)}>
-                      <source src={item.publicUrl} type={`video/${item.publicUrl.split('.').pop()}`} />
-                      Your browser does not support the video tag.
-                    </video>
-                  ) : (
-                    <div className="h-48 bg-gray-100 flex items-center justify-center text-gray-500 text-xs p-2 text-center">
-                      {item.publicUrl ? `Unsupported: ${item.originalFilename}` : `No URL: ${item.originalFilename}`}
-                    </div>
-                  )}
-                  <div className="p-2 text-center truncate bg-gray-50 text-sm">
-                    {item.originalFilename}
+            {galleryItems.map((item) => (
+              <div key={item['@id'] || item.id} className="border border-gray-200 rounded-md overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg">
+                {item.publicUrl && item.mimeType && item.mimeType.startsWith('image/') ? (
+                  <img
+                    src={item.publicUrl} alt={item.originalFilename} loading="lazy"
+                    className="w-full h-48 object-cover"
+                    onError={(e) => console.error('Image load error for:', item.publicUrl, e)}
+                  />
+                ) : item.publicUrl && item.mimeType && item.mimeType.startsWith('video/') ? (
+                  <video controls preload="metadata" className="w-full h-48 object-cover bg-black" onError={(e) => console.error('Video load error for:', item.publicUrl, e)}>
+                    <source src={item.publicUrl} type={item.mimeType} />
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <div className="h-48 bg-gray-100 flex items-center justify-center text-gray-500 text-xs p-2 text-center">
+                    {item.originalFilename || 'Media preview unavailable'}
                   </div>
+                )}
+                <div className="p-2 text-center truncate bg-gray-50 text-sm text-gray-700" title={item.originalFilename}>
+                  {item.originalFilename}
                 </div>
-              ))
-            ) : (
-              !isLoading && <p className="col-span-full text-center text-gray-500">No gallery items found. Drag and drop files or use the '+' button to upload.</p>
-            )}
+              </div>
+            ))}
           </div>
+        )}
+        
+        <div ref={loadMoreRef} style={{ height: '1px' }} />
+
+        {isLoadingMore && (
+          <div className="text-center py-6">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-500">Loading more items...</p>
+          </div>
+        )}
+
+        {!isLoadingMore && !nextPageUrl && galleryItems.length > 0 && (
+            <p className="text-center text-gray-500 py-6">You've reached the end!</p>
         )}
       </main>
     </div>

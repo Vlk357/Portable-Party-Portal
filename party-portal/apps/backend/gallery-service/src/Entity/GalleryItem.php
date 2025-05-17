@@ -20,7 +20,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ApiResource(
     operations: [
         new GetCollection(
-            normalizationContext: ['groups' => ['gallery:read']]
+            normalizationContext: ['groups' => ['gallery:read']],
+            paginationItemsPerPage: 9
         ),
         new Post(
             controller: CreateGalleryItemAction::class,
@@ -63,6 +64,7 @@ class GalleryItem
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['gallery:read'])]
     private ?string $userId = null; // User identifier from JWT
 
     #[ORM\Column(length: 255)]
@@ -73,9 +75,11 @@ class GalleryItem
     private ?string $storedFilename = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['gallery:read'])]
     private ?string $mimeType = null;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[Groups(['gallery:read'])]
     private ?\DateTimeImmutable $uploadedAt = null;
 
     // This is a virtual property for the uploaded file, not persisted directly by Doctrine.
@@ -84,8 +88,13 @@ class GalleryItem
     #[Assert\File(
         maxSize: "100G",
         mimeTypes: [
-            "image/jpeg", "image/png", "image/gif", "image/webp",
-            "video/mp4", "video/quicktime", "video/webm"
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/webp",
+            "video/mp4",
+            "video/quicktime",
+            "video/webm"
         ],
         groups: ['gallery:write']
     )]
