@@ -13,8 +13,6 @@ export function MainLayout() {
   };
 
   return (
-    // The main div no longer needs to be flex h-screen if apps manage their own full height
-    // It primarily serves as a container for the sidebar and the app's content (Outlet)
     <>
       {/* Sidebar */}
       <aside
@@ -90,24 +88,18 @@ export function MainLayout() {
       </aside>
 
       {/* Overlay to close sidebar when clicking outside */}
-      {isDrawerOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black opacity-50"
-          onClick={closeDrawer}
-          aria-hidden="true"
-        ></div>
-      )}
+      {/* Always render the div, control visibility with opacity and pointer-events for transition */}
+      <div
+        className={`fixed inset-0 z-20 bg-black transition-opacity duration-300 ease-in-out
+                   ${isDrawerOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'}`}
+        onClick={isDrawerOpen ? closeDrawer : undefined} // Only clickable when drawer is open
+        aria-hidden={!isDrawerOpen}
+      ></div>
 
-      {/* Content Area - The Outlet will render the specific app module */}
-      {/* Removed the wrapping div and header from here */}
-      {/* The individual apps (ChatModule, CinemaModule) will now be responsible for their own layout, including any headers */}
+      {/* Content Area */}
       <div className="flex-1">
-        {' '}
-        {/* This div might need adjustment based on how apps structure themselves */}
-        {/* Removed p-6 and other shell-specific main styling */}
-        <Outlet />{' '}
-        {/* ChatModule or CinemaModule content renders here, taking full space */}
+        <Outlet />
       </div>
-    </> // Using React Fragment as the outermost element
+    </>
   );
 }

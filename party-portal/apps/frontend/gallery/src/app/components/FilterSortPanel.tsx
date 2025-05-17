@@ -1,5 +1,4 @@
-// filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/frontend/gallery/src/app/components/FilterSortPanel.tsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SortOptions, FilterOptions, DEFAULT_FILTER_OPTIONS } from '../hooks/useGallery';
 import { SortControls } from './SortControls';
 import { FilterControls } from './FilterControls';
@@ -13,44 +12,107 @@ export function FilterSortPanel({
   availableUserIds,
   onApply,
   disabled,
+  onClearAllInPanel,
 }: FilterSortPanelProps) {
   const [pendingSortOptions, setPendingSortOptions] = useState<SortOptions>(currentSortOptions);
   const [pendingFilterOptions, setPendingFilterOptions] = useState<FilterOptions>(currentFilterOptions);
+  const [isDateRangeValid, setIsDateRangeValid] = useState(true);
+
+  // This state (`isPanelVisible`) will control the CSS classes for animation
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
+  const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Reset pending state if the panel is reopened with new current options
-    setPendingSortOptions(currentSortOptions);
-    setPendingFilterOptions(currentFilterOptions);
+    if (isOpen) {
+      // When parent wants to open, reset pending options
+      setPendingSortOptions(currentSortOptions);
+      setPendingFilterOptions(currentFilterOptions);
+      // Use a micro-delay to ensure "enter" animation plays
+      const timer = setTimeout(() => {
+        setIsPanelVisible(true);
+      }, 10); // Small delay for CSS transition to pick up initial state
+      return () => clearTimeout(timer);
+    } else {
+      // If parent wants to close (isOpen becomes false), ensure our animation state reflects that
+      setIsPanelVisible(false);
+    }
   }, [isOpen, currentSortOptions, currentFilterOptions]);
 
-  if (!isOpen) {
+  const handleTriggerClose = useCallback(() => {
+    if (!isOpen) return; // If already told to be closed by parent, do nothing more
+
+    setIsPanelVisible(false); // Start the exit animation
+
+    // Clear any existing timer
+    if (animationTimerRef.current) {
+      clearTimeout(animationTimerRef.current);
+    }
+    // Call the parent's onClose after the animation duration
+    animationTimerRef.current = setTimeout(() => {
+      onClose(); // This will cause the parent to set isOpen=false
+    }, 300); // Must match animation duration (e.g., duration-300)
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        handleTriggerClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current);
+      }
+    };
+  }, [isOpen, handleTriggerClose]);
+
+  const handleApplyChanges = () => {
+    if (!isDateRangeValid) {
+      alert("Please correct the date range before applying.");
+      return;
+    }
+    onApply(pendingSortOptions, pendingFilterOptions);
+    handleTriggerClose();
+  };
+
+  const handleClearAllPendingFilters = () => {
+    setPendingFilterOptions(DEFAULT_FILTER_OPTIONS);
+    setIsDateRangeValid(true);
+    if (onClearAllInPanel) {
+      onClearAllInPanel();
+    }
+  };
+
+  // Render null if the parent indicates it's closed AND our internal animation state is also closed.
+  // This allows the component to stay mounted during the exit animation.
+  if (!isOpen && !isPanelVisible) {
     return null;
   }
 
-  const handleApplyChanges = () => {
-    onApply(pendingSortOptions, pendingFilterOptions);
-    onClose();
-  };
-
-  const handleResetPending = () => {
-    setPendingSortOptions(currentSortOptions);
-    setPendingFilterOptions(currentFilterOptions);
-  };
-  
-  const handleClearAllPendingFilters = () => {
-    setPendingFilterOptions(DEFAULT_FILTER_OPTIONS);
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-end" onClick={onClose}>
+    <>
+      {/* Overlay: Sibling to the panel. Its visibility is tied to isPanelVisible for animation. */}
       <div
-        className="w-full max-w-md h-full bg-white shadow-xl p-6 overflow-y-auto z-50 flex flex-col"
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside panel
+        className={`fixed inset-0 z-40 bg-black transition-opacity duration-300 ease-in-out ${
+          isPanelVisible ? 'opacity-50' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={handleTriggerClose}
+        aria-hidden={!isPanelVisible}
+      />
+
+      {/* Panel: Sibling to the overlay. Slides from the right. */}
+      <div
+        className={`fixed top-0 right-0 w-full max-w-md h-full bg-white shadow-xl p-6 overflow-y-auto z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+          isPanelVisible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        // onClick={(e) => e.stopPropagation()} // Not needed if overlay is a sibling
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-800">Sort & Filter</h2>
           <button
-            onClick={onClose}
+            onClick={handleTriggerClose}
             className="text-gray-500 hover:text-gray-700"
             aria-label="Close panel"
           >
@@ -58,43 +120,41 @@ export function FilterSortPanel({
           </button>
         </div>
 
-        <div className="flex-grow">
-          <h3 className="text-lg font-medium text-gray-700 mb-2">Filters</h3>
-          <FilterControls
-            currentFilters={pendingFilterOptions}
-            onChangeFilter={setPendingFilterOptions} // Pass setter for pending state
-            onClearFilters={handleClearAllPendingFilters} // Clears pending filters
-            availableUserIds={availableUserIds}
-            disabled={disabled}
-          />
-
-          <hr className="my-6" />
-
-          <h3 className="text-lg font-medium text-gray-700 mb-2">Sort</h3>
-          <SortControls
-            sortOptions={pendingSortOptions}
-            onChangeSort={setPendingSortOptions} // Pass setter for pending state
-            disabled={disabled}
-          />
+        <div className="flex-grow space-y-6">
+          <div>
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Sort</h3>
+            <SortControls
+              sortOptions={pendingSortOptions}
+              onChangeSort={setPendingSortOptions}
+              disabled={disabled}
+            />
+          </div>
+          <hr className="my-4" />
+          <div>
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Filters</h3>
+            <FilterControls
+              currentFilters={pendingFilterOptions}
+              onChangeFilter={setPendingFilterOptions}
+              onClearFilters={handleClearAllPendingFilters}
+              availableUserIds={availableUserIds}
+              disabled={disabled}
+              onDateRangeValidityChange={setIsDateRangeValid}
+            />
+          </div>
         </div>
 
         <div className="mt-auto pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
           <button
-            onClick={handleResetPending}
-            disabled={disabled}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Reset Changes
-          </button>
-          <button
             onClick={handleApplyChanges}
-            disabled={disabled}
-            className="w-full sm:w-auto flex-grow px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={disabled || !isDateRangeValid}
+            className={`w-full sm:w-auto flex-grow px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+              !isDateRangeValid ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
             Apply
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
