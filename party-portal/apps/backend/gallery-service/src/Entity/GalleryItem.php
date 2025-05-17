@@ -8,6 +8,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\OpenApi\Model;
 use App\Controller\CreateGalleryItemAction;
 use App\Repository\GalleryItemRepository;
+use Doctrine\DBAL\Types\Types; // <--- ADD THIS LINE
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Serializer\Annotation\Groups;
@@ -62,23 +63,19 @@ class GalleryItem
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['gallery:read'])]
     private ?string $userId = null; // User identifier from JWT
 
     #[ORM\Column(length: 255)]
     #[Groups(['gallery:read'])]
     private ?string $originalFilename = null;
 
-    #[ORM\Column(length: 255, unique: true)] // Stored filename should be unique on filesystem
-    #[Groups(['gallery:read'])]
+    #[ORM\Column(length: 255)]
     private ?string $storedFilename = null;
 
-    #[ORM\Column(length: 100, nullable: true)]
-    #[Groups(['gallery:read'])]
+    #[ORM\Column(length: 255)]
     private ?string $mimeType = null;
 
-    #[ORM\Column]
-    #[Groups(['gallery:read'])]
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private ?\DateTimeImmutable $uploadedAt = null;
 
     // This is a virtual property for the uploaded file, not persisted directly by Doctrine.
@@ -95,7 +92,13 @@ class GalleryItem
     public ?File $file = null; // This property is used by the CreateGalleryItemAction
 
     // This will be injected from services.yaml via the controller or a listener
-    private ?string $galleryBaseUrl = null;
+    #[Groups(['gallery:read'])]
+    public ?string $galleryBaseUrl = null;
+
+    public function __construct()
+    {
+        $this->uploadedAt = new \DateTimeImmutable();
+    }
 
     public function getId(): ?int
     {
