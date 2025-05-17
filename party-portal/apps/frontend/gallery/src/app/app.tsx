@@ -95,9 +95,27 @@ export function App() {
       console.log('[fetchGalleryItems] Extracted new items:', newItems); 
       
       setGalleryItems(prevItems => {
-        const updatedItems = isInitialLoad ? newItems : [...prevItems, ...newItems];
-        console.log('[fetchGalleryItems] Updating galleryItems state. Prev length:', prevItems.length, 'New/Updated length:', updatedItems.length); 
-        return updatedItems;
+        if (isInitialLoad) {
+          console.log('[fetchGalleryItems] Updating galleryItems state (initial load). New/Updated length:', newItems.length);
+          return newItems; // For initial load, just set the new items
+        } else {
+          // For subsequent loads (infinite scroll), filter out duplicates based on item.id
+          const existingIds = new Set(prevItems.map(item => item.id)); // Consistently use item.id
+          const uniqueNewItems = newItems.filter(newItem => !existingIds.has(newItem.id)); // Consistently use newItem.id
+          
+          if (uniqueNewItems.length < newItems.length) {
+            // Added more detailed logging for duplicates
+            const newItemsIds = newItems.map(i => i.id);
+            const duplicateIdsInNewBatch = newItemsIds.filter(id => existingIds.has(id));
+            console.warn(
+              `[fetchGalleryItems] Filtered out duplicate items. Original new: ${newItems.length}, Unique new: ${uniqueNewItems.length}. IDs of all fetched new items: [${newItemsIds.join(', ')}]. IDs of duplicates already in galleryItems: [${duplicateIdsInNewBatch.join(', ')}]`
+            );
+          }
+
+          const updatedItems = [...prevItems, ...uniqueNewItems];
+          console.log('[fetchGalleryItems] Updating galleryItems state (load more). Prev length:', prevItems.length, 'Unique new added:', uniqueNewItems.length, 'New/Updated length:', updatedItems.length); 
+          return updatedItems;
+        }
       });
 
       // CORRECTED PROPERTY ACCESS:
@@ -122,18 +140,26 @@ export function App() {
   }, []); 
 
   useEffect(() => {
-    console.log('[useEffect initialLoad] Checking condition. nextPageUrl:', nextPageUrl, 'galleryItems.length:', galleryItems.length); 
-    // Simplified initial load condition: only fetch if it's the first page URL and items are empty.
-    // The double call might still happen due to rapid state changes, but let's fix data access first.
-    if (nextPageUrl === '/gallery/api/gallery_items?page=1' && galleryItems.length === 0 && !isLoading) { 
-        console.log('[useEffect initialLoad] Condition met, calling fetchGalleryItems.'); 
+    // Fetch initial items if:
+    // 1. We have the initial page URL.
+    // 2. There are no items yet.
+    // 3. We are not currently in any loading state (isLoading or isLoadingMore).
+    // This check is primarily for subsequent calls if items were cleared, etc.
+
+    // For the very first mount, isLoading is true. We want to fetch in this case.
+    const isFirstPage = nextPageUrl === '/gallery/api/gallery_items?page=1';
+    const noItemsLoaded = galleryItems.length === 0;
+
+    if (isFirstPage && noItemsLoaded) {
+      // If isLoading is true, it means this is the very first attempt to load.
+      // If isLoading is false, it means something else might have set it to false,
+      // and we should only refetch if not already loading more.
+      if (isLoading || (!isLoading && !isLoadingMore)) {
+        console.log(`[useEffect initialLoad] Conditions met (isFirstPage: ${isFirstPage}, noItemsLoaded: ${noItemsLoaded}, isLoading: ${isLoading}, isLoadingMore: ${isLoadingMore}). Calling fetchGalleryItems.`);
         fetchGalleryItems('/gallery/api/gallery_items?page=1', true);
-    } else if (galleryItems.length === 0 && isLoading && nextPageUrl === '/gallery/api/gallery_items?page=1') {
-        // This handles the very first load when isLoading is true by default
-        console.log('[useEffect initialLoad] Initial component mount, calling fetchGalleryItems.');
-        fetchGalleryItems('/gallery/api/gallery_items?page=1', true);
+      }
     }
-  }, [fetchGalleryItems, nextPageUrl, galleryItems.length, isLoading]);
+  }, [fetchGalleryItems, nextPageUrl, galleryItems.length, isLoading, isLoadingMore]);
 
 
   useEffect(() => {
@@ -301,7 +327,7 @@ export function App() {
     >
       <header className="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center flex-shrink-0">
         <div className="flex items-center">
-          <HamburgerIcon onClick={toggleDrawer} className="mr-3 text-white h-6 w-6" />
+          <HamburgerIcon onClick={toggleDrawer} className="mr-2 text-white" />
           <h1 className="text-xl font-semibold">Gallery</h1>
         </div>
         <button
@@ -370,7 +396,7 @@ export function App() {
         {galleryItems.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {galleryItems.map((item) => (
-              <div key={item['@id'] || item.id} className="border border-gray-200 rounded-md overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg">
+              <div key={item['@id'] || `gallery-item-${item.id}`} className="border border-gray-200 rounded-md overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg">
                 {item.publicUrl && item.mimeType && item.mimeType.startsWith('image/') ? (
                   <img
                     src={item.publicUrl} alt={item.originalFilename} loading="lazy"

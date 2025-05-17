@@ -27,12 +27,12 @@ use Symfony\Component\Validator\Constraints as Assert;
             controller: CreateGalleryItemAction::class,
             denormalizationContext: ['groups' => ['gallery:write']],
             normalizationContext: ['groups' => ['gallery:read']],
-            deserialize: false, // Controller handles multipart/form-data
+            deserialize: false, 
             description: 'Upload an image or video file.',
-            openapi: new Model\Operation( // Instantiate Model\Operation
-                summary: 'Upload a new gallery item.', // Set summary here
-                requestBody: new Model\RequestBody( // Instantiate Model\RequestBody
-                    content: new \ArrayObject([ // Content is an ArrayObject mapping media types to schemas
+            openapi: new Model\Operation( 
+                summary: 'Upload a new gallery item.', 
+                requestBody: new Model\RequestBody( 
+                    content: new \ArrayObject([ 
                         'multipart/form-data' => [
                             'schema' => [
                                 'type' => 'object',
@@ -42,7 +42,6 @@ use Symfony\Component\Validator\Constraints as Assert;
                                         'format' => 'binary',
                                         'description' => 'The file to upload.'
                                     ],
-                                    // 'description' => ['type' => 'string', 'description' => 'Optional description.']
                                 ]
                             ]
                         ]
@@ -51,7 +50,7 @@ use Symfony\Component\Validator\Constraints as Assert;
             )
         )
     ],
-    order: ['uploadedAt' => 'DESC'],
+    order: ['uploadedAt' => 'DESC', 'id' => 'DESC'],
     normalizationContext: ['groups' => ['gallery:read']],
     denormalizationContext: ['groups' => ['gallery:write']]
 )]
