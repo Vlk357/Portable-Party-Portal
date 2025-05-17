@@ -13,6 +13,8 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Metadata\ApiFilter;
 
 #[ORM\Entity(repositoryClass: GalleryItemRepository::class)]
 #[ORM\Table(name: "gallery_items")]
@@ -54,6 +56,14 @@ use Symfony\Component\Validator\Constraints as Assert;
     normalizationContext: ['groups' => ['gallery:read']],
     denormalizationContext: ['groups' => ['gallery:write']]
 )]
+#[ApiFilter(OrderFilter::class, properties: [
+    'id',
+    'userId',
+    'originalFilename',
+    'mimeType',
+    'uploadedAt',
+    'takenAt'
+])]
 class GalleryItem
 {
     #[ORM\Id]
