@@ -4,22 +4,11 @@ import json
 import random
 import string
 import time
-import threading
-# Remove ssl and websocket imports if no longer needed elsewhere
-# import ssl
-# import websocket
 from typing import List, Dict, Optional, Any
 import requests
-import socketio  # Import the socketio library
 
 # --- Constants ---
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8080/auth/api"
-# Use the base HTTP URL for socketio connection
-# Socket.IO connects via HTTP/S first
-DEFAULT_WS_BASE_URL = "http://127.0.0.1:8080"
-DEFAULT_ROOM_ID = 1
-DEFAULT_NUM_MESSAGES = 3
-DEFAULT_DELAY_S = 0.5
 PASSWORD_LENGTH = 12
 ADMIN_USERNAME_ENV = "AUTH_ADMIN_USERNAME"
 ADMIN_PASSWORD_ENV = "AUTH_ADMIN_PASSWORD"
@@ -27,29 +16,26 @@ ADMIN_PASSWORD_ENV = "AUTH_ADMIN_PASSWORD"
 # --- Helper Functions ---
 
 
-def generate_random_string(length: int) -> str:
-    """Generates a random alphanumeric string."""
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
-
-
 def generate_password(length: int = PASSWORD_LENGTH) -> str:
     """Generates a random password with letters, digits, and symbols."""
     characters = string.ascii_letters + string.digits + string.punctuation
-    # Ensure at least one of each category if needed, but keep simple for now
-    password = ''.join(random.choice(characters) for i in range(length))
-    # Basic complexity check (example)
+    password = ''.join(random.choice(characters) for _ in range(length))
+    # Basic complexity check
     if not any(c.islower() for c in password):
         password += random.choice(string.ascii_lowercase)
     if not any(c.isupper() for c in password):
         password += random.choice(string.ascii_uppercase)
     if not any(c.isdigit() for c in password):
         password += random.choice(string.digits)
-    # Trim back to length if needed
+    if len(password) > length:  # Trim if complexity checks made it longer
+        password = password[:length]
+    # Ensure it's at least length if complexity checks made it shorter (unlikely with current logic but good practice)
+    while len(password) < length:
+        password += random.choice(characters)
     return password[:length]
 
 
-def load_users_from_file(filepath: str, generate_passwords: bool) -> List[Dict[str, str]]:
+def load_users_from_file(filepath: str, generate_passwords_for_file_users: bool) -> List[Dict[str, str]]:
     """Loads user data from a JSON file."""
     users = []
     try:
@@ -64,7 +50,7 @@ def load_users_from_file(filepath: str, generate_passwords: bool) -> List[Dict[s
                     continue
                 username = item['username']
                 password = item.get('password')
-                if not password or generate_passwords:
+                if not password or generate_passwords_for_file_users:
                     password = generate_password()
                 users.append({'username': username, 'password': password})
         print(f"Loaded {len(users)} users from {filepath}.")
@@ -77,24 +63,26 @@ def load_users_from_file(filepath: str, generate_passwords: bool) -> List[Dict[s
     return users
 
 
-def generate_users(num_users: int) -> List[Dict[str, str]]:
-    """Generates a list of random users."""
+def generate_formatted_users(num_to_generate: int, username_format: str) -> List[Dict[str, str]]:
+    """Generates a list of users with a specific username format."""
     users = []
-    for i in range(num_users):
-        username = f"testuser_{generate_random_string(6)}"
+    print(
+        f"Generating {num_to_generate} users with format '{username_format}'...")
+    for i in range(num_to_generate):
+        # Replace {id} or \d. Using {id} as a common placeholder.
+        # User mentioned \d, but {id} is more standard for str.format or f-strings.
+        # We'll use .replace() for simplicity here to match the {id} placeholder.
+        username = username_format.replace("{id}", str(i + 1))  # 1-based ID
         password = generate_password()
         users.append({'username': username, 'password': password})
-    print(f"Generated {len(users)} random users.")
+    print(f"Generated {len(users)} formatted users.")
     return users
 
 # --- API Interaction Functions ---
 
 
-# Modified create_user to accept and use admin_token
 def create_user(api_url: str, username: str, password: str, admin_token: str) -> bool:
     """Attempts to create a user via the API using an admin token."""
-    # Assuming the user creation endpoint requires admin privileges
-    # Adjust endpoint if it's different (e.g., /admin/user)
     register_url = f"{api_url}/user"
     payload = {'username': username, 'password': password}
     headers = {
@@ -103,21 +91,19 @@ def create_user(api_url: str, username: str, password: str, admin_token: str) ->
         "Accept": "application/json"
     }
     try:
-        # Add headers to the request
         response = requests.post(
             register_url, headers=headers, json=payload, timeout=10)
         if response.status_code == 201:
-            print(f"Successfully created user: {username} (using admin token)")
+            print(f"Successfully created user: {username}")
             return True
-        elif response.status_code == 409:
+        elif response.status_code == 409:  # Conflict - user likely already exists
             print(
-                f"User {username} likely already exists (status {response.status_code}).")
-            # Treat as success for the script's purpose if it already exists
+                f"User {username} likely already exists (status {response.status_code}). Treating as success for script.")
             return True
         elif response.status_code == 401 or response.status_code == 403:
             print(
                 f"Failed to create user {username}. Admin token invalid or insufficient permissions. Status: {response.status_code}")
-            return False  # Don't continue if admin token is bad
+            return False
         else:
             print(
                 f"Failed to create user {username}. Status: {response.status_code}, Response: {response.text}")
@@ -129,7 +115,7 @@ def create_user(api_url: str, username: str, password: str, admin_token: str) ->
 
 def login_user(api_url: str, username: str, password: str) -> Optional[str]:
     """Attempts to log in a user and returns the auth token."""
-    login_url = f"{api_url}/login"  # Assuming /login endpoint
+    login_url = f"{api_url}/login"
     payload = {'username': username, 'password': password}
     try:
         response = requests.post(login_url, json=payload, timeout=10)
@@ -151,153 +137,25 @@ def login_user(api_url: str, username: str, password: str) -> Optional[str]:
         print(f"Error logging in user {username}: {e}")
         return None
 
-# --- Socket.IO Interaction Functions ---
-
-
-# Global dictionary to hold active socketio clients, keyed by username or token
-# This simplifies managing multiple connections
-sio_clients: Dict[str, socketio.Client] = {}
-# Use threading events to wait for connection confirmation
-connection_events: Dict[str, threading.Event] = {}
-connection_success: Dict[str, bool] = {}
-
-
-def connect_socketio(ws_url: str, token: str, username: str) -> Optional[socketio.Client]:
-    """Connects to the Socket.IO server with authentication."""
-    print(f"Attempting Socket.IO connection for {username} to {ws_url}...")
-
-    # Disable verbose logging
-    sio = socketio.Client(logger=False, engineio_logger=False)
-    connection_events[username] = threading.Event()
-    connection_success[username] = False
-
-    # Define event handlers specific to this client instance
-    @sio.event
-    def connect():
-        print(
-            f"Socket.IO connected successfully for {username} (sid: {sio.sid})")
-        connection_success[username] = True
-        # Signal that connection attempt finished
-        connection_events[username].set()
-
-    @sio.event
-    def connect_error(data):
-        print(f"Socket.IO connection failed for {username}: {data}")
-        connection_success[username] = False
-        # Signal that connection attempt finished
-        connection_events[username].set()
-
-    @sio.event
-    def disconnect():
-        print(f"Socket.IO disconnected for {username}")
-        # Optionally handle reconnection logic here if needed
-        connection_success[username] = False  # Mark as disconnected
-        if username in sio_clients:
-            del sio_clients[username]  # Clean up client reference
-
-    @sio.on('*')  # Catch-all for other events for debugging
-    def any_event(event, data):
-        print(f"< Received event '{event}' for {username}: {str(data)[:150]}")
-
-    try:
-        # Connect with authentication data
-        # The path='/socket.io/' is often the default but specify if needed
-        sio.connect(
-            ws_url,
-            auth={"token": token},
-            transports=['websocket'],  # Force websocket transport
-            wait_timeout=10,
-            socketio_path='/socket.io/'  # Explicitly set the path based on Nginx config
-        )
-
-        # Wait for the connection attempt to complete (or timeout)
-        connection_established = connection_events[username].wait(
-            timeout=15)  # Wait up to 15s
-
-        if connection_established and connection_success[username]:
-            sio_clients[username] = sio  # Store the connected client
-            return sio
-        else:
-            print(
-                f"Socket.IO connection attempt timed out or failed for {username}.")
-            # Ensure disconnect is called if connect_error didn't fire but failed
-            if sio.connected:
-                sio.disconnect()
-            return None
-
-    except socketio.exceptions.ConnectionError as e:
-        print(f"Socket.IO connection error for {username}: {e}")
-        return None
-    except Exception as e:
-        print(
-            f"Unexpected error during Socket.IO connection for {username}: {e}")
-        return None
-    finally:
-        # Clean up the event for this user
-        if username in connection_events:
-            del connection_events[username]
-        if username in connection_success:
-            del connection_success[username]
-
-
-def send_chat_message_sio(sio_client: socketio.Client, room_id: int, message_content: str, username: str):
-    """Sends a chat message event over Socket.IO."""
-    if not sio_client or not sio_client.connected:
-        print(
-            f"Cannot send message for {username}: Socket.IO client is not connected.")
-        return
-
-    # ADJUST 'sendMessage' and payload structure TO YOUR BACKEND'S EXPECTATION
-    event_name = 'sendMessage'
-    payload = {
-        "roomId": room_id,
-        "content": message_content
-    }
-    try:
-        print(f"> {username} sending '{event_name}': {payload}")
-        sio_client.emit(event_name, payload)
-    except Exception as e:
-        print(f"Error sending message via Socket.IO for {username}: {e}")
-
-
-def close_socketio(sio_client: Optional[socketio.Client], username: str):
-    """Closes the Socket.IO connection."""
-    if sio_client and sio_client.connected:
-        print(f"Closing Socket.IO connection for {username}...")
-        try:
-            sio_client.disconnect()
-        except Exception as e:
-            print(f"Error disconnecting Socket.IO for {username}: {e}")
-    # Clean up reference if it exists
-    if username in sio_clients:
-        del sio_clients[username]
-
-
 # --- Main Workflow Functions ---
+
 
 def parse_arguments() -> argparse.Namespace:
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Chat Application Test Script")
+        description="User Creation and Login Test Script")
     parser.add_argument("--api-url", default=DEFAULT_API_BASE_URL,
                         help="Base URL for the Auth API")
-    # Changed help text slightly for WS URL
-    parser.add_argument("--ws-url", default=DEFAULT_WS_BASE_URL,
-                        help="Base URL for the Socket.IO server (e.g., http://host:port)")
-    parser.add_argument("--room-id", type=int, default=DEFAULT_ROOM_ID,
-                        help="ID of the chat room to send messages to")
-    parser.add_argument(
-        "--user-file", type=str, help="Path to JSON file containing user credentials ([{'username': 'u', 'password': 'p'}, ...])")
-    parser.add_argument("--num-users", type=int, default=2,
-                        help="Number of users to generate if --user-file is not provided")
+    parser.add_argument("--user-file", type=str,
+                        help="Path to JSON file containing user credentials ([{'username': 'u', 'password': 'p'}, ...])")
     parser.add_argument("--generate-passwords", action="store_true",
-                        help="Generate passwords even if usernames are provided in --user-file")
-    parser.add_argument("--num-messages", type=int, default=DEFAULT_NUM_MESSAGES,
-                        help="Number of messages EACH user sends")
-    parser.add_argument("--delay", type=float, default=DEFAULT_DELAY_S,
-                        help="Delay (seconds) between messages")
-    parser.add_argument("--create-users-only", type=bool, default=False,
-                        help="If it should only create users and terminate")
+                        help="Generate new passwords for users from --user-file, ignoring any passwords in the file.")
+    parser.add_argument("--num-generated-users", type=int, default=0,
+                        help="Number of additional users to generate with the specified format.")
+    parser.add_argument("--generated-username-format", type=str,
+                        default="gen_user_{id}", help="Format for generated usernames, e.g., 'user_{id}'. '{id}' will be replaced by a serial number (1-based).")
+    parser.add_argument("--create-users-only", action="store_true",
+                        help="If set, the script will only create users and attempt to log them in, then terminate.")
     return parser.parse_args()
 
 
@@ -308,225 +166,143 @@ def perform_admin_login(api_url: str) -> Optional[str]:
     admin_password = os.environ.get(ADMIN_PASSWORD_ENV)
 
     if not admin_username or not admin_password:
-        print(f"Error: Admin credentials not found in environment variables.")
+        print("Error: Admin credentials not found in environment variables.")
         print(f"Please set {ADMIN_USERNAME_ENV} and {ADMIN_PASSWORD_ENV}.")
         return None
 
     admin_token = login_user(api_url, admin_username, admin_password)
-
     if not admin_token:
-        print("Admin login failed. Cannot proceed.")
+        print("Admin login failed. Cannot proceed with user creation.")
         return None
-
     print("Admin login successful.")
     return admin_token
 
 
 def prepare_user_list(args: argparse.Namespace) -> List[Dict[str, str]]:
-    """Loads users from file or generates them based on arguments."""
+    """Loads users from file and/or generates them based on arguments."""
     print("\n--- Preparing User List ---")
-    users_to_process: List[Dict[str, str]] = []
+    all_users_to_process: List[Dict[str, str]] = []
+    # Using a set to keep track of usernames to ensure uniqueness
+    processed_usernames = set()
+
+    # 1. Load users from file
     if args.user_file:
-        users_to_process = load_users_from_file(
+        file_users = load_users_from_file(
             args.user_file, args.generate_passwords)
+        for user in file_users:
+            if user['username'] not in processed_usernames:
+                all_users_to_process.append(user)
+                processed_usernames.add(user['username'])
+            else:
+                print(
+                    f"Skipping user '{user['username']}' from file as this username is already processed.")
+        print(f"Added {len(all_users_to_process)} unique users from file.")
+
+    # 2. Generate users with specific format
+    if args.num_generated_users > 0:
+        if not args.generated_username_format:
+            print("Warning: --num-generated-users specified but --generated-username-format is missing or empty. No formatted users will be generated.")
+        else:
+            formatted_users = generate_formatted_users(
+                args.num_generated_users, args.generated_username_format)
+            for user in formatted_users:
+                if user['username'] not in processed_usernames:
+                    all_users_to_process.append(user)
+                    processed_usernames.add(user['username'])
+                else:
+                    print(
+                        f"Skipping generated user '{user['username']}' as this username is already processed (e.g., from file or duplicate format result).")
+            print(
+                f"Added {len(formatted_users) - (len(processed_usernames) - len(all_users_to_process))} unique generated formatted users.")
+
+    if not all_users_to_process:
+        print("No users specified or generated to process.")
     else:
-        users_to_process = generate_users(args.num_users)
-
-    if not users_to_process:
-        print("No users specified to process.")
-    else:
-        print(f"Prepared {len(users_to_process)} users for processing.")
-    return users_to_process
+        print(
+            f"Total unique users prepared for processing: {len(all_users_to_process)}")
+    return all_users_to_process
 
 
-def process_users(
+def process_users_creation_and_login(
     users_to_process: List[Dict[str, str]],
     api_url: str,
-    admin_token: str,
-    from_file: bool
+    admin_token: str
 ) -> Dict[str, Dict[str, Any]]:
-    """Processes users: creates and logs them in."""
-    print("\n--- Processing Users (Create/Login) ---")
-    # username -> {'token': str}
-    logged_in_users: Dict[str, Dict[str, Any]] = {}
+    """Creates users (if they don't exist) and attempts to log them in."""
+    print("\n--- Processing Users (Create & Login Confirmation) ---")
+    # username -> {'token': str or None if login failed}
+    processed_user_details: Dict[str, Dict[str, Any]] = {}
 
-    for user in users_to_process:
-        username = user['username']
-        password = user['password']
-        token = None
+    for user_data in users_to_process:
+        username = user_data['username']
+        password = user_data['password']
 
-        if from_file:
-            print(f"Attempting login for existing user: {username}...")
+        print(f"Processing user: {username}")
+
+        # Attempt to create the user (handles 'already exists' as success)
+        creation_successful = create_user(
+            api_url, username, password, admin_token)
+
+        if creation_successful:
+            # If creation (or existence check) was successful, attempt to log in
+            print(f"Attempting login for {username} to confirm credentials...")
             token = login_user(api_url, username, password)
             if token:
+                processed_user_details[username] = {
+                    'token': token, 'status': 'Login OK'}
                 print(
-                    f"User {username} already exists and logged in successfully.")
-                # Store only token initially
-                logged_in_users[username] = {'token': token}
+                    f"User {username} created/verified and login successful.")
             else:
-                print(f"Login failed for {username}. Attempting creation...")
-                if create_user(api_url, username, password, admin_token):
-                    print(
-                        f"Attempting login again for {username} after creation attempt...")
-                    token = login_user(api_url, username, password)
-                    if token:
-                        logged_in_users[username] = {'token': token}
-                    else:
-                        print(
-                            f"WARNING: Created/verified user {username} but failed subsequent login.")
-                else:
-                    print(
-                        f"ERROR: Failed to create user {username}. Skipping.")
-        else:
-            print(f"Attempting creation for generated user: {username}...")
-            if create_user(api_url, username, password, admin_token):
+                processed_user_details[username] = {
+                    'token': None, 'status': 'Login FAILED after create/verify'}
                 print(
-                    f"Attempting login for {username} after creation attempt...")
-                token = login_user(api_url, username, password)
-                if token:
-                    logged_in_users[username] = {'token': token}
-                else:
-                    print(
-                        f"WARNING: Created/verified user {username} but failed subsequent login.")
-            else:
-                print(f"ERROR: Failed to create user {username}. Skipping.")
-
-        time.sleep(0.1)
-
-    print(
-        f"\nSuccessfully processed and logged in {len(logged_in_users)} users.")
-    return logged_in_users
-
-
-# Modified to use connect_socketio and store client in logged_in_users
-def connect_user_socketio(
-    # Now username -> {'token': str}
-    logged_in_users: Dict[str, Dict[str, Any]],
-    ws_url: str
-):
-    """Connects Socket.IO clients for logged-in users."""
-    print("\n--- Connecting Socket.IO Clients ---")
-    usernames_to_connect = list(logged_in_users.keys())
-
-    threads = []
-    for username in usernames_to_connect:
-        token = logged_in_users[username]['token']
-        # Run each connection in a separate thread to parallelize
-        thread = threading.Thread(target=connect_socketio, args=(
-            ws_url, token, username), daemon=True)
-        threads.append(thread)
-        thread.start()
-
-    # Wait for all connection threads to finish
-    for thread in threads:
-        thread.join()
-
-    # Update logged_in_users, removing those that failed to connect
-    connected_count = 0
-    for username in usernames_to_connect[:]:  # Iterate copy for safe removal
-        if username in sio_clients and sio_clients[username].connected:
-            # Add client to dict
-            logged_in_users[username]['sio'] = sio_clients[username]
-            connected_count += 1
+                    f"WARNING: User {username} created/verified, but subsequent login failed.")
         else:
-            print(f"Removing user {username} due to connection failure.")
-            del logged_in_users[username]  # Remove user if connection failed
-
-    if connected_count == 0:
-        print("No active Socket.IO connections established.")
-    else:
-        print(f"Established {connected_count} Socket.IO connections.")
-
-
-# Modified to use send_chat_message_sio
-def simulate_conversation_sio(
-    # username -> {'token': str, 'sio': Client}
-    logged_in_users: Dict[str, Dict[str, Any]],
-    room_id: int,
-    num_messages: int,
-    delay: float
-):
-    """Simulates users sending messages via Socket.IO."""
-    print(f"\n--- Simulating Conversation (Room ID: {room_id}) ---")
-    if not logged_in_users:
-        print("No users available to simulate conversation.")
-        return
-
-    user_list = list(logged_in_users.items())
-    user_index = 0
-    total_messages_to_send = num_messages * len(user_list)
-    print(
-        f"Sending {num_messages} messages per user, total {total_messages_to_send} messages...")
-
-    for i in range(total_messages_to_send):
-        username, user_data = user_list[user_index % len(user_list)]
-        sio_client = user_data.get('sio')
-        message_num_for_user = (i // len(user_list)) + 1
-
-        if sio_client:
-            message_content = f"Hello from {username}! This is message #{message_num_for_user}."
-            send_chat_message_sio(sio_client, room_id,
-                                  message_content, username)
-        else:
+            # Creation failed (and not because it already existed with a 409 treated as success)
+            processed_user_details[username] = {
+                'token': None, 'status': 'Creation FAILED'}
             print(
-                f"Skipping message for {username} - Socket.IO client not connected.")
+                f"ERROR: Failed to create or verify user {username}. Skipping login attempt.")
 
-        user_index += 1
-        time.sleep(delay)
+        time.sleep(0.1)  # Small delay between processing each user
 
-
-# Modified to use close_socketio
-def cleanup_socketio_clients():
-    """Closes all active Socket.IO connections."""
-    print("\n--- Cleaning Up Socket.IO Clients ---")
-    # Iterate over a copy of usernames as close_socketio modifies the dict
-    usernames = list(sio_clients.keys())
-    closed_count = 0
-    for username in usernames:
-        if username in sio_clients:
-            close_socketio(sio_clients[username], username)
-            closed_count += 1
-    print(f"Closed {closed_count} Socket.IO connections.")
+    successful_logins = sum(
+        1 for details in processed_user_details.values() if details['token'])
+    print(
+        f"\nFinished processing users. Successfully logged in {successful_logins} out of {len(users_to_process)} users.")
+    return processed_user_details
 
 
 # --- Main Execution ---
 
 def main():
-    """Main script execution flow using Socket.IO."""
+    """Main script execution flow."""
     args = parse_arguments()
 
     admin_token = perform_admin_login(args.api_url)
     if not admin_token:
+        print("Exiting due to admin login failure.")
         return
 
     users_to_process = prepare_user_list(args)
     if not users_to_process:
+        print("No users to process. Exiting.")
         return
 
-    # logged_in_users now contains username -> {'token': str}
-    logged_in_users = process_users(
-        users_to_process, args.api_url, admin_token, bool(args.user_file)
-    )
-    if not logged_in_users or args.create_users_only:
-        return
-
-    # Connect clients and update logged_in_users with {'sio': Client}
-    connect_user_socketio(logged_in_users, args.ws_url)
-
-    # Check again if any connections succeeded
-    if not logged_in_users:
-        print("No users connected via Socket.IO. Exiting.")
-        return
-
-    simulate_conversation_sio(
-        logged_in_users, args.room_id, args.num_messages, args.delay
+    processed_details = process_users_creation_and_login(
+        users_to_process, args.api_url, admin_token
     )
 
-    cleanup_socketio_clients()
+    print("\n--- User Processing Summary ---")
+    for username, details in processed_details.items():
+        print(
+            f"User: {username}, Status: {details['status']}, Token: {'Yes' if details['token'] else 'No'}")
+
+    if args.create_users_only:
+        print("\n--create-users-only flag is set. Script finished after user creation and login attempts.")
+        return
 
     print("\n--- Script Finished ---")
-    # Add a small delay to allow background threads to fully close if needed
-    time.sleep(1)
 
 
 if __name__ == "__main__":

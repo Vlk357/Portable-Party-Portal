@@ -11,7 +11,8 @@ RUN apk add --no-cache \
     vim \
     bash \
     openssh \
-    libzip-dev
+    libzip-dev \
+    ffmpeg
 
 # Install PHP extensions
 RUN docker-php-ext-install \
@@ -19,7 +20,8 @@ RUN docker-php-ext-install \
     pdo_pgsql \
     intl \
     zip \
-    opcache
+    opcache \
+    exif
 
 # Configure Xdebug
 RUN pecl install xdebug && \
