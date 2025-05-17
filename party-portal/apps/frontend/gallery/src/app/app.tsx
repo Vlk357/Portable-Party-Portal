@@ -4,6 +4,7 @@ import { useShell } from '../../../shell/src/app/context/ShellContext';
 import { useGallery } from './hooks/useGallery';
 import { GalleryHeader } from './components/GalleryHeader';
 import { SortControls } from './components/SortControls';
+import { FilterControls } from './components/FilterControls'; // <-- Import FilterControls
 import { GalleryGrid } from './components/GalleryGrid';
 import { UploadFeedback } from './components/UploadFeedback';
 
@@ -15,12 +16,15 @@ export function App() {
     error,
     nextPageUrl,
     fetchGalleryItems,
-    filesToUpload, // <-- Make sure this is returned from useGallery if you use it here
+    filesToUpload,
     currentFileUpload,
     isUploading,
     handleUpload,
     sortOptions,
     changeSortOptions,
+    filterOptions,
+    changeFilterOptions,
+    clearFilters,
   } = useGallery();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -29,61 +33,44 @@ export function App() {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const observer = useRef<IntersectionObserver | null>(null);
 
-  // Infinite scroll observer setup
+  // Infinite scroll observer setup (remains the same)
   useEffect(() => {
     if (isLoading || isLoadingMore || !nextPageUrl || !loadMoreRef.current) return;
-
     const currentObserver = observer.current;
-
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && nextPageUrl && !isLoadingMore) {
-        fetchGalleryItems(false); // Pass false for isInitialLoad
+        fetchGalleryItems(false);
       }
     });
-
     const currentLoadMoreRef = loadMoreRef.current;
-    if (currentLoadMoreRef) {
-      observer.current.observe(currentLoadMoreRef);
-    }
-
+    if (currentLoadMoreRef) observer.current.observe(currentLoadMoreRef);
     return () => {
-      if (currentLoadMoreRef && observer.current) {
-        observer.current.unobserve(currentLoadMoreRef);
-      } else if (currentLoadMoreRef && currentObserver) {
-        currentObserver.unobserve(currentLoadMoreRef);
-      }
+      if (currentLoadMoreRef && observer.current) observer.current.unobserve(currentLoadMoreRef);
+      else if (currentLoadMoreRef && currentObserver) currentObserver.unobserve(currentLoadMoreRef);
     };
   }, [fetchGalleryItems, isLoading, isLoadingMore, nextPageUrl]);
 
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      // setFilesToUpload(prevFiles => [...prevFiles, ...newFiles]); // useGallery hook manages this if handleUpload takes files
-      handleUpload(newFiles);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      handleUpload(Array.from(e.target.files));
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const openFileDialog = () => {
-    fileInputRef.current?.click();
-  };
+  const openFileDialog = () => fileInputRef.current?.click();
 
-  // Drag and Drop handlers
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); };
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); if (e.currentTarget.contains(e.relatedTarget as Node)) return; setIsDraggingOver(false); };
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); };
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault(); e.stopPropagation(); setIsDraggingOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      // setFilesToUpload(prev => [...prev, ...droppedFiles]); // useGallery hook manages this
-      handleUpload(droppedFiles);
+      handleUpload(Array.from(e.dataTransfer.files));
       e.dataTransfer.clearData();
     }
   };
+
+  const isActionDisabled = isUploading || isLoading || isLoadingMore;
 
   return (
     <div
@@ -96,13 +83,13 @@ export function App() {
       <GalleryHeader
         onToggleDrawer={toggleDrawer}
         onOpenFileDialog={openFileDialog}
-        isActionDisabled={isUploading || isLoading || isLoadingMore}
+        isActionDisabled={isActionDisabled}
       />
 
       <input
         type="file" ref={fileInputRef} onChange={handleFileChange}
         multiple accept="image/*, video/*, video/x-matroska" className="hidden"
-        disabled={isUploading || isLoading || isLoadingMore}
+        disabled={isActionDisabled}
       />
 
       <main className={`flex-grow p-4 sm:p-8 overflow-y-auto relative ${isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-400' : ''}`}>
@@ -110,13 +97,21 @@ export function App() {
           isDraggingOver={isDraggingOver}
           currentFileUpload={currentFileUpload}
           isUploading={isUploading}
-          filesToUploadCount={filesToUpload.length} // <-- Use filesToUpload.length
+          filesToUploadCount={filesToUpload.length}
+        />
+
+        {/* Add FilterControls */}
+        <FilterControls
+            currentFilters={filterOptions}
+            onChangeFilter={changeFilterOptions}
+            onClearFilters={clearFilters}
+            disabled={isActionDisabled}
         />
 
         <SortControls
             sortOptions={sortOptions}
             onChangeSort={changeSortOptions}
-            disabled={isLoading || isLoadingMore || isUploading}
+            disabled={isActionDisabled}
         />
 
         {error && (

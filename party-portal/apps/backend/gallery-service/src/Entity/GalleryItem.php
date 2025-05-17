@@ -14,6 +14,8 @@ use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter; // <-- Add this
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;   // <-- Add this
 use ApiPlatform\Metadata\ApiFilter;
 
 #[ORM\Entity(repositoryClass: GalleryItemRepository::class)]
@@ -23,7 +25,7 @@ use ApiPlatform\Metadata\ApiFilter;
     operations: [
         new GetCollection(
             normalizationContext: ['groups' => ['gallery:read']],
-            paginationItemsPerPage: 9
+            paginationItemsPerPage: 9 // You can adjust this as needed
         ),
         new Post(
             controller: CreateGalleryItemAction::class,
@@ -52,7 +54,7 @@ use ApiPlatform\Metadata\ApiFilter;
             )
         )
     ],
-    order: ['takenAt' => 'DESC', 'id' => 'DESC'],
+    order: ['takenAt' => 'DESC', 'id' => 'DESC'], // Default order
     normalizationContext: ['groups' => ['gallery:read']],
     denormalizationContext: ['groups' => ['gallery:write']]
 )]
@@ -63,6 +65,14 @@ use ApiPlatform\Metadata\ApiFilter;
     'mimeType',
     'uploadedAt',
     'takenAt'
+])]
+#[ApiFilter(SearchFilter::class, properties: [ // Filter by exact match
+    'userId' => 'exact',
+    'mimeType' => 'exact'
+])]
+#[ApiFilter(DateFilter::class, properties: [
+    'uploadedAt' => DateFilter::EXCLUDE_NULL, // Allows 'uploadedAt[before]', 'uploadedAt[strictly_before]', 'uploadedAt[after]', 'uploadedAt[strictly_after]'
+    'takenAt' => DateFilter::EXCLUDE_NULL     // Same for takenAt
 ])]
 class GalleryItem
 {

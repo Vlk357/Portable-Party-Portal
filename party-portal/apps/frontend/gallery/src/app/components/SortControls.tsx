@@ -7,12 +7,14 @@ interface SortControlsProps {
   disabled?: boolean;
 }
 
+// Updated sortableFields
 const sortableFields: { label: string; value: SortField }[] = [
   { label: 'Date Taken', value: 'takenAt' },
   { label: 'Upload Date', value: 'uploadedAt' },
+  { label: 'Upload Order', value: 'id' }, // Renamed from 'ID'
+  { label: 'User ID', value: 'userId' },   // Added User ID
   { label: 'Filename', value: 'originalFilename' },
   { label: 'Type', value: 'mimeType' },
-  { label: 'ID', value: 'id' },
 ];
 
 export function SortControls({
@@ -29,13 +31,11 @@ export function SortControls({
   };
 
   return (
-    <div className="my-4 p-4 bg-gray-100 rounded-md shadow flex flex-col sm:flex-row gap-4 items-center">
+    <div className="my-4 p-3 bg-gray-50 rounded-md shadow flex flex-col sm:flex-row sm:flex-wrap gap-3 items-center">
+      <span className="text-sm font-medium text-gray-700">Sort by:</span>
       <div className="flex items-center gap-2">
-        <label
-          htmlFor="sortField"
-          className="text-sm font-medium text-gray-700"
-        >
-          Sort by:
+        <label htmlFor="sortField" className="sr-only">
+          Field
         </label>
         <select
           id="sortField"
@@ -52,11 +52,8 @@ export function SortControls({
         </select>
       </div>
       <div className="flex items-center gap-2">
-        <label
-          htmlFor="sortDirection"
-          className="text-sm font-medium text-gray-700"
-        >
-          Order:
+        <label htmlFor="sortDirection" className="sr-only">
+          Order
         </label>
         <select
           id="sortDirection"

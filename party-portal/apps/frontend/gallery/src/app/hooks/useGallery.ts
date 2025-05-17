@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { GalleryItem } from '../interfaces/GalleryItem';
 import { PaginatedGalleryResponse } from '../interfaces/PaginatedGalleryResponse';
 
-export type SortField = 'takenAt' | 'uploadedAt' | 'originalFilename' | 'mimeType' | 'id';
+// Updated SortField to include userId
+export type SortField = 'takenAt' | 'uploadedAt' | 'originalFilename' | 'mimeType' | 'id' | 'userId';
 export type SortDirection = 'asc' | 'desc';
 
 export interface SortOptions {
@@ -10,7 +11,17 @@ export interface SortOptions {
   direction: SortDirection;
 }
 
+// Define types for filter values
+export interface FilterOptions {
+  userId?: string;
+  uploadedAtAfter?: string; // YYYY-MM-DD
+  takenAtBefore?: string;   // YYYY-MM-DD
+  takenAtAfter?: string;    // YYYY-MM-DD
+  mimeType?: string;
+}
+
 const DEFAULT_SORT_OPTIONS: SortOptions = { field: 'takenAt', direction: 'desc' };
+const DEFAULT_FILTER_OPTIONS: FilterOptions = {};
 const API_BASE_URL = '/gallery/api/gallery_items';
 
 export function useGallery() {
@@ -20,64 +31,63 @@ export function useGallery() {
   const [error, setError] = useState<string | null>(null);
   const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
   const [sortOptions, setSortOptions] = useState<SortOptions>(DEFAULT_SORT_OPTIONS);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>(DEFAULT_FILTER_OPTIONS); // New state for filters
 
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]); // Used for UI feedback
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [currentFileUpload, setCurrentFileUpload] = useState<{ name: string; progress: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const buildApiUrl = useCallback((pageUrl?: string | null, isInitial = false) => {
-    if (isInitial || !pageUrl) {
-      const params = new URLSearchParams();
-      params.append('page', '1');
-      params.append(`order[${sortOptions.field}]`, sortOptions.direction);
-      return `${API_BASE_URL}?${params.toString()}`;
+    const baseUrl = pageUrl ? new URL(pageUrl, window.location.origin) : new URL(API_BASE_URL, window.location.origin);
+    const params = baseUrl.searchParams;
+
+    if (isInitial || !pageUrl) { // For initial load or when pageUrl is not from pagination
+      params.set('page', '1');
     }
-    if (pageUrl) {
-        try {
-            const url = new URL(pageUrl, window.location.origin);
-            url.searchParams.set(`order[${sortOptions.field}]`, sortOptions.direction);
-            if (!url.searchParams.has('page')) {
-                 const pathSegments = url.pathname.split('/');
-                 const potentialPage = pathSegments[pathSegments.length -1];
-                 if (!isNaN(parseInt(potentialPage))) {
-                    url.searchParams.set('page', potentialPage);
-                 } else if (!isInitial) {
-                    console.warn("Next page URL doesn't seem to have a page number, defaulting to 1 for safety:", pageUrl);
-                    url.searchParams.set('page', '1');
-                 }
-            }
-            return url.pathname + url.search;
-        } catch (e) {
-            console.error("Error parsing nextPageUrl, falling back to initial build:", e);
-             const params = new URLSearchParams();
-            params.append('page', '1');
-            params.append(`order[${sortOptions.field}]`, sortOptions.direction);
-            return `${API_BASE_URL}?${params.toString()}`;
+
+    // Always apply current sort options
+    params.set(`order[${sortOptions.field}]`, sortOptions.direction);
+
+    // Apply filter options
+    Object.entries(filterOptions).forEach(([key, value]) => {
+      if (value) { // Only add filter if value is present
+        if (key === 'uploadedAtAfter') params.set('uploadedAt[after]', value);
+        else if (key === 'takenAtBefore') params.set('takenAt[before]', value);
+        else if (key === 'takenAtAfter') params.set('takenAt[after]', value);
+        else params.set(key, value);
+      } else { // Remove filter if value is cleared
+        if (key === 'uploadedAtAfter') params.delete('uploadedAt[after]');
+        else if (key === 'takenAtBefore') params.delete('takenAt[before]');
+        else if (key === 'takenAtAfter') params.delete('takenAt[after]');
+        else params.delete(key);
+      }
+    });
+    
+    // Clean up order params if pageUrl already had them to avoid duplicates if logic changes
+    // This is a bit defensive, API Platform's next links usually handle this well.
+    for (const k of Array.from(params.keys())) {
+        if (k.startsWith('order[') && k !== `order[${sortOptions.field}]`) {
+            params.delete(k);
         }
     }
-    const fallbackParams = new URLSearchParams();
-    fallbackParams.append('page', '1');
-    fallbackParams.append(`order[${sortOptions.field}]`, sortOptions.direction);
-    return `${API_BASE_URL}?${fallbackParams.toString()}`;
-  }, [sortOptions]);
+
+
+    return `${baseUrl.pathname}?${params.toString()}`;
+  }, [sortOptions, filterOptions]); // Add filterOptions to dependencies
 
   const fetchGalleryItems = useCallback(async (isInitialLoad = false) => {
+    // buildApiUrl now incorporates sort and filter options
     const urlToFetch = buildApiUrl(isInitialLoad ? null : nextPageUrl, isInitialLoad);
 
-    if (isInitialLoad) {
-      setIsLoading(true);
-      // When it's an initial load (e.g. due to sort change),
-      // we should clear existing items and reset pagination *before* fetching.
-      // This is now handled in the useEffect below.
-    } else {
-      setIsLoadingMore(true);
-    }
+    if (isInitialLoad) setIsLoading(true);
+    else setIsLoadingMore(true);
     setError(null);
 
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Authentication required');
 
+      console.log('Fetching gallery items from URL:', urlToFetch); // For debugging
       const response = await fetch(urlToFetch, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/ld+json' }
       });
@@ -85,12 +95,8 @@ export function useGallery() {
       if (!response.ok) {
         const errorText = await response.text();
         let errorData: { message?: string; detail?: string; title?: string } = {};
-        try {
-          errorData = JSON.parse(errorText || '{}');
-        } catch (e) {
-          console.error("Failed to parse error response JSON:", e);
-          throw new Error(errorText || `Error: ${response.status}`);
-        }
+        try { errorData = JSON.parse(errorText || '{}'); }
+        catch (e) { throw new Error(errorText || `Error: ${response.status}`); }
         throw new Error(errorData.message || errorData.detail || errorData.title || `Error: ${response.status}`);
       }
 
@@ -99,30 +105,29 @@ export function useGallery() {
 
       setGalleryItems(prevItems =>
         isInitialLoad
-          ? newItems // Replace items on initial load
-          : [...prevItems, ...newItems.filter((newItem: GalleryItem) => !prevItems.find(item => item.id === newItem.id))] // Append for "load more"
+          ? newItems
+          : [...prevItems, ...newItems.filter((newItem: GalleryItem) => !prevItems.find(item => item.id === newItem.id))]
       );
       setNextPageUrl(data.view?.next ?? null);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load gallery items');
+      console.error("Error fetching gallery items:", err); // For debugging
     } finally {
       if (isInitialLoad) setIsLoading(false);
       else setIsLoadingMore(false);
     }
-  }, [nextPageUrl, buildApiUrl]); // buildApiUrl depends on sortOptions
+  }, [nextPageUrl, buildApiUrl]); // buildApiUrl now depends on sortOptions and filterOptions
 
   useEffect(() => {
-    // This effect runs when sortOptions change.
-    // It should reset the gallery and trigger a new initial fetch.
-    console.log('Sort options changed, refetching items:', sortOptions);
-    setGalleryItems([]); // Clear current items
-    setNextPageUrl(null); // Reset pagination
-    // setIsLoading(true); // Set loading state immediately
-    fetchGalleryItems(true); // Perform the initial fetch with new sort options
-  }, [sortOptions]); // Only depend on sortOptions. fetchGalleryItems will use the latest sortOptions via buildApiUrl.
+    // This effect runs when sortOptions or filterOptions change.
+    console.log('Sort or Filter options changed, refetching items. Sort:', sortOptions, "Filters:", filterOptions);
+    setGalleryItems([]);
+    setNextPageUrl(null);
+    fetchGalleryItems(true);
+  }, [sortOptions, filterOptions]); // Add filterOptions to dependencies
 
-  const uploadFileInternal = useCallback((file: File): Promise<GalleryItem> => { // Renamed to avoid conflict if we expose a different 'uploadFile'
+  const uploadFileInternal = useCallback(/* ... unchanged ... */ (file: File): Promise<GalleryItem> => {
     return new Promise((resolve, reject) => {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -149,7 +154,7 @@ export function useGallery() {
           try {
             const newItemData = JSON.parse(xhr.responseText);
             resolve(newItemData as GalleryItem);
-          } catch (_parseError) { // Prefixing with _ signals it's intentionally unused
+          } catch (_parseError) { 
             reject(new Error('Failed to parse server response.'));
           }
         } else {
@@ -164,7 +169,8 @@ export function useGallery() {
       xhr.onerror = () => reject(new Error('Upload failed: Network error'));
       xhr.send(formData);
     });
-  }, []); // Empty dependency array: relies on no props or state from the hook's direct scope
+  }, []);
+
 
   const handleUpload = useCallback(async (incomingFiles: File[]) => {
     if (incomingFiles.length === 0) return;
@@ -186,17 +192,25 @@ export function useGallery() {
     setIsUploading(false);
 
     if (successfullyUploadedItems.length > 0) {
-      // Refetch to ensure new items are displayed according to current sort order
-      console.log('Upload successful, refetching items to include new uploads in sorted order.');
-      setGalleryItems([]); // Optional: clear items for a cleaner refresh, or let fetchGalleryItems(true) handle it
+      console.log('Upload successful, refetching items.');
+      setGalleryItems([]); 
       setNextPageUrl(null);
-      // setIsLoading(true);
       fetchGalleryItems(true);
     }
-  }, [uploadFileInternal, fetchGalleryItems]); // fetchGalleryItems is a dependency here
+  }, [uploadFileInternal, fetchGalleryItems]);
 
   const changeSortOptions = (newSortOptions: Partial<SortOptions>) => {
     setSortOptions(prev => ({ ...prev, ...newSortOptions }));
+  };
+
+  // New function to change filter options
+  const changeFilterOptions = (newFilters: Partial<FilterOptions>) => {
+    setFilterOptions(prev => ({ ...prev, ...newFilters }));
+  };
+  
+  // Function to clear all filters
+  const clearFilters = () => {
+    setFilterOptions(DEFAULT_FILTER_OPTIONS);
   };
 
   return {
@@ -204,15 +218,16 @@ export function useGallery() {
     isLoading,
     isLoadingMore,
     error,
-    nextPageUrl,         // Added
+    nextPageUrl,
     fetchGalleryItems,
-    filesToUpload,       // Added (for UI count)
+    filesToUpload,
     currentFileUpload,
     isUploading,
-    handleUpload,        // Added (this is the function app.tsx calls)
+    handleUpload,
     sortOptions,
-    changeSortOptions,   // Added
-    // setSortOptions, // Not directly exposed, changeSortOptions is the interface
-    // uploadFileInternal, // Not exposed, handleUpload is the public API
+    changeSortOptions,
+    filterOptions,        // Expose filter state
+    changeFilterOptions,  // Expose function to update filters
+    clearFilters,         // Expose function to clear filters
   };
 }
