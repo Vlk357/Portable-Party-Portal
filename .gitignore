@@ -33,3 +33,14 @@ thoughts.txt
 
 chalk
 venv
+
+# SSL Certificates and Keys for local development
+/docker/nginx/ssl/server.key
+/docker/nginx/ssl/server.crt
+/docker/nginx/ssl/*.pem 
+# If you generate other types or use a local CA tool that puts files there:
+/docker/nginx/ssl/*
+
+# You might also want to ignore the directory itself if it only contains generated certs
+# and you have a script or clear instructions to regenerate them.
+# /docker/nginx/ssl/

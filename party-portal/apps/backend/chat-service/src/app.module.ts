@@ -31,6 +31,7 @@ import { DatabaseSeederService } from './services/database-seeder.service';
 import { UserCacheService } from './cache/user-cache.service';
 import * as fs from 'fs'; // Import fs
 import * as path from 'path'; // Import path
+import * as https from 'https';
 
 @Module({
   imports: [
@@ -67,6 +68,10 @@ import * as path from 'path'; // Import path
     HttpModule.register({
       timeout: 5000,
       maxRedirects: 5,
+      httpsAgent: new https.Agent({
+        rejectUnauthorized:
+          process.env.NODE_ENV === 'development' ? false : true,
+      }),
     }),
     ConfigModule.forRoot({
       isGlobal: true,

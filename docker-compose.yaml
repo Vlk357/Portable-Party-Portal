@@ -83,7 +83,7 @@ services:
       POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD} # DB Password secret from .env
       POSTGRES_DB: chat_db # DB Name (non-secret config)
       # --- Auth Service API Connection ---
-      AUTH_SERVICE_URL: http://nginx/auth # Internal URL to reach Auth API via reverse proxy
+      AUTH_SERVICE_URL: https://nginx/auth # Internal URL to reach Auth API via reverse proxy
       CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER} # User secret from .env
       CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD} # Password secret from .env
       # --- JWT Verification ---
@@ -131,7 +131,7 @@ services:
       # Using filesystem cache adapter - stored within container's /var/www/apps/cinema/var/cache
       CACHE_DSN: cache.adapter.filesystem
       # --- Mercure ---
-      MERCURE_URL: http://mercure/.well-known/mercure # Internal URL to Mercure Hub
+      MERCURE_URL: /mercure/.well-known/mercure # Internal URL to Mercure Hub
       MERCURE_PUBLIC_URL: /.well-known/mercure # Public URL via Nginx
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET} # Needs to be set in .env (MUST be the same as Mercure service)
       # --- Service Specific ---
@@ -197,7 +197,7 @@ services:
       # Address the hub listens on *inside* the container network
       SERVER_NAME: ':80'
       # Allow requests from the Nginx proxy (adjust if your Nginx container has a different name/IP)
-      CORS_ALLOWED_ORIGINS: '*' # Be more specific in production! (e.g., http://localhost:5174)
+      CORS_ALLOWED_ORIGINS: '*' # Be more specific in production! (e.g., /localhost:5174)
     # ports: # No need to expose ports directly if accessed via Nginx
     #   - "9090:80" # Example: Expose directly on host 9090 for debugging
     volumes:
@@ -209,14 +209,13 @@ services:
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
     ports:
-      - "8080:80" # Map host port 8080 to container port 80
+      - "8080:80"   # HTTP requests will come here and be redirected by Nginx
+      - "8443:443"  # HTTPS requests will come here (e.g., https://YOUR_SERVER_IP:8443)
     volumes:
-      # Mount backend code if nginx serves static files directly (less common for APIs)
-      # - ./party-portal/apps/backend:/var/www/apps
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro # Mount nginx config
-      # - ./party-portal/apps/frontend/auth/dist:/var/www/frontend-auth:ro
-      - ${MOVIES_DIRECTORY}:/var/www/media:ro # Read-only recommended
-      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/gallery_uploads:ro # NEW - Mount for gallery files
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro # Mount the SSL certs and key
+      - ${MOVIES_DIRECTORY}:/var/www/media:ro
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/gallery_uploads:ro
 
     depends_on: # Ensure backend services are started first
       - auth
