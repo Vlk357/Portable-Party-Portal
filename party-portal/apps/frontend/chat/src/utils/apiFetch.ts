@@ -1,7 +1,7 @@
 // filepath: party-portal/apps/frontend/auth/src/utils/apiFetch.ts
 import type { LoginResponse } from '../../src/types/LoginResponse'; // Adjust path if needed
 
-const API_BASE_URL = `${window.location.origin}/auth/api`; // Auth API base
+// const API_BASE_URL = `${window.location.origin}/auth/api`; // Auth API base
 // Function to get tokens from storage
 export const getAuthTokens = () => {
   const token = localStorage.getItem('token');

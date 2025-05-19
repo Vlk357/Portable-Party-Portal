@@ -12,7 +12,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "isolatedModules": true,
+    "isolatedModules": true, // Keep this if Vite expects it for vite.config.ts processing
     "moduleDetection": "force",
 
     /* Linting */
@@ -21,7 +21,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "noEmit": true // Vite handles emit for config files
+    // "noEmit": true // REMOVE OR SET TO false
+    "declaration": true, // Add this
+    "emitDeclarationOnly": true, // Add this to only emit .d.ts files
+    "outDir": "./dist-node" // Optional: specify an out directory for these .d.ts files
   },
-  "include": ["vite.config.ts"],
+  "include": ["vite.config.ts"]
 }

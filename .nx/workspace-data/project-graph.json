@@ -69,12 +69,78 @@
       "type": "app",
       "data": {
         "root": "party-portal/apps/frontend/gallery",
-        "name": "gallery",
-        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
         "sourceRoot": "apps/frontend/gallery/src",
+        "name": "gallery",
+        "tags": [
+          "npm:private",
+          "scope:frontend-gallery"
+        ],
+        "metadata": {
+          "targetGroups": {
+            "NPM Scripts": [
+              "dev",
+              "build",
+              "lint",
+              "preview"
+            ]
+          },
+          "js": {
+            "packageName": "frontend-gallery",
+            "isInPackageManagerWorkspaces": false
+          }
+        },
+        "targets": {
+          "dev": {
+            "executor": "nx:run-script",
+            "options": {
+              "script": "dev"
+            },
+            "metadata": {
+              "scriptContent": "vite",
+              "runCommand": "npm run dev"
+            },
+            "configurations": {},
+            "parallelism": true
+          },
+          "build": {
+            "executor": "nx:run-script",
+            "options": {
+              "script": "build"
+            },
+            "metadata": {
+              "scriptContent": "tsc -b && vite build",
+              "runCommand": "npm run build"
+            },
+            "configurations": {},
+            "parallelism": true
+          },
+          "lint": {
+            "executor": "nx:run-script",
+            "options": {
+              "script": "lint"
+            },
+            "metadata": {
+              "scriptContent": "eslint .",
+              "runCommand": "npm run lint"
+            },
+            "configurations": {},
+            "parallelism": true
+          },
+          "preview": {
+            "executor": "nx:run-script",
+            "options": {
+              "script": "preview"
+            },
+            "metadata": {
+              "scriptContent": "vite preview",
+              "runCommand": "npm run preview"
+            },
+            "configurations": {},
+            "parallelism": true
+          }
+        },
+        "$schema": "../../../node_modules/nx/schemas/project-schema.json",
         "projectType": "application",
-        "tags": [],
-        "targets": {},
         "implicitDependencies": []
       }
     },
@@ -11581,7 +11647,48 @@
         "type": "implicit"
       }
     ],
-    "gallery": [],
+    "gallery": [
+      {
+        "source": "gallery",
+        "target": "npm:vite",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:react-router-dom",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "shell",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:react-dom",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:@vitejs/plugin-react",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:@nx/vite",
+        "type": "static"
+      },
+      {
+        "source": "gallery",
+        "target": "npm:@tailwindcss/vite",
+        "type": "static"
+      }
+    ],
     "shell": [
       {
         "source": "shell",
@@ -11606,6 +11713,26 @@
       {
         "source": "shell",
         "target": "npm:jwt-decode",
+        "type": "static"
+      },
+      {
+        "source": "shell",
+        "target": "chat",
+        "type": "static"
+      },
+      {
+        "source": "shell",
+        "target": "video",
+        "type": "static"
+      },
+      {
+        "source": "shell",
+        "target": "gallery",
+        "type": "dynamic"
+      },
+      {
+        "source": "shell",
+        "target": "auth",
         "type": "static"
       },
       {
@@ -11647,17 +11774,17 @@
       },
       {
         "source": "video",
-        "target": "npm:react",
-        "type": "static"
-      },
-      {
-        "source": "video",
         "target": "npm:react-router-dom",
         "type": "static"
       },
       {
         "source": "video",
-        "target": "npm:@testing-library/react",
+        "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "video",
+        "target": "shell",
         "type": "static"
       },
       {
@@ -11761,17 +11888,17 @@
       },
       {
         "source": "chat",
-        "target": "npm:@testing-library/react",
-        "type": "static"
-      },
-      {
-        "source": "chat",
         "target": "npm:react",
         "type": "static"
       },
       {
         "source": "chat",
         "target": "npm:jwt-decode",
+        "type": "static"
+      },
+      {
+        "source": "chat",
+        "target": "shell",
         "type": "static"
       },
       {
@@ -26298,5 +26425,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1747215509432
+  "computedAt": 1747670166908
 }

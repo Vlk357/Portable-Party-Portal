@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { GalleryPageLayout } from './components/GalleryPageLayout';
 import { GalleryGridDisplay } from './components/GalleryGridDisplay';

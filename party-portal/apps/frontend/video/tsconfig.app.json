@@ -1,34 +1,50 @@
 {
   "extends": "../../../tsconfig.base.json", // CHANGE THIS to point to the monorepo root base
   "compilerOptions": {
-    "outDir": "../../../dist/out-tsc",
-    "types": [
-      "node",
-      "@nx/react/typings/cssmodule.d.ts",
-      "@nx/react/typings/image.d.ts",
-      "vite/client"
+    "outDir": "../../../../dist/out-tsc",
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
     ],
-    // Add composite and declaration if this project is referenced by others
-    // or if Nx sets it up as composite by default.
-    // If it's not composite, these aren't strictly necessary but good for consistency.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,          // Ensure this is present if Vite handles emit
     "composite": true,      // ADD or ensure this is true if it's an Nx app
     "declaration": true,    // ADD or ensure this is true
     "declarationMap": true, // Optional: good for debugging types
-    "noEmit": true          // Ensure this is present if Vite handles emit
+    // REMOVE "shaka-player" from here if it was added based on previous advice,
+    // as we are now providing types via Shaka.d.ts
+    "types": [
+      "node",
+      "jest",
+      "vite/client"
+    ]
   },
+  // Ensure this includes .d.ts files or is broad enough
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ], // Explicitly add src/**/*.d.ts
   "exclude": [
-    "src/**/*.spec.ts",
-    "src/**/*.test.ts",
-    "src/**/*.spec.tsx",
-    "src/**/*.test.tsx",
-    "src/**/*.spec.js",
-    "src/**/*.test.js",
-    "src/**/*.spec.jsx",
-    "src/**/*.test.jsx",
+    "node_modules",
     "vite.config.ts",
-    "vite.config.mts",
-    "vitest.config.ts",
-    "vitest.config.mts"
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx"
   ],
-  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.tsx"]
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
 }

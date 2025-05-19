@@ -13,24 +13,18 @@ services:
       - "host.docker.internal:host-gateway" # For host access from container if needed
 
   auth: # Auth Service (Symfony) Configuration
-    extends: php # Inherits build, volumes, network from 'php' base
+    extends: php
     volumes:
-      # Mount specific service code + JWT keys
       - ./party-portal/apps/backend/auth-service:/var/www/apps/auth
       - ./party-portal/apps/backend/auth-service/config/jwt:/var/www/apps/auth/config/jwt:ro
     working_dir: /var/www/apps/auth
     environment:
-      # --- Framework/Runtime ---
-      APP_ENV: ${SYMFONY_ENV:-dev} # Symfony environment mode
-      APP_SECRET: ${SYMFONY_APP_SECRET} # Symfony application secret
-      # --- Database Connection ---
-      DATABASE_URL: "postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/auth_db?serverVersion=17&charset=utf8" # Constructed URL
-      # --- JWT Configuration ---
-      JWT_PASSPHRASE: ${AUTH_JWT_PASSPHRASE} # Passphrase for private key
-      # --- Service Specific Config ---
-      ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME} # Example admin user
-      ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD} # Example admin password
-      # --- Chat service config
+      APP_ENV: prod # CHANGED to prod
+      APP_SECRET: ${SYMFONY_APP_SECRET}
+      DATABASE_URL: "postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/auth_db?serverVersion=17&charset=utf8"
+      JWT_PASSPHRASE: ${AUTH_JWT_PASSPHRASE}
+      ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD}
       CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER}
       CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD}
     depends_on:
@@ -38,30 +32,31 @@ services:
         condition: service_healthy
     networks:
       - backend
-    # command: sleep infinity
     command: >
       sh -c "
-        composer install --optimize-autoloader &&
+        composer install --no-dev --optimize-autoloader &&
         php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
         php bin/console app:init-database --no-interaction &&
         php-fpm
       "
 
-  # frontend-auth: # Frontend Configuration
-  #   build:
-  #     context: ./party-portal/apps/frontend/auth
-  #     dockerfile: ../../../../docker/node/Dockerfile
-  #   volumes:
-  #     - ./party-portal/apps/frontend/auth:/app
-  #     - ./node_modules:/app/node_modules
-  #     - ./tsconfig.base.json:/tsconfig.base.json:ro
-  #     # - /app/node_modules # Cache node_modules
-  #   networks:
-  #     - backend
-  #   environment:
-  #     # Config specific to the frontend build/runtime
-  #     - VITE_API_URL=/auth/api # Path to backend API via reverse proxy
-  #   command: sh -c "npm run dev -- --host --port 5173"
+  # frontend-auth:
+    # build:
+    #   context: ./party-portal/apps/frontend/auth
+    #   dockerfile: ../../../../docker/node/Dockerfile
+    # volumes:
+    #   - ./party-portal/apps/frontend/auth:/app/apps/frontend/auth # Mount specific app
+    #   - ./party-portal/node_modules:/app/node_modules # Shared node_modules
+    #   - ./party-portal/dist/apps/frontend/auth:/app/apps/frontend/auth/dist # Mount dist for Nginx
+    # working_dir: /app/apps/frontend/auth
+    # environment:
+    #   NODE_ENV: production
+    #   VITE_API_URL: /auth/api
+    # # ports: # No need to expose port if served by Nginx
+    # #   - "5173:5173"
+    # networks:
+    #   - backend
+    # command: sh -c "npm run build && echo 'Auth frontend built. Static files ready.' && tail -f /dev/null" # Keeps container running
 
   chat: # Chat Service (NestJS) Configuration
     build:
@@ -69,119 +64,97 @@ services:
       dockerfile: ../../../../docker/node/chat.Dockerfile
     volumes:
       - ./party-portal/apps/backend/chat-service:/app
-      - /app/node_modules # Cache node_modules
-      # Mount ONLY the public key from auth service for JWT verification
+      - /app/node_modules
       - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/app/config/jwt/public.pem:ro
     environment:
-      # --- Framework/Runtime ---
-      NODE_ENV: ${NODE_ENV:-development} # Node.js environment mode
-      PORT: 3000 # Port the service listens on inside the container
-      # --- Database Connection ---
-      POSTGRES_HOST: postgres # Hostname of the postgres service
-      POSTGRES_PORT: 5432 # Port of the postgres service
-      POSTGRES_USER: ${CHAT_DB_USER} # DB User secret from .env
-      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD} # DB Password secret from .env
-      POSTGRES_DB: chat_db # DB Name (non-secret config)
-      # --- Auth Service API Connection ---
-      AUTH_SERVICE_URL: https://nginx/auth # Internal URL to reach Auth API via reverse proxy
-      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER} # User secret from .env
-      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD} # Password secret from .env
-      # --- JWT Verification ---
-      # Path inside the container where the public key was mounted
+      NODE_ENV: production # CHANGED to production
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${CHAT_DB_USER}
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD}
+      POSTGRES_DB: chat_db
+      AUTH_SERVICE_URL: https://nginx/auth # Ensure this is correct for inter-service communication
+      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER}
+      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD}
       JWT_PUBLIC_KEY_PATH: /app/config/jwt/public.pem
-      # --- Service Specific Config ---
-      GENERAL_CHAT_NAME: General # Default chat room name
-      DELETED_MESSAGE_TEXT: "This message has been deleted" # Placeholder text
+      GENERAL_CHAT_NAME: General
+      DELETED_MESSAGE_TEXT: "This message has been deleted"
     networks:
       - backend
     depends_on:
-      - postgres # Depends on database
-    command: sh -c "npm run start:dev"
+      - postgres
+    command: sh -c "npm run build && npm run start:prod" # Build and start in production
 
-  frontend-chat: # Frontend Chat Configuration
+  frontend-chat:
     build:
-      context: ./party-portal/apps/frontend/chat
-      dockerfile: ../../../../docker/node/Dockerfile
+      context: ./party-portal
+      dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+      args:
+        APP_DIR: apps/frontend/chat
     volumes:
-      - ./party-portal:/app # Mount entire monorepo to /app
-      - ./party-portal/node_modules:/app/node_modules
-    working_dir: /app/apps/frontend/chat # WORKDIR for this specific app
+      - ./party-portal:/app
+    working_dir: /app/apps/frontend/chat
     environment:
-      - VITE_CHAT_WEBSOCKET_URL=/chat
-      - VITE_CHAT_API_URL=/chat/api
-      - PORT=5174 # Define port for chat frontend
+      NODE_ENV: production
+      VITE_CHAT_WEBSOCKET_URL: /chat
+      VITE_CHAT_API_URL: /chat/api
     networks:
       - backend
-    # Command to run the dev server from the correct directory
-    command: sh -c "npm run dev -- --host --port 5174"
+    command: sh -c "npm run build && echo 'Chat frontend built. Static files ready.'"
 
-  cinema: # Cinema Service (Symfony) Configuration
-    extends: php # Reuses the same PHP image build
-    volumes:
-      # Mount specific service code (relative to /var/www/apps)
-      - ./party-portal/apps/backend/cinema-service:/var/www/apps/cinema
-      # Mount the movie directory from the host into the container
-      - ${MOVIES_DIRECTORY}:/var/www/media:ro # Read-only recommended
-    working_dir: /var/www/apps/cinema
-    environment:
-      # --- Framework/Runtime ---
-      APP_ENV: ${SYMFONY_ENV:-dev}
-      APP_SECRET: ${CINEMA_APP_SECRET} # Needs to be set in .env (can be different from auth)
-      # --- Cache ---
-      # Using filesystem cache adapter - stored within container's /var/www/apps/cinema/var/cache
-      CACHE_DSN: cache.adapter.filesystem
-      # --- Mercure ---
-      MERCURE_URL: /mercure/.well-known/mercure # Internal URL to Mercure Hub
-      MERCURE_PUBLIC_URL: /.well-known/mercure # Public URL via Nginx
-      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET} # Needs to be set in .env (MUST be the same as Mercure service)
-      # --- Service Specific ---
-      # Path *inside the container* where movies are mounted
-      MOVIE_DIRECTORY: /var/www/media
-    depends_on:
-      mercure: # Must wait for Mercure to publish updates
-        condition: service_started
-      # No database dependency initially, add if needed later
-    command: >
-      sh -c "
-        composer install --optimize-autoloader &&
-        # Add migrations here if database is added later
-        # php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
-        php-fpm
-      "
-
-  frontend-video: # Frontend Video Configuration
+  frontend-video:
     build:
-      context: ./party-portal/apps/frontend/video
-      dockerfile: ../../../../docker/node/Dockerfile
+      context: ./party-portal
+      dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+      args:
+        APP_DIR: apps/frontend/video
     volumes:
-      - ./party-portal:/app # Mount entire monorepo to /app
-      - ./party-portal/node_modules:/app/node_modules
-    working_dir: /app/apps/frontend/video # WORKDIR for this specific app
+      - ./party-portal:/app
+    working_dir: /app/apps/frontend/video
     environment:
-      - PORT=5175 # Define port for video frontend
-      # Add any VITE_ specific env vars if needed, e.g.:
-      # - VITE_CINEMA_API_URL=/cinema/api 
+      NODE_ENV: production
     networks:
       - backend
-    command: sh -c "npm run dev -- --host --port 5175"
+    command: sh -c "npm run build && echo 'Video frontend built. Static files ready.'"
 
-  # --- NEW: Frontend Shell Service ---
   frontend-shell:
     build:
-      context: ./party-portal/apps/frontend/shell # Path to your shell app
-      dockerfile: ../../../../docker/node/Dockerfile # Assuming it uses the same Node Dockerfile
+      context: ./party-portal
+      dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+      args:
+        APP_DIR: apps/frontend/shell
     volumes:
-      - ./party-portal:/app # Mount entire monorepo to /app
-      - ./party-portal/node_modules:/app/node_modules
-    working_dir: /app/apps/frontend/shell # Set WORKDIR to the specific app's directory
+      - ./party-portal:/app
+    working_dir: /app/apps/frontend/shell
     environment:
-      - PORT=5176 # Assign a new port for the shell dev server
-      # Add any VITE_ specific env vars the shell app needs
-      # e.g., VITE_API_BASE_URL=/api (if shell makes its own API calls not covered by modules)
+      NODE_ENV: production
     networks:
       - backend
-    command: sh -c "npm run dev -- --host --port 5176" # Run shell dev server
-  # --- End NEW: Frontend Shell Service ---
+    command: sh -c "npm run build && echo 'Shell frontend built. Static files ready.'"
+
+  cinema: # Cinema Service (Symfony) Configuration
+    extends: php
+    volumes:
+      - ./party-portal/apps/backend/cinema-service:/var/www/apps/cinema
+      - ${MOVIES_DIRECTORY}:/var/www/media:ro
+    working_dir: /var/www/apps/cinema
+    environment:
+      APP_ENV: prod # CHANGED to prod
+      APP_SECRET: ${CINEMA_APP_SECRET}
+      CACHE_DSN: cache.adapter.filesystem # Or use Redis/Memcached in prod if set up
+      MERCURE_URL: /mercure/.well-known/mercure
+      MERCURE_PUBLIC_URL: /.well-known/mercure
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
+      MOVIE_DIRECTORY: /var/www/media
+    depends_on:
+      mercure:
+        condition: service_started
+    command: >
+      sh -c "
+        composer install --no-dev --optimize-autoloader &&
+        php-fpm
+      "
 
   mercure: # Mercure Hub Service
     image: dunglas/mercure:latest # Use official Mercure image
@@ -209,23 +182,28 @@ services:
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
     ports:
-      - "8080:80"   # HTTP requests will come here and be redirected by Nginx
-      - "8443:443"  # HTTPS requests will come here (e.g., https://YOUR_SERVER_IP:8443)
+      - "8080:80" # HTTP exposed on host 8080
+      - "8443:443" # HTTPS exposed on host 8443
     volumes:
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro # Mount the SSL certs and key
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
       - ${MOVIES_DIRECTORY}:/var/www/media:ro
       - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/gallery_uploads:ro
-
-    depends_on: # Ensure backend services are started first
+      # Mount the DIST folders from the HOST (after they are built by their respective containers or locally)
+      # - ./party-portal/apps/frontend/shell/dist:/usr/share/nginx/html/shell:ro
+      # - ./party-portal/apps/frontend/chat/dist:/usr/share/nginx/html/chat:ro
+      # - ./party-portal/apps/frontend/video/dist:/usr/share/nginx/html/video:ro
+      # - ./party-portal/dist/apps/frontend/gallery:/usr/share/nginx/html/gallery_dist:ro # Corrected path for gallery
+      - ./party-portal/dist/apps/frontend:/usr/share/nginx/html:ro
+      - ./logo/favicon.ico:/favicon.ico:ro
+    depends_on:
+      # Nginx should start after backend services are at least started
+      # Frontend services are not listed as depends_on because they will build and exit.
+      # Nginx relies on the host volumes being populated with their 'dist' contents.
       - auth
-      # - frontend-auth
       - chat
-      - frontend-chat
       - cinema
       - mercure
-      - frontend-video
-      - frontend-shell
       - gallery
     networks:
       - backend
@@ -268,54 +246,30 @@ services:
       - backend
 
   gallery: # Gallery Service (Symfony)
-    extends: php # Inherits build, network from 'php' base
+    extends: php
     volumes:
-      # Mount specific service code
       - ./party-portal/apps/backend/gallery-service:/var/www/apps/gallery
-      # Mount the host gallery uploads directory to where Symfony will store files publicly
-      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/apps/gallery/public/media/gallery_files # Writable
-      # Mount JWT public key from auth-service for token validation
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/apps/gallery/public/media/gallery_files
       - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/var/www/apps/gallery/config/jwt/public.pem:ro
     working_dir: /var/www/apps/gallery
     environment:
-      # --- Framework/Runtime ---
-      APP_ENV: ${SYMFONY_ENV:-dev}
+      APP_ENV: prod # CHANGED to prod
       APP_SECRET: ${GALLERY_APP_SECRET}
-      # --- Database Connection ---
       DATABASE_URL: "postgresql://${GALLERY_DB_USER}:${GALLERY_DB_PASSWORD}@postgres:5432/${GALLERY_DB_NAME}?serverVersion=17&charset=utf8"
-      # --- JWT Configuration (Path to public key inside this container) ---
       JWT_PUBLIC_KEY_PATH: /var/www/apps/gallery/config/jwt/public.pem
-      # --- Service Specific Paths (must match volume mount and Nginx config) ---
-      # Path inside the container's public dir where Symfony will save files.
       APP_GALLERY_STORAGE_PATH: '%kernel.project_dir%/public/media/gallery_files'
-      # Base URL for accessing files, relative to the app's public root.
       APP_GALLERY_BASE_URL: /media/gallery_files
     depends_on:
       postgres:
         condition: service_healthy
-    networks: # Inherited from 'php' base if defined there
+    networks:
       - backend
     command: >
       sh -c "
-        composer install --optimize-autoloader &&
+        composer install --no-dev --optimize-autoloader &&
         php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration &&
-        # php bin/console app:init-database --no-interaction &&
         php-fpm
       "
-
-  frontend-gallery:
-    build:
-      context: ./party-portal/apps/frontend/gallery
-      dockerfile: ../../../../docker/node/Dockerfile
-    volumes:
-      - ./party-portal:/app
-      - ./party-portal/node_modules:/app/node_modules
-    working_dir: /app/apps/frontend/gallery
-    environment:
-      - PORT=5177
-    networks:
-      - backend
-    command: sh -c "npm run dev -- --host --port 5177"
 
 networks:
   backend: # Define the shared network

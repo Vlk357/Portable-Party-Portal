@@ -1015,8 +1015,8 @@ const VideoPlayer: React.FC = () => {
       {!isDrawerOpen && (
         <div className="absolute top-0 left-0 p-4 z-30"> {/* Ensure z-index is high enough */}
           <HamburgerIcon
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
+            onClick={() => { // Changed: No 'e' parameter
+              // e.stopPropagation(); // No 'e' to stop propagation on
               toggleDrawer();
             }}
             className="text-white"
@@ -1111,8 +1111,8 @@ const VideoPlayer: React.FC = () => {
         {/* Top Bar (Hamburger, Title, Fullscreen) */}
         <div className="flex justify-between items-center w-full">
           <HamburgerIcon
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
+            onClick={() => { // Changed: No 'e' parameter
+              // e.stopPropagation(); // No 'e' to stop propagation on
               if (isFullScreen && document.fullscreenElement) {
                 document.exitFullscreen()
                   .then(() => {

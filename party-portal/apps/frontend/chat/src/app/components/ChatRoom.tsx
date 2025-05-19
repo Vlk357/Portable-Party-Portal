@@ -31,7 +31,7 @@ export function ChatRoom() {
   } = useWebSocket();
 
   const [newMessage, setNewMessage] = useState('');
-  const [textareaRows, setTextareaRows] = useState(1);
+  // const [textareaRows, setTextareaRows] = useState(1);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -360,7 +360,7 @@ export function ChatRoom() {
 
       // 5. Clear input and reset UI
       setNewMessage('');
-      setTextareaRows(1); // Reset to 1 row
+      // setTextareaRows(1); // Reset to 1 row
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'; // Reset height
         textareaRef.current.style.overflowY = 'hidden'; // Reset overflow
@@ -378,7 +378,7 @@ export function ChatRoom() {
   ]);
 
   const isMobileDevice = useMemo(() => {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const userAgent = navigator.userAgent || navigator.vendor;
     return /android|iphone|ipad|ipod|blackberry|windows phone|opera mini|iemobile|mobile/i.test(
       userAgent
     );

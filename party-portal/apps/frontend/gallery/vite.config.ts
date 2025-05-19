@@ -8,6 +8,7 @@ import tailwindcss from '@tailwindcss/vite'; // Import the plugin
 export default defineConfig({
   root: __dirname,
   cacheDir: '../../../node_modules/.vite/apps/frontend/gallery',
+    base: '/gallery-app/',
   server: {
     port: 5177,
     host: '0.0.0.0',

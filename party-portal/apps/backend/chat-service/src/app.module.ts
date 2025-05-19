@@ -65,13 +65,20 @@ import * as https from 'https';
       UserRole,
       RoleAbility,
     ]),
-    HttpModule.register({
-      timeout: 5000,
-      maxRedirects: 5,
-      httpsAgent: new https.Agent({
-        rejectUnauthorized:
-          process.env.NODE_ENV === 'development' ? false : true,
-      }),
+    HttpModule.registerAsync({
+      useFactory: () => {
+        const agent = new https.Agent({
+          // WARNING: Only for development with self-signed certificates
+          // This trusts ALL self-signed certificates if not scoped properly.
+          // For better security, you'd load the specific self-signed cert here.
+          rejectUnauthorized: process.env.NODE_ENV === 'production', // Enforce in prod
+        });
+        return {
+          httpsAgent: agent,
+          // You might also need to set a base URL if all auth calls go to the same place
+          // baseURL: 'https://nginx/auth/api',
+        };
+      },
     }),
     ConfigModule.forRoot({
       isGlobal: true,

@@ -44,3 +44,5 @@ venv
 # You might also want to ignore the directory itself if it only contains generated certs
 # and you have a script or clear instructions to regenerate them.
 # /docker/nginx/ssl/
+
+.nx

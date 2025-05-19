@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { SortOptions, FilterOptions, DEFAULT_FILTER_OPTIONS } from '../hooks/useGallery';
 import { SortControls } from './SortControls';
 import { FilterControls } from './FilterControls';
