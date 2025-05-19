@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
-import { FilterOptions } from '../hooks/useGallery';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FilterOptions } from '../hooks/useGallery'; // FilterOptions will now have userIds?: string[]
 
 interface FilterControlsProps {
   currentFilters: FilterOptions;
@@ -7,7 +7,7 @@ interface FilterControlsProps {
   onClearFilters: () => void;
   availableUserIds: string[];
   disabled?: boolean;
-  onDateRangeValidityChange: (isValid: boolean) => void; // <-- Add this line
+  onDateRangeValidityChange: (isValid: boolean) => void;
 }
 
 const commonMimeTypes = [
@@ -33,21 +33,21 @@ export function FilterControls({
 }: FilterControlsProps) {
   const [dateError, setDateError] = useState<string | null>(null);
 
-  const pendingUserIds = currentFilters.userIds || [];
+  const pendingUserIds = currentFilters.userIds || []; // Use currentFilters.userIds
 
   const handleUserCheckboxChange = (userId: string) => {
     onChangeFilter(prev => {
       const newSelectedUserIds = prev.userIds?.includes(userId)
         ? prev.userIds.filter(id => id !== userId)
         : [...(prev.userIds || []), userId];
-      return { ...prev, userIds: newSelectedUserIds };
+      return { ...prev, userIds: newSelectedUserIds.length > 0 ? newSelectedUserIds : undefined }; // Set to undefined if empty to clear from URL
     });
   };
 
   const handleSelectAllUsers = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeFilter(prev => ({
       ...prev,
-      userIds: e.target.checked ? availableUserIds : [],
+      userIds: e.target.checked && availableUserIds.length > 0 ? availableUserIds : undefined, // Set to undefined if empty
     }));
   };
 
@@ -60,9 +60,6 @@ export function FilterControls({
     const { name, value } = e.target;
     onChangeFilter(prev => {
       const newFilters = { ...prev, [name]: value ? value : undefined };
-      // validateDates will be called by the effect listening to currentFilters change
-      // or can be called directly if immediate feedback on every keystroke is desired
-      // For now, let's rely on the useEffect for validation consistency
       return newFilters;
     });
   };
@@ -75,9 +72,8 @@ export function FilterControls({
       setDateError(null);
       onDateRangeValidityChange(true);
     }
-  }, [onDateRangeValidityChange]); // setDateError is stable
+  }, [onDateRangeValidityChange]);
 
-  // Effect for validation when date inputs change
   useEffect(() => {
     validateDates(currentFilters.takenAtAfter, currentFilters.takenAtBefore);
   }, [currentFilters.takenAtAfter, currentFilters.takenAtBefore, validateDates]);
@@ -88,11 +84,11 @@ export function FilterControls({
 
 
   return (
-    <div className="flex flex-col gap-6"> {/* Increased gap slightly */}
+    <div className="flex flex-col gap-6">
       {/* User ID Filter */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Filter by User IDs:</label>
-        <p className="text-xs text-red-600 mb-2">Note: Multi-user filtering requires backend update.</p>
+        {/* Removed the warning paragraph */}
         {availableUserIds.length > 0 ? (
           <>
             <div className="mb-2">
@@ -101,7 +97,7 @@ export function FilterControls({
                   type="checkbox"
                   className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
                   checked={isAllUsersSelected}
-                  ref={input => { // For indeterminate state
+                  ref={input => {
                     if (input) input.indeterminate = isSomeUsersSelected;
                   }}
                   onChange={handleSelectAllUsers}
@@ -116,8 +112,8 @@ export function FilterControls({
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                    checked={pendingUserIds.includes(id)}
-                    onChange={() => handleUserCheckboxChange(id)}
+                    checked={pendingUserIds.includes(id)} // Correctly check against pendingUserIds array
+                    onChange={() => handleUserCheckboxChange(id)} // Pass the id
                     disabled={disabled}
                   />
                   <span>{id}</span>
@@ -150,24 +146,24 @@ export function FilterControls({
       {/* Date Filters - Arranged side-by-side */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 items-end">
         <div>
-          <label htmlFor="takenAtAfter" className="block text-sm font-medium text-gray-700 mb-1">Taken After:</label>
-          <input
-            type="date"
-            id="takenAtAfter"
-            name="takenAtAfter"
-            value={currentFilters.takenAtAfter || ''}
-            onChange={handleDateChange}
-            disabled={disabled}
-            className="block w-full pl-3 pr-2 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-          />
-        </div>
-        <div>
           <label htmlFor="takenAtBefore" className="block text-sm font-medium text-gray-700 mb-1">Taken Before:</label>
           <input
             type="date"
             id="takenAtBefore"
             name="takenAtBefore"
             value={currentFilters.takenAtBefore || ''}
+            onChange={handleDateChange}
+            disabled={disabled}
+            className="block w-full pl-3 pr-2 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+          />
+        </div>
+        <div>
+          <label htmlFor="takenAtAfter" className="block text-sm font-medium text-gray-700 mb-1">Taken After:</label>
+          <input
+            type="date"
+            id="takenAtAfter"
+            name="takenAtAfter"
+            value={currentFilters.takenAtAfter || ''}
             onChange={handleDateChange}
             disabled={disabled}
             className="block w-full pl-3 pr-2 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
@@ -184,14 +180,14 @@ export function FilterControls({
             id="uploadedAtAfter"
             name="uploadedAtAfter"
             value={currentFilters.uploadedAtAfter || ''}
-            onChange={handleDateChange} // Assuming no cross-validation needed for this one alone
+            onChange={handleDateChange}
             disabled={disabled}
             className="block w-full pl-3 pr-2 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
           />
         </div>
       </div>
       
-      <div className="mt-4"> {/* Adjusted margin */}
+      <div className="mt-4">
         <button
           onClick={onClearFilters}
           disabled={disabled || Object.values(currentFilters).every(val => Array.isArray(val) ? val.length === 0 : !val)}

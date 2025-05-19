@@ -13,7 +13,7 @@ export interface SortOptions {
 
 // Define types for filter values
 export interface FilterOptions {
-  userId?: string;
+  userIds?: string[]; // Changed from userId to userIds
   uploadedAtAfter?: string; // YYYY-MM-DD
   takenAtBefore?: string;   // YYYY-MM-DD
   takenAtAfter?: string;    // YYYY-MM-DD
@@ -21,7 +21,7 @@ export interface FilterOptions {
 }
 
 const DEFAULT_SORT_OPTIONS: SortOptions = { field: 'takenAt', direction: 'desc' };
-export const DEFAULT_FILTER_OPTIONS: FilterOptions = {}; // <-- Add export
+export const DEFAULT_FILTER_OPTIONS: FilterOptions = { userIds: [] }; // Updated for userIds
 const API_BASE_URL = '/gallery/api/gallery_items';
 
 export function useGallery() {
@@ -31,19 +31,17 @@ export function useGallery() {
   const [error, setError] = useState<string | null>(null);
   const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
   const [sortOptions, setSortOptions] = useState<SortOptions>(DEFAULT_SORT_OPTIONS);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>(DEFAULT_FILTER_OPTIONS); // New state for filters
-
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>(DEFAULT_FILTER_OPTIONS);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [currentFileUpload, setCurrentFileUpload] = useState<{ name: string; progress: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-
   const [availableUserIds, setAvailableUserIds] = useState<string[]>([]);
 
   const buildApiUrl = useCallback((pageUrl?: string | null, isInitial = false) => {
     const baseUrl = pageUrl ? new URL(pageUrl, window.location.origin) : new URL(API_BASE_URL, window.location.origin);
     const params = baseUrl.searchParams;
 
-    if (isInitial || !pageUrl) { // For initial load or when pageUrl is not from pagination
+    if (isInitial || !pageUrl) {
       params.set('page', '1');
     }
 
@@ -51,12 +49,21 @@ export function useGallery() {
     params.set(`order[${sortOptions.field}]`, sortOptions.direction);
 
     // Apply filter options
+    // Handle userIds filter first
+    params.delete('userId[]'); // Clear any existing userId[] params from previous state or pageUrl
+    if (filterOptions.userIds && filterOptions.userIds.length > 0) {
+      filterOptions.userIds.forEach(uid => params.append('userId[]', uid));
+    }
+
+    // Handle other filters
     Object.entries(filterOptions).forEach(([key, value]) => {
+      if (key === 'userIds') return; // Already handled
+
       if (value) { // Only add filter if value is present
-        if (key === 'uploadedAtAfter') params.set('uploadedAt[after]', value);
-        else if (key === 'takenAtBefore') params.set('takenAt[before]', value);
-        else if (key === 'takenAtAfter') params.set('takenAt[after]', value);
-        else params.set(key, value);
+        if (key === 'uploadedAtAfter') params.set('uploadedAt[after]', String(value));
+        else if (key === 'takenAtBefore') params.set('takenAt[before]', String(value));
+        else if (key === 'takenAtAfter') params.set('takenAt[after]', String(value));
+        else params.set(key, String(value));
       } else { // Remove filter if value is cleared
         if (key === 'uploadedAtAfter') params.delete('uploadedAt[after]');
         else if (key === 'takenAtBefore') params.delete('takenAt[before]');
@@ -65,17 +72,15 @@ export function useGallery() {
       }
     });
     
-    // Clean up order params if pageUrl already had them to avoid duplicates if logic changes
-    // This is a bit defensive, API Platform's next links usually handle this well.
+    // Clean up order params if pageUrl already had them
     for (const k of Array.from(params.keys())) {
         if (k.startsWith('order[') && k !== `order[${sortOptions.field}]`) {
             params.delete(k);
         }
     }
 
-
     return `${baseUrl.pathname}?${params.toString()}`;
-  }, [sortOptions, filterOptions]); // Add filterOptions to dependencies
+  }, [sortOptions, filterOptions]);
 
   const fetchGalleryItems = useCallback(async (isInitialLoad = false) => {
     // buildApiUrl now incorporates sort and filter options
@@ -119,7 +124,7 @@ export function useGallery() {
       if (isInitialLoad) setIsLoading(false);
       else setIsLoadingMore(false);
     }
-  }, [nextPageUrl, buildApiUrl]); // buildApiUrl now depends on sortOptions and filterOptions
+  }, [nextPageUrl, buildApiUrl]);
 
   useEffect(() => {
     // This effect runs when sortOptions or filterOptions change.
@@ -127,7 +132,7 @@ export function useGallery() {
     setGalleryItems([]);
     setNextPageUrl(null);
     fetchGalleryItems(true);
-  }, [sortOptions, filterOptions]); // Add filterOptions to dependencies
+  }, [sortOptions, filterOptions]);
 
   const uploadFileInternal = useCallback(/* ... unchanged ... */ (file: File): Promise<GalleryItem> => {
     return new Promise((resolve, reject) => {
@@ -210,9 +215,9 @@ export function useGallery() {
     setFilterOptions(prev => ({ ...prev, ...newFilters }));
   };
   
-  // Function to clear all filters
+  // clearFilters should also reset userIds correctly
   const clearFilters = () => {
-    setFilterOptions(DEFAULT_FILTER_OPTIONS);
+    setFilterOptions(DEFAULT_FILTER_OPTIONS); // This now correctly sets userIds: []
   };
 
   const fetchAvailableUserIds = useCallback(async () => {
@@ -255,9 +260,9 @@ export function useGallery() {
     handleUpload,
     sortOptions,
     changeSortOptions,
-    filterOptions,        // Expose filter state
-    changeFilterOptions,  // Expose function to update filters
-    clearFilters,         // Expose function to clear filters
-    availableUserIds, // Expose available user IDs
+    filterOptions,
+    changeFilterOptions,
+    clearFilters,
+    availableUserIds,
   };
 }
