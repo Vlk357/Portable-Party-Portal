@@ -1,33 +1,37 @@
 // filepath: /home/martin/Osobni/Skola/CVUT/FEL-SIT/Bakalarska_prace/party-portal/apps/frontend/gallery/src/app/app.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Outlet, useLocation, useOutletContext } from 'react-router-dom'; // Ensure all are imported
 import { useShell } from '../../../shell/src/app/context/ShellContext';
-import { useGallery, SortOptions, FilterOptions } from './hooks/useGallery'; // Import types
+import { useGallery, SortOptions, FilterOptions } from './hooks/useGallery';
 import { GalleryHeader } from './components/GalleryHeader';
-// SortControls and FilterControls are now used inside FilterSortPanel
-// import { SortControls } from './components/SortControls';
-// import { FilterControls } from './components/FilterControls';
-import { FilterSortPanel } from './components/FilterSortPanel'; // Import the new panel
+import { FilterSortPanel } from './components/FilterSortPanel';
 import { GalleryGrid } from './components/GalleryGrid';
 import { UploadFeedback } from './components/UploadFeedback';
+import { MediaDetailView } from './components/MediaDetailView'; // Import MediaDetailView
 
-export function App() {
+// Interface for the context passed from GalleryPageLayout
+interface GalleryOutletContext {
+  galleryItems: ReturnType<typeof useGallery>['galleryItems'];
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  error: string | null;
+  nextPageUrl: string | null;
+  loadMoreRef: React.RefObject<HTMLDivElement>;
+  filesToUpload: ReturnType<typeof useGallery>['filesToUpload'];
+  currentFileUpload: ReturnType<typeof useGallery>['currentFileUpload'];
+  isUploading: boolean;
+  isDraggingOver: boolean;
+}
+
+/**
+ * GalleryPageLayout: Manages core gallery state, conditionally renders GalleryHeader,
+ * and provides an Outlet for child routes (grid or detail view).
+ */
+function GalleryPageLayout() {
   const {
-    galleryItems,
-    isLoading,
-    isLoadingMore,
-    error,
-    nextPageUrl,
-    fetchGalleryItems,
-    filesToUpload,
-    currentFileUpload,
-    isUploading,
-    handleUpload,
-    sortOptions,
-    changeSortOptions,
-    filterOptions,
-    changeFilterOptions,
-    clearFilters, // This will be used by the panel to signal clearing global filters
-    availableUserIds,
+    galleryItems, isLoading, isLoadingMore, error, nextPageUrl, fetchGalleryItems,
+    filesToUpload, currentFileUpload, isUploading, handleUpload,
+    sortOptions, changeSortOptions, filterOptions, changeFilterOptions, availableUserIds,
   } = useGallery();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -35,28 +39,20 @@ export function App() {
   const { toggleDrawer } = useShell();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const observer = useRef<IntersectionObserver | null>(null);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const location = useLocation(); // Get location
 
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false); // State for panel visibility
-
-  // Infinite scroll observer setup (remains the same)
-  useEffect(() => {
+  useEffect(() => { // Infinite scroll
     if (isLoading || isLoadingMore || !nextPageUrl || !loadMoreRef.current) return;
     const currentObserver = observer.current;
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && nextPageUrl && !isLoadingMore) {
-        fetchGalleryItems(false);
-      }
+      if (entries[0].isIntersecting && nextPageUrl && !isLoadingMore) fetchGalleryItems(false);
     });
     const currentLoadMoreRef = loadMoreRef.current;
-    if (currentLoadMoreRef && observer.current) { // Check if observer.current is not null
-        observer.current.observe(currentLoadMoreRef);
-    }
+    if (currentLoadMoreRef && observer.current) observer.current.observe(currentLoadMoreRef);
     return () => {
-      if (currentLoadMoreRef && observer.current) { // Check if observer.current is not null
-        observer.current.unobserve(currentLoadMoreRef);
-      } else if (currentLoadMoreRef && currentObserver) {
-        currentObserver.unobserve(currentLoadMoreRef);
-      }
+      if (currentLoadMoreRef && observer.current) observer.current.unobserve(currentLoadMoreRef);
+      else if (currentLoadMoreRef && currentObserver) currentObserver.unobserve(currentLoadMoreRef);
     };
   }, [fetchGalleryItems, isLoading, isLoadingMore, nextPageUrl]);
 
@@ -80,7 +76,6 @@ export function App() {
     }
   };
 
-
   const handleApplyFiltersAndSort = (newSort: SortOptions, newFilters: FilterOptions) => {
     // Check if sort options actually changed
     if (JSON.stringify(newSort) !== JSON.stringify(sortOptions)) {
@@ -99,83 +94,119 @@ export function App() {
 
   const isActionDisabled = isUploading || isLoading || isLoadingMore;
 
+  const isOnDetailPage = location.pathname.includes('/item/');
+
+  const outletContextData: GalleryOutletContext = {
+    galleryItems, isLoading, isLoadingMore, error, nextPageUrl, loadMoreRef,
+    filesToUpload, currentFileUpload, isUploading, isDraggingOver
+  };
+
   return (
     <div
-      className="flex flex-col h-screen"
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      className="flex flex-col h-screen bg-gray-50"
+      onDragEnter={!isOnDetailPage ? handleDragEnter : undefined}
+      onDragOver={!isOnDetailPage ? handleDragOver : undefined}
+      onDragLeave={!isOnDetailPage ? handleDragLeave : undefined}
+      onDrop={!isOnDetailPage ? handleDrop : undefined}
     >
-      <GalleryHeader
-        onToggleDrawer={toggleDrawer}
-        onOpenFileDialog={openFileDialog}
-        onToggleFilterPanel={toggleFilterPanel} // Pass handler
-        isActionDisabled={isActionDisabled}
-      />
+      {!isOnDetailPage && (
+        <>
+          <GalleryHeader
+            onToggleDrawer={toggleDrawer}
+            onOpenFileDialog={openFileDialog}
+            onToggleFilterPanel={toggleFilterPanel} // Pass handler
+            isActionDisabled={isActionDisabled}
+          />
 
-      <input
-        type="file" ref={fileInputRef} onChange={handleFileChange}
-        multiple accept="image/*, video/*, video/x-matroska" className="hidden"
-        disabled={isActionDisabled}
-      />
+          <input
+            type="file" ref={fileInputRef} onChange={handleFileChange}
+            multiple accept="image/*, video/*, video/x-matroska" className="hidden"
+            disabled={isActionDisabled}
+          />
+        </>
+      )}
+      
+      <Outlet context={outletContextData} /> {/* THIS IS WHERE MediaDetailView or GalleryGridDisplay WILL RENDER */}
 
-      <main className={`flex-grow p-4 sm:p-8 overflow-y-auto relative ${isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-400' : ''}`}>
-        <UploadFeedback
-          isDraggingOver={isDraggingOver}
-          currentFileUpload={currentFileUpload}
-          isUploading={isUploading}
-          filesToUploadCount={filesToUpload.length}
+      {!isOnDetailPage && (
+         <FilterSortPanel
+          isOpen={isFilterPanelOpen}
+          onClose={() => setIsFilterPanelOpen(false)}
+          currentSortOptions={sortOptions}
+          currentFilterOptions={filterOptions}
+          availableUserIds={availableUserIds}
+          onApply={handleApplyFiltersAndSort}
+          disabled={isActionDisabled}
         />
-
-        {/* FilterControls and SortControls are now inside FilterSortPanel */}
-        {/* No longer directly rendered here */}
-
-        {error && (
-          <div className="my-4 text-red-700 p-4 bg-red-100 border border-red-300 rounded-md mb-4">
-            <p className="font-semibold">Error:</p>
-            <pre className="whitespace-pre-wrap">{error}</pre>
-          </div>
-        )}
-
-        {isLoading && galleryItems.length === 0 && (
-          <div className="text-center py-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
-            <p className="mt-3 text-gray-600">Loading gallery items...</p>
-          </div>
-        )}
-
-        {!isLoading && galleryItems.length === 0 && !error && (
-          <p className="col-span-full text-center text-gray-500 py-10">No gallery items found. Drag and drop files or use the '+' button to upload.</p>
-        )}
-
-        <GalleryGrid items={galleryItems} />
-
-        <div ref={loadMoreRef} style={{ height: '1px' }} />
-
-        {isLoadingMore && (
-          <div className="text-center py-6">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-500">Loading more items...</p>
-          </div>
-        )}
-
-        {!isLoadingMore && !nextPageUrl && galleryItems.length > 0 && (
-          <p className="text-center text-gray-500 py-6">You've reached the end!</p>
-        )}
-      </main>
-
-      <FilterSortPanel
-        isOpen={isFilterPanelOpen}
-        onClose={() => setIsFilterPanelOpen(false)}
-        currentSortOptions={sortOptions}
-        currentFilterOptions={filterOptions}
-        availableUserIds={availableUserIds}
-        onApply={handleApplyFiltersAndSort}
-        disabled={isActionDisabled}
-      />
+      )}
     </div>
   );
 }
 
-export default App;
+/**
+ * GalleryGridDisplay: Renders the grid and related UI elements.
+ */
+function GalleryGridDisplay() {
+  const { 
+    galleryItems, isLoading, error, loadMoreRef, isLoadingMore, nextPageUrl,
+    filesToUpload, currentFileUpload, isUploading, isDraggingOver
+  } = useOutletContext<GalleryOutletContext>();
+  
+  return (
+    <main className={`flex-grow p-4 sm:p-8 overflow-y-auto relative ${isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-400' : ''}`}>
+      <UploadFeedback
+        isDraggingOver={isDraggingOver}
+        currentFileUpload={currentFileUpload}
+        isUploading={isUploading}
+        filesToUploadCount={filesToUpload.length}
+      />
+
+      {error && !isLoading && galleryItems.length === 0 && (
+        <div className="text-red-600 p-3 bg-red-100 border border-red-300 rounded">Error: {error}</div>
+      )}
+
+      {isLoading && galleryItems.length === 0 && (
+        <div className="text-center py-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
+          <p className="mt-3 text-gray-600">Loading gallery items...</p>
+        </div>
+      )}
+
+      {!isLoading && galleryItems.length === 0 && !error && (
+        <p className="col-span-full text-center text-gray-500 py-10">No gallery items found.</p>
+      )}
+
+      <GalleryGrid items={galleryItems} />
+
+      <div ref={loadMoreRef} style={{ height: '1px' }} />
+
+      {isLoadingMore && (
+         <div className="text-center py-6">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-500">Loading more items...</p>
+        </div>
+      )}
+
+      {!isLoadingMore && !nextPageUrl && galleryItems.length > 0 && (
+        <p className="text-center text-gray-500 py-4">You've reached the end!</p>
+      )}
+    </main>
+  );
+}
+
+/**
+ * App: Defines the routes for the gallery module.
+ * This is the component that should be lazy loaded by the shell.
+ */
+export function App() {
+  return (
+    <Routes>
+      <Route path="*" element={<GalleryPageLayout />}> {/* Parent layout route */}
+        <Route index element={<GalleryGridDisplay />} /> {/* Grid view at the base path */}
+        <Route path="item/:itemId" element={<MediaDetailView />} /> {/* Detail view */}
+      </Route>
+    </Routes>
+  );
+}
+
+export default App; // Default export App

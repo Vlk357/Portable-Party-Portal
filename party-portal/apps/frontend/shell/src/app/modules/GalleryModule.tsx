@@ -8,7 +8,7 @@ export function GalleryModule() {
   return (
     <Suspense fallback={<div>Loading Gallery Module...</div>}>
       <Routes>
-        <Route path="/" element={<GalleryApp />} />
+        <Route path="*" element={<GalleryApp />} />
       </Routes>
     </Suspense>
   );
