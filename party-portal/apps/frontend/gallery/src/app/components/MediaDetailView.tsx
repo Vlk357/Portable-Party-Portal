@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { GalleryItem } from '../interfaces/GalleryItem';
 
@@ -25,13 +25,8 @@ export function MediaDetailView() {
   }, [item, itemId, navigate]);
 
   const handleGoBack = () => {
-    // Prefer navigate(-1) if the history stack is reliable for "back" behavior
-    // Otherwise, navigate to a known gallery path.
-    if (location.key !== "default" && location.pathname !== "/app/gallery") { // Check if there's history to go back to
-        navigate(-1);
-    } else {
-        navigate('/app/gallery');
-    }
+    // Force a full page reload to ensure GalleryPageLayout and its effects are completely reset.
+    window.location.assign('/app/gallery');
   };
 
   if (!item) {
