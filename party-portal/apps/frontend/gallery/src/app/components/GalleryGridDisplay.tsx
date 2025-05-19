@@ -61,9 +61,7 @@ export function GalleryGridDisplay() {
         ref={loadMoreRef}
         data-testid="load-more-trigger"
         style={{ height: '0px', width: '0%' }}
-      >
-        LOAD MORE TRIGGER
-      </div>
+      ></div>
 
       {isLoadingMore && (
         <div className="text-center py-6">
