@@ -42,8 +42,23 @@ export function CreateChatRoom() {
   }, [contextUserId]);
 
   const availableUsers = useMemo(() => {
-    if (typeof currentUserId !== 'number') return allUsers; // Show all if current user unknown
-    return allUsers.filter((user) => user.id !== currentUserId);
+    const excludedUsernames = ['admin', 'chat_service_user'];
+    let usersToDisplay = allUsers;
+
+    // Filter out the current user
+    if (typeof currentUserId === 'number') {
+      usersToDisplay = usersToDisplay.filter((user) => user.id !== currentUserId);
+    }
+
+    // Filter out specified system users
+    usersToDisplay = usersToDisplay.filter(
+      (user) => !excludedUsernames.includes(user.username)
+    );
+
+    // Sort users by username
+    usersToDisplay.sort((a, b) => a.username.localeCompare(b.username));
+    
+    return usersToDisplay;
   }, [allUsers, currentUserId]);
 
   const handleUserSelection = (userId: number) => {
@@ -215,7 +230,7 @@ export function CreateChatRoom() {
                   htmlFor={`user-${user.id}`}
                   className="ml-2 text-sm text-gray-700"
                 >
-                  {user.username} (ID: {user.id})
+                  {user.username}
                 </label>
               </div>
             ))}
