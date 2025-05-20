@@ -41,7 +41,7 @@ class StreamingStateService
             'playbackState' => $state['playbackState'] ?? 'stopped',
             'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
             'stateUpdateServerTime' => $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
-                ? (int)((float)$state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
+                ? (int) ((float) $state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
                 : null
         ];
     }
@@ -72,13 +72,13 @@ class StreamingStateService
         $currentVideoTimeMs = (float) $currentState['videoPlaybackTimeMs']; // Start with current time as float
         if ($currentState['stateUpdateServerTime'] instanceof \DateTimeImmutable) {
             $now = $this->clock->now();
-            
+
             // Calculate elapsed time with microsecond precision then convert to milliseconds
-            $nowPreciseSeconds = (float)$now->format('U.u');
-            $lastUpdatePreciseSeconds = (float)$currentState['stateUpdateServerTime']->format('U.u');
-            
+            $nowPreciseSeconds = (float) $now->format('U.u');
+            $lastUpdatePreciseSeconds = (float) $currentState['stateUpdateServerTime']->format('U.u');
+
             $timeSinceUpdateMs = ($nowPreciseSeconds - $lastUpdatePreciseSeconds) * 1000.0;
-            
+
             $currentVideoTimeMs += max(0, $timeSinceUpdateMs);
             $this->logger->info(sprintf("Calculated timeSinceUpdateMs: %.3f ms. New currentVideoTimeMs before int cast: %.3f ms", $timeSinceUpdateMs, $currentVideoTimeMs));
         }
@@ -126,7 +126,19 @@ class StreamingStateService
         $finder = new Finder();
         $movies = [];
         try {
-            $finder->files()->in($this->movieDirectory)->name(['*.m3u8', '*.mpd']);
+            $finder->files()
+                ->in($this->movieDirectory)
+                ->name([
+                    '*.m3u8', // HLS manifest
+                    '*.mpd',  // DASH manifest
+                    '*.mp4',  // MP4 video
+                    '*.mkv',  // Matroska video
+                    '*.webm', // WebM video
+                    '*.avi',  // AVI video
+                    '*.mov',  // QuickTime video
+                    '*.flv',  // Flash video
+                    '*.wmv'   // Windows Media Video
+                ]);
 
             foreach ($finder as $file) {
                 $relativePath = str_replace($this->movieDirectory . '/', '', $file->getRealPath());
@@ -155,7 +167,7 @@ class StreamingStateService
             'playbackState' => $state['playbackState'] ?? 'stopped',
             'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
             'stateUpdateServerTime' => isset($state['stateUpdateServerTime']) && $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
-                ? (int)((float)$state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
+                ? (int) ((float) $state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
                 : ($state['stateUpdateServerTime'] ?? null) // Handle if already a millisecond timestamp (e.g. from older state) or null
         ];
 

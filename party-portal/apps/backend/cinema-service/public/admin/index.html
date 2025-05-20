@@ -467,7 +467,8 @@
           availableMovies = response.movies.map((path) => {
             // Extract title from path
             const fileName = path.split('/').pop();
-            const fileNameWithoutExt = fileName.replace(/\.(m3u8|mpd)$/, '');
+            // Include common video formats in the regex
+            const fileNameWithoutExt = fileName.replace(/\.(m3u8|mpd|mp4|mkv|webm|avi|mov|flv|wmv)$/i, '');
 
             // Try to make a nice title from the path
             let title = '';
@@ -477,19 +478,26 @@
               const folders = path.split('/');
               // Use the folder name as a base for the title
               if (folders.length > 1) {
-                title = folders[folders.length - 2].replace(/_/g, ' ');
+                // Get the directory name immediately preceding the file
+                title = folders[folders.length - 2].replace(/_/g, ' ').replace(/-/g, ' ');
               }
             }
 
-            // If we couldn't extract a good title, use the filename
+            // If we couldn't extract a good title from folder, use the filename
             if (!title || title === '') {
               title = fileNameWithoutExt.replace(/-/g, ' ').replace(/_/g, ' ');
             }
 
+            // Basic check if it's an adaptive manifest or a direct video file
+            const isAdaptive = /\.(m3u8|mpd)$/i.test(fileName);
+
             return {
-              path: path,
+              path: path, // Original path from server, e.g., "Movie Title/movie.m3u8" or "Classics/another_movie.mp4"
               title: title.charAt(0).toUpperCase() + title.slice(1), // Capitalize first letter
+              // manifestUrl will be the full path relative to the /movies/ Nginx location
+              // For adaptive, it's the manifest. For direct, it's the video file itself.
               manifestUrl: path,
+              isAdaptive: isAdaptive, // Add a flag to know the type
             };
           });
 
