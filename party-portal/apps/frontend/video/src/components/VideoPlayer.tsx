@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useShell } from '../../../shell/src/app/context/ShellContext';
-import { HamburgerIcon } from '../../../shell/src/app/components/HamburgerIcon';
+import { HamburgerIcon } from '../../../shell/src/app/components/HamburgerIcon'; // Ensure this path is correct
 
 // Ensure shaka types are globally available (e.g., via a types/index.d.ts or by installing @types/shaka-player)
 
@@ -39,26 +39,29 @@ const loadScript = (src: string, id: string): Promise<void> => {
   });
 };
 
+// --- HamburgerButtonFactory is NO LONGER NEEDED if we use a React overlay ---
+// const HamburgerButtonFactory = { ... }; 
+
 const VideoPlayer: React.FC = () => {
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const videoRef = useCallback((node: HTMLVideoElement | null) => setVideoElement(node), []);
 
   const playerRef = useRef<shaka.Player | null>(null);
-  const uiRef = useRef<shaka.ui.Overlay | null>(null); // This should now be recognized
+  const uiRef = useRef<shaka.ui.Overlay | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
   const [streamState, setStreamState] = useState<StreamState | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [shakaPlayerInstance, setShakaPlayerInstance] = useState<shaka.Player | null>(null);
   const [hasInitialSeekCompleted, setHasInitialSeekCompleted] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(!!document.fullscreenElement); // ADD THIS
+  const [isFullScreen, setIsFullScreen] = useState(!!document.fullscreenElement);
 
   const { toggleDrawer, isDrawerOpen } = useShell();
   const [shakaScriptLoaded, setShakaScriptLoaded] = useState(!!(window.shaka && window.shaka.ui));
 
   const isCatchingUpRate = useRef(false);
   const targetCatchUpTime = useRef(0);
-  const lastUserInteractionTime = useRef(0); // To give user actions priority
+  const lastUserInteractionTime = useRef(0);
 
   // Fetch initial stream state and set up Mercure listener (largely unchanged)
   useEffect(() => {
@@ -271,45 +274,54 @@ const VideoPlayer: React.FC = () => {
 
   // Initialize Shaka Player & UI
   useEffect(() => {
+    let uiInstance: shaka.ui.Overlay | null = null;
+
     if (videoElement && shakaScriptLoaded && !playerRef.current && playerContainerRef.current) {
-      if (window.shaka && window.shaka.Player.isBrowserSupported() && window.shaka.ui) {
+
+      if (window.shaka && window.shaka.Player.isBrowserSupported() && window.shaka.ui) { // Removed Controls check as we are not registering custom elements
+
         const player = new window.shaka.Player();
         player.addEventListener('error', (event: shaka.extern.ErrorEvent) => {
-          console.error('Shaka Player Error Event:', event.detail);
+          console.error('[VideoPlayer] Shaka Player Error Event:', event.detail);
           setIsPlayerReady(false);
         });
-
+        
         player.attach(videoElement)
           .then(() => {
             playerRef.current = player;
             setShakaPlayerInstance(player);
 
             const ui = new window.shaka.ui.Overlay(player, playerContainerRef.current!, videoElement);
+            uiInstance = ui;
             uiRef.current = ui;
-            // Basic UI configuration (you can customize this further)
+            
             ui.configure({
-              // Add 'play_pause_large' for a big central play button on load
-              'controlPanelElements': ['play_pause', 'time_and_duration', 'spacer', 'volume', 'fullscreen', 'overflow_menu'],
-              'overflowMenuButtons': ['language', 'captions', 'playback_rate', 'quality'],
-              // 'addBigPlayButton': true, // Alternative way for big play button
+              // 'hamburger' is removed from controlPanelElements
+              'controlPanelElements': ['play_pause', 'spacer', 'volume', 'fullscreen', 'overflow_menu'],
+              'overflowMenuButtons': ['language', 'captions', 'quality'], 
+              'addBigPlayButton': true, 
+              'enableKeyboardPlaybackControls': false,
             });
-            console.log('Shaka Player and UI initialized.');
+            console.log('[VideoPlayer] Shaka Player and UI initialized (without custom Shaka hamburger).');
           })
-          .catch((error: shaka.extern.Error) => console.error('Error attaching player to videoElement:', error));
+          .catch((error: shaka.extern.Error) => {
+            console.error('[VideoPlayer] Error attaching player to videoElement:', error);
+          });
       } else {
-        console.warn('Shaka Player or UI not available or browser not supported.');
+        console.warn('[VideoPlayer] Shaka Player or UI not available or browser not supported.');
       }
     }
+
     return () => {
-      uiRef.current?.destroy().catch(e => console.error("Error destroying Shaka UI", e));
-      playerRef.current?.destroy().catch(e => console.error("Error destroying Shaka Player", e));
+      uiInstance?.destroy().catch(e => console.error("[VideoPlayer] Error destroying Shaka UI", e));
+      playerRef.current?.destroy().catch(e => console.error("[VideoPlayer] Error destroying Shaka Player", e));
       uiRef.current = null;
       playerRef.current = null;
       setShakaPlayerInstance(null);
       setIsPlayerReady(false);
       setHasInitialSeekCompleted(false);
     };
-  }, [videoElement, shakaScriptLoaded]);
+  }, [videoElement, shakaScriptLoaded, toggleDrawer]);
 
   // Load Manifest
   useEffect(() => {
@@ -456,87 +468,101 @@ const VideoPlayer: React.FC = () => {
   }, [videoElement /*, isFullScreen, requestOrientationLock */]);
 
 
-  // Hamburger Icon (conditionally rendered)
-  const hamburgerIconJsx = !isDrawerOpen && streamState?.manifestUrl && (
-    <div className="absolute top-4 left-4 z-30"> {/* Ensure z-index is above Shaka's UI */}
-      <HamburgerIcon
-        onClick={() => {
-          lastUserInteractionTime.current = Date.now(); // Consider this an interaction
-          if (isFullScreen && document.fullscreenElement) {
-            document.exitFullscreen().then(() => toggleDrawer()).catch(err => { console.error("Error exiting fullscreen:", err); toggleDrawer(); });
-          } else {
-            toggleDrawer();
-          }
-        }}
-        className="text-white"
-      />
-    </div>
-  );
+  // Re-introduce handleReactHamburgerClick to manage fullscreen exit and prevent default if necessary
+  const handleReactHamburgerClick = (event?: React.MouseEvent) => {
+    // If HamburgerIcon was an <a> tag, preventDefault would be important.
+    // For a <button type="button">, it's less critical for page reloads but good for consistency.
+    event?.preventDefault(); 
+    
+    console.log('[VideoPlayer] React HamburgerIcon clicked.');
+    lastUserInteractionTime.current = Date.now(); // Good to keep track of interactions
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().then(() => {
+        toggleDrawer();
+      }).catch(err => {
+        console.error("Error exiting fullscreen:", err);
+        toggleDrawer(); // Still attempt to toggle drawer
+      });
+    } else {
+      toggleDrawer();
+    }
+  };
   
-  // Fullscreen state management (Shaka UI handles the button, we track state)
+  // Fullscreen state management
   useEffect(() => {
-    const cb = () => setIsFullScreen(!!document.fullscreenElement); // Now setIsFullScreen is defined
+    const cb = () => setIsFullScreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', cb);
     return () => document.removeEventListener('fullscreenchange', cb);
-  }, []); // Removed setIsFullScreen from deps as it's a setter
+  }, []);
 
 
   // Render loading/no stream states
   if (!shakaScriptLoaded && !(window.shaka && window.shaka.ui)) {
     return <div className="w-full h-screen flex justify-center items-center bg-black text-white">Loading player library...</div>;
   }
-  if (!streamState || !streamState.manifestUrl) {
-    return (
-      <div className="relative w-full h-screen flex flex-col bg-black text-white">
-        {!isDrawerOpen && ( /* Hamburger for no stream view */
-          <div className="absolute top-4 left-4 z-30">
-            <HamburgerIcon onClick={toggleDrawer} className="text-white" />
-          </div>
-        )}
-        <div className="flex-grow flex justify-center items-center text-2xl p-5 text-center">
-          {streamState === null ? 'Loading stream information...' : 'No active stream available.'}
-        </div>
-      </div>
-    );
-  }
+  
+  const showNoStreamHamburger = !isDrawerOpen && (!streamState || !streamState.manifestUrl);
 
   return (
     <div
       ref={playerContainerRef}
-      className={`relative w-full h-screen bg-black overflow-hidden ${isFullScreen ? 'fixed inset-0 z-[9999]' : ''}`} // Now isFullScreen is defined
-      // onClick and onTouchEnd for main container are removed to let Shaka UI handle interactions
+      // The z-[9999] on the container in fullscreen is very high.
+      // The hamburger, being a child, will be within this stacking context.
+      className={`relative w-full h-screen bg-black overflow-hidden ${isFullScreen ? 'fixed inset-0 z-[9999]' : ''}`}
     >
+      {/* Video Element */}
       <video
         ref={videoRef}
+        // ... (keep existing video props) ...
         className="w-full h-full object-contain"
         playsInline
-        autoPlay={false} // User initiates play via Shaka UI
-        // muted // No longer start muted
+        autoPlay={false}
         onPlay={() => {
           console.log('Video Event: onPlay');
-          // setIsPlayingVisual(true); // REMOVE if unused
           syncOnPlay();
           lastUserInteractionTime.current = Date.now();
         }}
         onPause={() => {
           console.log('Video Event: onPause');
-          // setIsPlayingVisual(false); // REMOVE if unused
           if (videoElement) videoElement.playbackRate = 1.0;
           isCatchingUpRate.current = false;
           lastUserInteractionTime.current = Date.now();
         }}
-        onPlaying={() => { // Fired when playback actually begins after buffering
-            // setIsPlayingVisual(true); // REMOVE if unused
-            // syncOnPlay could also be called here if onPlay is too early for accurate currentTime
-        }}
+        onPlaying={() => { /* ... */ }}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleMetadataLoaded}
         onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => console.error('Native video error:', e.currentTarget.error)}
-        // onSeeking and onSeeked can be useful for logging or managing loading states
         onSeeking={() => console.log("Video Event: seeking")}
         onSeeked={() => console.log("Video Event: seeked")}
       />
-      {hamburgerIconJsx}
+
+      {/* Hamburger Icon Overlay - Rendered by React */}
+      {(!isDrawerOpen && streamState?.manifestUrl) && (
+        // Using a very high z-index for the hamburger itself, relative to its parent container.
+        // This should ensure it's on top of Shaka's UI elements if they also have z-indexes.
+        <div className="absolute top-4 left-4 z-[10000]"> 
+          <HamburgerIcon 
+            onClick={handleReactHamburgerClick} // Use the dedicated handler
+            className="text-white bg-black bg-opacity-50 p-2 rounded-full cursor-pointer"
+          />
+        </div>
+      )}
+      
+      {showNoStreamHamburger && (
+         <div className="absolute top-4 left-4 z-[10000]"> {/* Consistent high z-index */}
+            <HamburgerIcon 
+              onClick={handleReactHamburgerClick} // Use the dedicated handler
+              className="text-white cursor-pointer" 
+            />
+          </div>
+      )}
+
+      {(!streamState || !streamState.manifestUrl) && (
+        <div className="absolute inset-0 flex justify-center items-center text-2xl p-5 text-center text-white pointer-events-none">
+          {streamState === null ? 'Loading stream information...' : 'No active stream available.'}
+        </div>
+      )}
     </div>
   );
 };

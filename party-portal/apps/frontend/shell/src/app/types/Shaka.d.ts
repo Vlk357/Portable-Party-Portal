@@ -59,6 +59,9 @@ declare namespace shaka {
       controlPanelElements?: string[];
       overflowMenuButtons?: string[];
       addBigPlayButton?: boolean;
+      enableKeyboardPlaybackControls?: boolean; // Added this
+      // Allow any other string keys for custom configurations like customHamburgerCallback
+      [key: string]: any; 
     }
 
     export class Overlay {
@@ -67,8 +70,31 @@ declare namespace shaka {
         container: HTMLElement,
         videoElement: HTMLVideoElement
       );
-      configure(config: UIConfiguration | Record<string, any>): void;
+      configure(config: UIConfiguration | Record<string, any>): void; // Record<string, any> is fine
       destroy(): Promise<void>;
+      getControls(): shaka.ui.Controls | null; // Method to get controls
+    }
+
+    // --- Define Controls and related interfaces ---
+    export class Controls {
+      constructor(player: shaka.Player, video: HTMLVideoElement, container: HTMLElement, config: UIConfiguration);
+      static registerElement(name: string, factory: any): void; // 'any' for factory for simplicity
+      static elementNames_?: string[]; // Optional, as it's somewhat internal
+
+      eventManager: EventManager; // Add EventManager type
+      getConfig(): UIConfiguration;
+      getPlayer(): shaka.Player;
+      getVideo(): HTMLVideoElement;
+      getContainer(): HTMLElement;
+      isSeeking(): boolean;
+      // Add other methods/properties of Controls if you use them
+    }
+
+    // Minimal EventManager definition
+    export class EventManager {
+      listen(target: EventTarget, eventType: string, listener: (event: Event) => void): void;
+      unlistenAll(): void;
+      // Add other methods if needed
     }
   }
 }
