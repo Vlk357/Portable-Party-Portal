@@ -170,6 +170,12 @@ docker-compose up -d --build
 
 The first time you run this, Docker will download base images and build your application images, which might take some time.
 
+For subsequent use (and starting without the need for Internet connection) use:
+
+```bash
+docker-compose up -d
+```
+
 ## Accessing Services
 
 - **Main Shell Application (and PWA entry point):**
