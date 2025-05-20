@@ -1,21 +1,37 @@
 {
+  "extends": "../../../tsconfig.base.json", // Inherit from monorepo base
   "compilerOptions": {
+    "outDir": "../../../../dist/out-tsc/apps/frontend/video", // Adjust if needed
     "target": "ES2020",
-    "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "skipLibCheck": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
     "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true, // Important if not emitting JS from TS directly
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true, // Typically true for library-like components consumed by another app
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "typeRoots": [ // Needs to find Shaka types
+      "../../../node_modules/@types",         // Monorepo node_modules
+      "../../shell/src/app/types",          // Point to shell's Shaka.d.ts
+      "./node_modules/@types"               // App-specific node_modules
+    ]
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+  // "references": [] // Add if this app depends on other TS projects
 }

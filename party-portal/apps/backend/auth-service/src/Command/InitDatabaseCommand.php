@@ -157,6 +157,67 @@ class InitDatabaseCommand extends Command
             $this->em->persist($admin);
             $this->em->flush();
 
+            // --- START: Create abilities for Cinema module ---
+            $io->note('Creating abilities for Cinema module...');
+            $newCinemaAbilities = [];
+            $cinemaMovieManageKey = sprintf(
+                '%s:%s:%s',
+                ModuleEnum::CINEMA->value,
+                'MOVIE', // Resource
+                ActionEnum::MANAGE->value
+            );
+
+            $existingCinemaMovieManageAbility = $this->em->getRepository(Ability::class)->findOneBy([
+                'module' => ModuleEnum::CINEMA,
+                'resource' => 'MOVIE',
+                'action' => ActionEnum::MANAGE,
+                'resourceConstraint' => null,
+            ]);
+
+            if (!$existingCinemaMovieManageAbility) {
+                $io->note("Creating ability $cinemaMovieManageKey");
+                $cinemaMovieManageAbility = new Ability(
+                    ModuleEnum::CINEMA,
+                    'MOVIE',
+                    ActionEnum::MANAGE,
+                    null, // No resource constraint
+                    "Can MANAGE MOVIEs in Cinema module"
+                );
+                $this->em->persist($cinemaMovieManageAbility);
+                $newCinemaAbilities[] = $cinemaMovieManageAbility;
+                $this->em->flush(); // Flush to get ID if needed, or flush later
+            } else {
+                $io->note("Ability $cinemaMovieManageKey already exists.");
+                // Ensure it's available to be added to the role if it was somehow missed
+                if (!$adminRole->hasAbility($existingCinemaMovieManageAbility)) {
+                    $newCinemaAbilities[] = $existingCinemaMovieManageAbility;
+                }
+            }
+
+            $io->note('There have been ' . count($newCinemaAbilities) . ' new/found Cinema abilities to process for admin role.');
+
+            $addedCinemaAbilitiesToAdmin = 0;
+            foreach ($newCinemaAbilities as $ability) { // Iterate over abilities intended for admin
+                if (!$adminRole->hasAbility($ability)) {
+                    $io->note(sprintf(
+                        "Adding ability %s:%s:%s to admin role",
+                        $ability->getModule()->value,
+                        $ability->getResource(),
+                        $ability->getAction()->value
+                    ));
+                    $adminRole->addAbility($ability);
+                    $addedCinemaAbilitiesToAdmin++;
+                }
+            }
+
+            if ($addedCinemaAbilitiesToAdmin > 0) {
+                $this->em->persist($adminRole); // Persist adminRole if abilities were added
+                $this->em->flush();
+                $io->note("Added $addedCinemaAbilitiesToAdmin Cinema abilities to admin role");
+            }
+            // --- END: Create abilities for Cinema module ---
+
+
             /*             // Create default abilities for chat module
 
                         $existingChatAbilities = $this->em->getRepository(Ability::class)->findBy([

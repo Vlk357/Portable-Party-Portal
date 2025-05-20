@@ -8,4 +8,5 @@ enum ModuleEnum: string
     case CHAT = 'CHAT';
     case VIDEO = 'VIDEO';
     case GALLERY = 'GALLERY';
+    case CINEMA = 'CINEMA';
 }

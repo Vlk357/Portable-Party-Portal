@@ -9,6 +9,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class AdminViewController extends AbstractController
 {
     #[Route('/admin/panel', name: 'admin_panel')]
+    #[IsGranted('ROLE_ADMIN')]
     public function adminPanel(): Response
     {
         // Try to load the admin HTML directly

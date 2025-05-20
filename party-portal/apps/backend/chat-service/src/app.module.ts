@@ -52,7 +52,8 @@ import * as https from 'https';
         RoleAbility,
         UserAbility,
       ],
-      synchronize: process.env.NODE_ENV === 'development',
+      // synchronize: process.env.NODE_ENV === 'development',
+      synchronize: true,
       logging: process.env.NODE_ENV === 'development',
     }),
     TypeOrmModule.forFeature([
@@ -68,10 +69,7 @@ import * as https from 'https';
     HttpModule.registerAsync({
       useFactory: () => {
         const agent = new https.Agent({
-          // WARNING: Only for development with self-signed certificates
-          // This trusts ALL self-signed certificates if not scoped properly.
-          // For better security, you'd load the specific self-signed cert here.
-          rejectUnauthorized: process.env.NODE_ENV === 'production', // Enforce in prod
+          rejectUnauthorized: false,
         });
         return {
           httpsAgent: agent,

@@ -16,7 +16,8 @@
         "symfony/mercure-bundle": "^0.3",
         "symfony/runtime": "7.2.*",
         "symfony/yaml": "7.2.*",
-        "symfony/security-bundle": "7.2.*"
+        "symfony/security-bundle": "7.2.*",
+        "lexik/jwt-authentication-bundle": "^3.1"
     },
     "require-dev": {
         "phpstan/phpstan": "^2.1",

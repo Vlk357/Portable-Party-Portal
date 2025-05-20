@@ -11,7 +11,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted; // Use attribute for security
 
 #[Route('/admin/stream')]
-// #[IsGranted('ROLE_ADMIN')] // Uncomment once security provider is set up
+#[IsGranted('ROLE_ADMIN')]
 class AdminStreamController extends AbstractController
 {
     public function __construct(private readonly StreamingStateService $streamingStateService) {}

@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Any
 import requests
 
 # --- Constants ---
-DEFAULT_API_BASE_URL = "http://127.0.0.1:8080/auth/api"
+DEFAULT_API_BASE_URL = "https://127.0.0.1:8443/auth/api"
 PASSWORD_LENGTH = 12
 ADMIN_USERNAME_ENV = "AUTH_ADMIN_USERNAME"
 ADMIN_PASSWORD_ENV = "AUTH_ADMIN_PASSWORD"
@@ -92,7 +92,7 @@ def create_user(api_url: str, username: str, password: str, admin_token: str) ->
     }
     try:
         response = requests.post(
-            register_url, headers=headers, json=payload, timeout=10)
+            register_url, headers=headers, json=payload, timeout=10, verify=False)  # MODIFIED
         if response.status_code == 201:
             print(f"Successfully created user: {username}")
             return True
@@ -118,7 +118,7 @@ def login_user(api_url: str, username: str, password: str) -> Optional[str]:
     login_url = f"{api_url}/login"
     payload = {'username': username, 'password': password}
     try:
-        response = requests.post(login_url, json=payload, timeout=10)
+        response = requests.post(login_url, json=payload, timeout=10, verify=False)  # MODIFIED
         if response.status_code == 200:
             data = response.json()
             token = data.get('token')

@@ -1,8 +1,36 @@
+// Extend the global Window interface first
+declare global {
+  interface Window {
+    shaka?: typeof shaka; // This makes window.shaka available
+  }
+}
+
+// Then declare the shaka namespace
 declare namespace shaka {
+  // --- Core Player (minimal definition if @types/shaka-player is problematic) ---
+  export class Player {
+    constructor();
+    attach(
+      videoElement: HTMLMediaElement,
+      initializeMediaSource?: boolean
+    ): Promise<void>;
+    load(
+      manifestUri: string,
+      startTime?: number,
+      manifestParserFactory?: shaka.extern.ManifestParser.Factory
+    ): Promise<void>;
+    unload(): Promise<void>;
+    destroy(): Promise<void>;
+    seekRange(): { start: number; end: number };
+    addEventListener(type: string, listener: (event: any) => void): void;
+    removeEventListener(type: string, listener: (event: any) => void): void;
+    static isBrowserSupported(): boolean;
+  }
+
+  // --- Extern (minimal definition for ErrorEvent and Error) ---
   namespace extern {
     interface Error {
       code: number;
-      detail?: any; // Or more specific type if known
       severity: number;
       category: number;
       data: any[];
@@ -12,34 +40,35 @@ declare namespace shaka {
       detail?: Error; // For nested errors
     }
 
-    interface ErrorEvent extends Event { // Or use CustomEvent if that's more accurate
+    interface ErrorEvent extends Event {
       type: 'error';
       detail: Error;
     }
 
-    // Add other extern types as needed, e.g., Manifest, Track, Variant, etc.
-    // For example:
-    // interface Manifest {}
-    // interface Track {}
+    namespace ManifestParser {
+      type Factory = () => shaka.extern.ManifestParser;
+    }
+    interface ManifestParser {
+      // Define methods if needed, or leave as an empty interface
+    }
   }
 
-  export class Player {
-    constructor(); // Constructor takes no arguments in modern versions
-    attach(videoElement: HTMLMediaElement, initializeMediaSource?: boolean): Promise<void>;
-    load(manifestUri: string, startTime?: number, manifestParserFactory?: shaka.extern.ManifestParser.Factory): Promise<void>;
-    unload(): Promise<void>;
-    destroy(): Promise<void>;
-    seekRange(): { start: number; end: number };
-    addEventListener(type: string, listener: (event: any) => void): void; // Simplified event listener
-    removeEventListener(type: string, listener: (event: any) => void): void; // Simplified event listener
-    // ... other Player methods and properties you use ...
-    static isBrowserSupported(): boolean;
-  }
-}
+  // --- UI Namespace ---
+  namespace ui {
+    interface UIConfiguration {
+      controlPanelElements?: string[];
+      overflowMenuButtons?: string[];
+      addBigPlayButton?: boolean;
+    }
 
-// Extend the global Window interface
-declare global {
-  interface Window {
-    shaka?: typeof shaka;
+    export class Overlay {
+      constructor(
+        player: shaka.Player,
+        container: HTMLElement,
+        videoElement: HTMLVideoElement
+      );
+      configure(config: UIConfiguration | Record<string, any>): void;
+      destroy(): Promise<void>;
+    }
   }
 }
