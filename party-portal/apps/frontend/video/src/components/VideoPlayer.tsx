@@ -42,7 +42,7 @@ const loadScript = (src: string, id: string): Promise<void> => {
   });
 };
 
-const PERFECT_SYNC_TOLERANCE_MS = 100;
+const PERFECT_SYNC_TOLERANCE_MS = 10;
 
 const VideoPlayer: React.FC = () => {
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
@@ -61,17 +61,36 @@ const VideoPlayer: React.FC = () => {
   const [userWantsToPlay, setUserWantsToPlay] = useState(false); // User's direct intent
   const userHadPlayIntentBeforeServerPauseRef = useRef(false); // Tracks user intent if server overrode
   const [isFullScreen, setIsFullScreen] = useState(false); // Declare isFullScreen state
-
-  // Using a state for isVideoActuallyPlaying to make it a clearer dependency for Seek & Sync
   const [isVideoActuallyPlaying, setIsVideoActuallyPlaying] = useState(false);
-
   const [shakaScriptLoaded, setShakaScriptLoaded] = useState(!!(window.shaka && window.shaka.ui));
+  const [lastSeekEventTime, setLastSeekEventTime] = useState<number>(0); // For seek events
+  const [rafTrigger, setRafTrigger] = useState(0); // New state for RAF trigger
 
   const isCatchingUpRate = useRef(false);
   const lastUserInteractionTime = useRef(0); // To manage grace period for server overriding user *seek*
   const lastUserSeekTime = useRef(0); // For reactive seek correction
   const pollingIntervalRef = useRef<number | null>(null);
-  const lastKnownServerStateTimeMs = useRef(0); // Keep track of this for rate reset
+  const lastKnownServerStateTimeMs = useRef(0);
+
+  // RAF loop to trigger Seek & Sync while playing
+  useEffect(() => {
+    let rafId: number | undefined;
+    if (isVideoActuallyPlaying) {
+      const loop = () => {
+        setRafTrigger(prev => prev + 1); // Update state to trigger effect
+        rafId = requestAnimationFrame(loop);
+      };
+      rafId = requestAnimationFrame(loop);
+      // console.log("RAF loop started for Seek & Sync trigger");
+    }
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        // console.log("RAF loop stopped");
+      }
+    };
+  }, [isVideoActuallyPlaying]); // Only depends on isVideoActuallyPlaying
+
 
   // --- Data Fetching (Polling) ---
   useEffect(() => {
@@ -129,7 +148,7 @@ const VideoPlayer: React.FC = () => {
         console.log('VideoPlayer: Polling stopped.');
       }
     };
-  }, []);
+  }, []); // Empty dependency array means this runs once on mount and cleans up on unmount
 
   // --- Shaka Script Loading ---
   useEffect(() => {
@@ -277,21 +296,27 @@ const VideoPlayer: React.FC = () => {
   // --- Seek & Sync Effect (Time Synchronization & Anti-User-Seek) ---
   useEffect(() => {
     // Guard: Ensure all necessary data and objects are available.
-    // Crucially, streamState and streamState.stateUpdateServerTime must be valid.
-    // isVideoActuallyPlaying (derived from videoElement.paused) is now a dependency.
     if (!videoElement || !streamState?.manifestUrl || !isPlayerReady || videoElement.seeking || !streamState.stateUpdateServerTime) {
-      // ... (existing guard logs) ...
       if (videoElement) console.log(`Seek & Sync: Guarded out. video.paused: ${videoElement.paused}, seeking: ${videoElement.seeking}, isPlayerReady: ${isPlayerReady}, manifest: ${!!streamState?.manifestUrl}, serverTime: ${!!streamState?.stateUpdateServerTime}`);
+      else console.log(`Seek & Sync: Guarded out. Video element or streamState not ready.`);
+      // If we are catching up but get guarded out, ensure the rate is reset if the video is paused.
+      if (isCatchingUpRate.current && videoElement && videoElement.paused && videoElement.playbackRate !== 1.0) {
+        console.log("Seek & Sync (Guard): Resetting rate to 1.0 because video paused while catching up.");
+        videoElement.playbackRate = 1.0;
+        isCatchingUpRate.current = false;
+      }
       return;
     }
-    console.log(`Seek & Sync: Running. video.paused: ${videoElement.paused}, streamState.playbackState: ${streamState.playbackState}, hasInitialServerSeekCompleted: ${hasInitialServerSeekCompleted}`);
+    // Log includes lastSeekEventTime and rafTrigger to see when it triggers
+    // console.log(`Seek & Sync: Running. video.paused: ${videoElement.paused}, streamState.playbackState: ${streamState.playbackState}, hasInitialServerSeekCompleted: ${hasInitialServerSeekCompleted}, lastSeekEventTime: ${lastSeekEventTime}, rafTrigger: ${rafTrigger}`);
 
-
-    const USER_SEEK_CORRECTION_GRACE_MS = 300;
-    if (Date.now() - lastUserSeekTime.current < USER_SEEK_CORRECTION_GRACE_MS && !hasInitialServerSeekCompleted) {
-      console.log("Seek & Sync: Within brief grace period of a recent user seek event (during initial sync phase). Deferring server time sync.");
-      return;
-    }
+    const USER_SEEK_CORRECTION_GRACE_MS = 300; // Grace period after a user seek
+    // Check if the current seek event was very recent (likely user-initiated via scrub)
+    // and if we are NOT in the initial server seek phase.
+    // The existing lastUserSeekTime.current is set in onSeeked.
+    // This grace period is more about not fighting an immediate re-correction if the user is actively scrubbing.
+    // However, with the current logic, any seek will trigger this effect, and it will try to align to server time.
+    // The `lastUserSeekTime.current` is mostly to identify if a seek was user-driven for potential different handling (currently not much different).
 
     const serverVideoTimeMs = streamState.videoPlaybackTimeMs;
     const serverTimeAtUpdateMs = streamState.stateUpdateServerTime;
@@ -300,14 +325,14 @@ const VideoPlayer: React.FC = () => {
     if (streamState.playbackState === 'playing') {
       const elapsedTimeSinceUpdateMs = Math.max(0, Date.now() - serverTimeAtUpdateMs);
       targetTimeSeconds = (serverVideoTimeMs + elapsedTimeSinceUpdateMs) / 1000;
-    } else {
+    } else { // Server is paused or stopped
       targetTimeSeconds = serverVideoTimeMs / 1000;
     }
 
     const videoDuration = videoElement.duration;
     if (targetTimeSeconds < 0) targetTimeSeconds = 0;
     if (videoDuration && isFinite(videoDuration) && targetTimeSeconds > videoDuration - 0.1) {
-      targetTimeSeconds = videoDuration - 0.1;
+      targetTimeSeconds = videoDuration - 0.1; // Prevent seeking beyond duration
     }
     if (!isFinite(targetTimeSeconds)) {
       console.warn("Seek & Sync: Target time is not finite. Skipping seek.", targetTimeSeconds);
@@ -317,97 +342,75 @@ const VideoPlayer: React.FC = () => {
     const currentTimeSeconds = videoElement.currentTime;
     const diffSeconds = targetTimeSeconds - currentTimeSeconds;
 
-    const JUMP_THRESHOLD_SECONDS = 1.5; // Jump if diff is larger than this
-    // Start rate adjustment if diff is larger than this (and smaller than jump)
-    // Make this closer to PERFECT_SYNC_TOLERANCE_MS if you want more aggressive rate adjustment
-    const RATE_ADJUST_START_THRESHOLD_SECONDS = 0.05; // Example: 50ms
-    const MAX_PLAYBACK_RATE = 1.1; // Smaller adjustments for finer control
-    const MIN_PLAYBACK_RATE = 0.9; // Slightly increased
+    const JUMP_THRESHOLD_SECONDS = 1.5;
+    const MIN_DIFFERENCE_FOR_RATE_ADJUST_SECONDS = PERFECT_SYNC_TOLERANCE_MS / 1000.0; // e.g., 0.01s for 10ms tolerance
+    const MAX_PLAYBACK_RATE = 1.1;
+    const MIN_PLAYBACK_RATE = 0.9;
 
     // Sync Logic
-    // Condition 1: Initial Sync (must jump)
     if (!hasInitialServerSeekCompleted) {
-      if (Math.abs(diffSeconds) > 0.1) { // Only jump if there's a meaningful difference
+      if (Math.abs(diffSeconds) > 0.1) {
         console.log(`Seek & Sync (Initial): Jumping. Target: ${targetTimeSeconds.toFixed(2)}s, Current: ${currentTimeSeconds.toFixed(2)}s, Diff: ${diffSeconds.toFixed(2)}s.`);
         videoElement.currentTime = targetTimeSeconds;
-        // setHasInitialServerSeekCompleted will be set on 'seeked' or after a short delay
-        // For now, we set it here, but a more robust solution would confirm the seek.
-         if (isPlayerReady && videoElement.duration > 0) { // Check added here
+         if (isPlayerReady && videoElement.duration > 0) {
             console.log("Seek & Sync: Initial jump attempted. Setting hasInitialServerSeekCompleted to true.");
             setHasInitialServerSeekCompleted(true);
         }
       } else if (isPlayerReady && videoElement.duration > 0 && !hasInitialServerSeekCompleted) {
-        // If diff is small but initial seek not marked, mark it.
         console.log("Seek & Sync (Initial): Diff small, marking initial seek completed.");
         setHasInitialServerSeekCompleted(true);
       }
       if (videoElement.playbackRate !== 1.0) videoElement.playbackRate = 1.0;
       isCatchingUpRate.current = false;
     }
-    // Condition 2: Server is Paused (must jump to match server time exactly)
     else if (streamState.playbackState !== 'playing') {
-      if (Math.abs(diffSeconds) > 0.1) { // Only jump if meaningfully different
+      if (Math.abs(diffSeconds) > 0.1) {
         console.log(`Seek & Sync (Server Paused): Jumping. Target: ${targetTimeSeconds.toFixed(2)}s, Current: ${currentTimeSeconds.toFixed(2)}s, Diff: ${diffSeconds.toFixed(2)}s.`);
         videoElement.currentTime = targetTimeSeconds;
       }
       if (videoElement.playbackRate !== 1.0) videoElement.playbackRate = 1.0;
       isCatchingUpRate.current = false;
     }
-    // Condition 3: Server is Playing, local video is playing, and desynced (after initial sync)
     else if (streamState.playbackState === 'playing' && !videoElement.paused) {
+      // Condition 3: Server is Playing, local video is playing (after initial sync)
       if (Math.abs(diffSeconds) > JUMP_THRESHOLD_SECONDS) {
         console.log(`Seek & Sync (Large Diff): Jumping. Target: ${targetTimeSeconds.toFixed(2)}s, Current: ${currentTimeSeconds.toFixed(2)}s, Diff: ${diffSeconds.toFixed(2)}s.`);
         videoElement.currentTime = targetTimeSeconds;
-        if (videoElement.playbackRate !== 1.0) videoElement.playbackRate = 1.0;
+        if (videoElement.playbackRate !== 1.0) videoElement.playbackRate = 1.0; // Reset rate on jump
         isCatchingUpRate.current = false;
-      } else if (Math.abs(diffSeconds) > RATE_ADJUST_START_THRESHOLD_SECONDS) {
-        // Moderate difference: Adjust playback rate
-        const rateFactor = 0.05; // How aggressively to change rate based on diff (increase for faster correction)
+      } else if (Math.abs(diffSeconds) > MIN_DIFFERENCE_FOR_RATE_ADJUST_SECONDS) {
+        const rateFactor = 0.05;
         let newRate = 1.0 + diffSeconds * rateFactor;
         newRate = Math.max(MIN_PLAYBACK_RATE, Math.min(MAX_PLAYBACK_RATE, newRate));
 
-        if (Math.abs(videoElement.playbackRate - newRate) > 0.001) { // Avoid tiny floating point updates
+        if (Math.abs(videoElement.playbackRate - newRate) > 0.001) {
             videoElement.playbackRate = newRate;
             isCatchingUpRate.current = true;
-            console.log(`Seek & Sync (Rate Adjust): Target: ${targetTimeSeconds.toFixed(2)}s, Current: ${currentTimeSeconds.toFixed(2)}s, Diff: ${diffSeconds.toFixed(2)}s. New Rate: ${newRate.toFixed(3)}`);
+            // console.log(`Seek & Sync (Rate Adjust): Target: ${targetTimeSeconds.toFixed(2)}s, Current: ${currentTimeSeconds.toFixed(2)}s, Diff: ${diffSeconds.toFixed(2)}s. New Rate: ${newRate.toFixed(3)}`);
         } else if (!isCatchingUpRate.current && videoElement.playbackRate !== 1.0) {
-            // If we thought we were adjusting but now rate is close to 1, ensure it's exactly 1
-             videoElement.playbackRate = 1.0; // Should be caught by next condition if still needed
+             videoElement.playbackRate = 1.0;
         }
-
-      } else { // Small difference or caught up
-        if (Math.abs(diffSeconds * 1000) > PERFECT_SYNC_TOLERANCE_MS) {
-          // Still slightly off but not enough for aggressive rate change,
-          // make a very gentle adjustment or a tiny hop if needed.
-          // This part is tricky; too much micro-adjustment can be jittery.
-          // For now, let's ensure rate is 1.0 if we are this close and were catching up.
-          if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
-            console.log(`Seek & Sync (Near Sync): Diff: ${diffSeconds.toFixed(3)}s. Resetting rate to 1.0.`);
-            videoElement.playbackRate = 1.0;
-            isCatchingUpRate.current = false;
-          }
-        } else { // Within PERFECT_SYNC_TOLERANCE_MS
-          if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
-            console.log(`Seek & Sync (In Sync/Caught Up): Diff: ${diffSeconds.toFixed(3)}s. Resetting rate to 1.0.`);
-            videoElement.playbackRate = 1.0;
-            isCatchingUpRate.current = false;
-          }
+      } else { // Small difference (diff is <= MIN_DIFFERENCE_FOR_RATE_ADJUST_SECONDS)
+        if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
+          // console.log(`Seek & Sync (In Sync/Caught Up - Diff: ${diffSeconds.toFixed(3)}s): Resetting rate to 1.0.`);
+          videoElement.playbackRate = 1.0;
+          isCatchingUpRate.current = false;
         }
       }
     }
-    // Condition 4: Server is Playing, but local video is PAUSED (user paused it)
     else if (streamState.playbackState === 'playing' && videoElement.paused) {
-        // User has paused locally while server is playing.
-        // We should respect user's pause. Time will be corrected when user resumes.
-        // Ensure playback rate is normal if we were catching up.
-        if (videoElement.playbackRate !== 1.0) {
-            videoElement.playbackRate = 1.0;
-            isCatchingUpRate.current = false;
-            console.log("Seek & Sync: Local pause while server plays. Ensured rate is 1.0.");
-        }
+      // Condition 4: Server is Playing, but local video is PAUSED (user paused it)
+      // User has paused locally while server is playing.
+      // We should respect user's pause. Time will be corrected when user resumes.
+      // Ensure playback rate is normal if we were catching up.
+      if (videoElement.playbackRate !== 1.0) {
+          videoElement.playbackRate = 1.0;
+          isCatchingUpRate.current = false;
+          console.log("Seek & Sync: Local pause while server plays. Ensured rate is 1.0.");
+      }
     }
 
-  }, [streamState, isPlayerReady, videoElement, hasInitialServerSeekCompleted, isVideoActuallyPlaying]); // Added isVideoActuallyPlaying
+  }, [streamState, isPlayerReady, videoElement, hasInitialServerSeekCompleted, isVideoActuallyPlaying, lastSeekEventTime, rafTrigger]); // Added rafTrigger
 
   // --- User Interaction Handlers (from Shaka UI or custom controls) ---
   const handleUserPlay = () => {
@@ -466,22 +469,6 @@ const VideoPlayer: React.FC = () => {
   }, [videoElement, streamState, userWantsToPlay]); // Added userWantsToPlay
 
 
-  const handleTimeUpdateForRateReset = useCallback(() => {
-    if (isCatchingUpRate.current && videoElement && streamState?.stateUpdateServerTime && streamState.playbackState === 'playing') {
-      const serverVideoTimeMs = lastKnownServerStateTimeMs.current;
-      const serverTimeAtUpdateMs = streamState.stateUpdateServerTime;
-      const elapsedTimeSinceUpdateMs = Math.max(0, Date.now() - serverTimeAtUpdateMs);
-      const currentTargetTimeSeconds = (serverVideoTimeMs + elapsedTimeSinceUpdateMs) / 1000;
-
-      if (Math.abs(videoElement.currentTime - currentTargetTimeSeconds) * 1000 <= PERFECT_SYNC_TOLERANCE_MS + 50) {
-        console.log("handleTimeUpdateForRateReset: Caught up, resetting playback rate to 1.0.");
-        videoElement.playbackRate = 1.0;
-        isCatchingUpRate.current = false;
-      }
-    }
-  }, [videoElement, streamState]);
-
-
   // Fullscreen change listener
   useEffect(() => {
     const cb = () => setIsFullScreen(!!document.fullscreenElement); // Now uses the declared setIsFullScreen
@@ -497,25 +484,26 @@ const VideoPlayer: React.FC = () => {
   return (
     <div
       ref={playerContainerRef}
-      className={`relative w-full h-screen bg-black overflow-hidden ${isFullScreen ? 'fixed inset-0 z-[9999]' : ''}`} // Now uses the declared isFullScreen
+      className={`relative w-full h-screen bg-black overflow-hidden ${isFullScreen ? 'fixed inset-0 z-[9999]' : ''}`}
     >
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
         playsInline
-        autoPlay={false} // Autoplay is false; user must initiate first play via UI
-        // Native onPlay/onPause are now for Shaka UI interactions primarily
+        autoPlay={false}
         onPlay={onNativePlay}
         onPause={onNativePause}
-        onTimeUpdate={handleTimeUpdateForRateReset}
         onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => console.error('Native video error:', e.currentTarget.error)}
         onSeeking={() => {
           console.log("Video Event: seeking");
+          // lastUserSeekTime.current is already set in onSeeked, which is more definitive.
+          // No need to set lastSeekEventTime here, as onSeeked is more appropriate.
         }}
         onSeeked={() => {
-          console.log("Video Event: seeked. Current time:", videoElement?.currentTime);
-          lastUserSeekTime.current = Date.now(); // Mark that a user-driven seek just happened
-          // The Seek & Sync effect will handle correction if needed.
+          const currentTime = videoElement?.currentTime;
+          console.log("Video Event: seeked. Current time:", currentTime);
+          lastUserSeekTime.current = Date.now(); // For grace period logic (if any remains relevant)
+          setLastSeekEventTime(Date.now()); // Trigger Seek & Sync effect
         }}
       />
 
