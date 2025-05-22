@@ -25,6 +25,7 @@ declare namespace shaka {
     addEventListener(type: string, listener: (event: any) => void): void;
     removeEventListener(type: string, listener: (event: any) => void): void;
     static isBrowserSupported(): boolean;
+    getAssetUri(): string | null;
   }
 
   // --- Extern (minimal definition for ErrorEvent and Error) ---
