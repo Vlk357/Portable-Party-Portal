@@ -10,6 +10,7 @@ Welcome to Party Portal! This project is a monorepo containing various interconn
   - [Project Structure Overview](#project-structure-overview)
   - [Environment Setup](#environment-setup)
   - [SSL Certificate for Local HTTPS (Self-Signed)](#ssl-certificate-for-local-https-self-signed)
+  - [JWT Signing Keys for Authentication Service](#jwt-signing-keys-for-authentication-service)
   - [Running the Application](#running-the-application)
   - [Accessing Services](#accessing-services)
   - [Stopping the Application](#stopping-the-application)
@@ -21,9 +22,9 @@ Welcome to Party Portal! This project is a monorepo containing various interconn
 ## Prerequisites
 
 - **Docker:** Ensure Docker is installed and running. ([Install Docker](https://docs.docker.com/get-docker/))
-- **Docker Compose:** Usually included with Docker Desktop. For Linux, you might need to install it separately. ([Install Docker Compose](https://docs.docker.com/compose/install/))
-- **`mkcert` (Recommended for local HTTPS):** For generating locally-trusted SSL certificates. ([mkcert GitHub](https://github.com/FiloSottile/mkcert))
+- **Docker Compose:** In Windows included with Docker Desktop. For Linux, you might need to install it separately. ([Install Docker Compose](https://docs.docker.com/compose/install/))
 - **Git:** For cloning the repository.
+- **Openssl:** For generating ssl certificate
 
 ## Project Structure Overview
 
@@ -60,16 +61,14 @@ This project is a monorepo located under the `party-portal/` directory.
    cp .env.example .env
    ```
 
-   Open `.env` and fill in/change the necessary values, especially secrets and any host paths like `MOVIES_DIRECTORY` and `HOST_GALLERY_UPLOADS_DIRECTORY`. Ensure these host directories exist on your machine.
+   Open `.env` and fill in/change the necessary values (= `!!! CHANGE ME !!!`), especially secrets and any host paths like `MOVIES_DIRECTORY` and `HOST_GALLERY_UPLOADS_DIRECTORY`. Ensure these host directories exist on your machine.
 
 ## SSL Certificate for Local HTTPS (Self-Signed)
 
 For encrypting traffic on your local network (e.g., between your device and the server running this project), you can use a self-signed SSL certificate. This is suitable for "local production" or private LAN setups.
 
-**Important Considerations for Self-Signed Certificates:**
-
 - **Browser Warnings:** Web browsers will display security warnings (e.g., "Your connection is not private," "NET::ERR_CERT_AUTHORITY_INVALID") because the certificate is not signed by a trusted Certificate Authority (CA). Users will need to manually accept the risk to proceed.
-- **PWA Functionality:** Progressive Web App (PWA) installation and some advanced features that require a secure context with a trusted certificate will likely **not** work.
+- **PWA Functionality:** Progressive Web App (PWA) installation and some advanced features that require a secure context with a trusted certificate will **not** work.
 - **Encryption:** Despite the warnings, the connection _will_ be encrypted, protecting data in transit over your local network (e.g., Wi-Fi).
 
 **Nginx expects the certificate and key at:**
@@ -80,7 +79,7 @@ For encrypting traffic on your local network (e.g., between your device and the 
 **Steps to generate and place a self-signed certificate using OpenSSL:**
 
 1. **Choose a Local Domain Name (Optional but Recommended):**
-   While you can generate a certificate for an IP address, using a "fake" local domain name (e.g., `party.portal.local`, `my.server.lan`) can be more convenient. If you use one, you'll need to edit the `hosts` file on each client device that needs to access the server by this name, mapping it to the server's IP address (e.g., `<YOUR_SERVER_LAN_IP> party.portal.local`).
+   While you can generate a certificate for an IP address, using a "fake" local domain name (e.g., `party.portal.local`, `my.server.lan`) can be more convenient. If you use one, you'll need to edit the `hosts` file on each client device that needs to access the server by this name, mapping it to the server's IP address (e.g., `<YOUR_SERVER_LAN_IP> party.portal.local`) or use a local dns server.
 
    - **Linux/macOS:** Edit `/etc/hosts`
    - **Windows:** Edit `C:\Windows\System32\drivers\etc\hosts` (requires administrator privileges)
@@ -156,6 +155,68 @@ Running this application suite over HTTP-only would involve:
 3. **Mercure:** The Mercure hub and its clients would also need to be configured for HTTP.
 
 Due to these complexities and the loss of critical functionality and security, an HTTP-only setup is **not recommended or directly supported** by the provided configurations. The self-signed certificate method described earlier provides encryption for local network use, albeit with browser warnings.
+
+## JWT Signing Keys for Authentication Service
+
+The Authentication Service (`auth-service`) uses a pair of RSA keys (private and public) to sign and verify JSON Web Tokens (JWTs). These are essential for secure user authentication.
+
+**Key Storage Location:**
+The `auth-service` expects these keys to be located at:
+
+- Private Key: `party-portal/apps/backend/auth-service/config/jwt/private.pem`
+- Public Key: `party-portal/apps/backend/auth-service/config/jwt/public.pem`
+
+**Steps to generate the JWT keys using OpenSSL:**
+
+1. **Navigate to the JWT configuration directory for the auth-service:**
+
+   ```bash
+   mkdir -p ./party-portal/apps/backend/auth-service/config/jwt
+   cd ./party-portal/apps/backend/auth-service/config/jwt
+   ```
+
+2. **Generate the RSA Private Key:**
+   This command creates an encrypted RSA private key. You will be prompted to enter a passphrase. **Remember this passphrase**, as you'll need to set it in your `.env` file (`AUTH_JWT_PASSPHRASE`).
+
+   ```bash
+   openssl genpkey -algorithm RSA -out private.pem -aes256 -pkeyopt rsa_keygen_bits:4096
+   ```
+
+   - `genpkey -algorithm RSA`: Generates a private key using the RSA algorithm.
+   - `-out private.pem`: Specifies the output file name for the private key.
+   - `-aes256`: Encrypts the private key using AES-256. You'll be prompted for a passphrase.
+   - `-pkeyopt rsa_keygen_bits:4096`: Specifies a key length of 4096 bits (strong).
+
+3. **Extract the Public Key from the Private Key:**
+   This command reads the private key (you'll need to enter its passphrase) and extracts the corresponding public key.
+
+   ```bash
+   openssl rsa -pubout -in private.pem -out public.pem
+   ```
+
+   - `rsa -pubout`: Specifies that we want to output an RSA public key.
+   - `-in private.pem`: Specifies the input private key file.
+   - `-out public.pem`: Specifies the output file name for the public key.
+
+4. **Set Permissions (Recommended for Private Key):**
+   It's good practice to restrict permissions on the private key file so only the owner can read it (on Linux this should be done automatically, but just to be sure).
+
+   ```bash
+   chmod 600 private.pem
+   chmod 644 public.pem
+   ```
+
+5. **Go back to the project root:**
+
+   ```bash
+   cd ../../../../../..
+   ```
+
+**Important Notes:**
+
+- **Private Key Security:** The `private.pem` file contains your secret signing key. **Never commit it to your Git repository, never send it to anyone!**
+- **Public Key:** The `public.pem` file can be safely included in your repository as it's used by other services (or the auth service itself) to verify token signatures.
+- **Passphrase:** Keep the passphrase for `private.pem` secure. It's best managed as an environment variable. Without it the auth service will not be able to sign in users and create valid tokens for them.
 
 ## Running the Application
 
