@@ -151,11 +151,13 @@ const VideoPlayer: React.FC = () => {
     const currentVideoElement = videoElement;
 
     const preventDoubleClick = (event: MouseEvent) => {
-      event.preventDefault(); event.stopPropagation(); console.log('Double-click prevented.');
+      event.preventDefault(); event.stopPropagation(); console.log('Double-click prevented on Shaka container/video.');
     };
 
     if (currentVideoElement && shakaScriptLoaded && !playerRef.current && currentContainerRef && window.shaka?.ui) {
+      // Prevent double-click on the container that Shaka UI uses
       currentContainerRef.addEventListener('dblclick', preventDoubleClick);
+      // Also on the video element itself, though Shaka's UI usually overlays this.
       currentVideoElement.addEventListener('dblclick', preventDoubleClick);
 
       if (window.shaka.Player.isBrowserSupported()) {
@@ -316,9 +318,11 @@ const VideoPlayer: React.FC = () => {
     const diffSeconds = targetTimeSeconds - currentTimeSeconds;
 
     const JUMP_THRESHOLD_SECONDS = 1.5; // Jump if diff is larger than this
-    const RATE_ADJUST_START_THRESHOLD_SECONDS = 0.3; // Start rate adjustment if diff is larger than this (and smaller than jump)
-    const MAX_PLAYBACK_RATE = 1.05; // Slightly reduced for smoother catchup
-    const MIN_PLAYBACK_RATE = 0.95; // Slightly increased
+    // Start rate adjustment if diff is larger than this (and smaller than jump)
+    // Make this closer to PERFECT_SYNC_TOLERANCE_MS if you want more aggressive rate adjustment
+    const RATE_ADJUST_START_THRESHOLD_SECONDS = 0.05; // Example: 50ms
+    const MAX_PLAYBACK_RATE = 1.1; // Smaller adjustments for finer control
+    const MIN_PLAYBACK_RATE = 0.9; // Slightly increased
 
     // Sync Logic
     // Condition 1: Initial Sync (must jump)
@@ -358,7 +362,7 @@ const VideoPlayer: React.FC = () => {
         isCatchingUpRate.current = false;
       } else if (Math.abs(diffSeconds) > RATE_ADJUST_START_THRESHOLD_SECONDS) {
         // Moderate difference: Adjust playback rate
-        const rateFactor = 0.02; // How aggressively to change rate based on diff
+        const rateFactor = 0.05; // How aggressively to change rate based on diff (increase for faster correction)
         let newRate = 1.0 + diffSeconds * rateFactor;
         newRate = Math.max(MIN_PLAYBACK_RATE, Math.min(MAX_PLAYBACK_RATE, newRate));
 
@@ -372,10 +376,22 @@ const VideoPlayer: React.FC = () => {
         }
 
       } else { // Small difference or caught up
-        if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
-          console.log(`Seek & Sync (In Sync/Caught Up): Diff: ${diffSeconds.toFixed(2)}s. Resetting rate to 1.0.`);
-          videoElement.playbackRate = 1.0;
-          isCatchingUpRate.current = false;
+        if (Math.abs(diffSeconds * 1000) > PERFECT_SYNC_TOLERANCE_MS) {
+          // Still slightly off but not enough for aggressive rate change,
+          // make a very gentle adjustment or a tiny hop if needed.
+          // This part is tricky; too much micro-adjustment can be jittery.
+          // For now, let's ensure rate is 1.0 if we are this close and were catching up.
+          if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
+            console.log(`Seek & Sync (Near Sync): Diff: ${diffSeconds.toFixed(3)}s. Resetting rate to 1.0.`);
+            videoElement.playbackRate = 1.0;
+            isCatchingUpRate.current = false;
+          }
+        } else { // Within PERFECT_SYNC_TOLERANCE_MS
+          if (videoElement.playbackRate !== 1.0 || isCatchingUpRate.current) {
+            console.log(`Seek & Sync (In Sync/Caught Up): Diff: ${diffSeconds.toFixed(3)}s. Resetting rate to 1.0.`);
+            videoElement.playbackRate = 1.0;
+            isCatchingUpRate.current = false;
+          }
         }
       }
     }
