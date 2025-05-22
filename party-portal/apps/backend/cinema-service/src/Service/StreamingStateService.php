@@ -42,75 +42,96 @@ class StreamingStateService
             'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
             'stateUpdateServerTime' => $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
                 ? (int) ((float) $state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
-                : null
+                : ($state['stateUpdateServerTime'] ?? null) // Allow already converted timestamps or null
         ];
     }
 
     public function startStream(string $manifestUrl): void
     {
-        $this->logger->info("Attempting to start stream: {$manifestUrl}");
+        $this->logger->info("Attempting to start stream immediately: {$manifestUrl}");
 
         $newState = [
             'manifestUrl' => $manifestUrl,
             'playbackState' => 'playing',
             'videoPlaybackTimeMs' => 0,
-            'stateUpdateServerTime' => $this->clock->now(),
+            'stateUpdateServerTime' => $this->clock->now(), // Effective immediately
         ];
         $this->saveStateAndPublish($newState, 'start', ['manifestUrl' => $manifestUrl, 'videoTimeMs' => 0]);
-        $this->logger->info("Stream started: {$manifestUrl}");
+        $this->logger->info("Stream started immediately: {$manifestUrl}");
     }
 
     public function pauseStream(): void
     {
-        $this->logger->info("Attempting to pause stream");
+        $this->logger->info("Attempting to schedule pause stream (in 6 seconds)");
         $currentState = $this->getState();
         if ($currentState['playbackState'] !== 'playing') {
-            $this->logger->warning("Stream is not playing, cannot pause.");
+            $this->logger->warning("Stream is not playing, cannot schedule pause.");
             return;
         }
 
-        $currentVideoTimeMs = (float) $currentState['videoPlaybackTimeMs']; // Start with current time as float
+        $currentVideoTimeMsAtServerNow = (float) $currentState['videoPlaybackTimeMs'];
         if ($currentState['stateUpdateServerTime'] instanceof \DateTimeImmutable) {
             $now = $this->clock->now();
-
-            // Calculate elapsed time with microsecond precision then convert to milliseconds
             $nowPreciseSeconds = (float) $now->format('U.u');
             $lastUpdatePreciseSeconds = (float) $currentState['stateUpdateServerTime']->format('U.u');
-
-            $timeSinceUpdateMs = ($nowPreciseSeconds - $lastUpdatePreciseSeconds) * 1000.0;
-
-            $currentVideoTimeMs += max(0, $timeSinceUpdateMs);
-            $this->logger->info(sprintf("Calculated timeSinceUpdateMs: %.3f ms. New currentVideoTimeMs before int cast: %.3f ms", $timeSinceUpdateMs, $currentVideoTimeMs));
+            $timeSinceLastUpdateMs = ($nowPreciseSeconds - $lastUpdatePreciseSeconds) * 1000.0;
+            
+            // Only add elapsed time if the last update was in the past and state was playing
+            if ($timeSinceLastUpdateMs > 0) {
+                $currentVideoTimeMsAtServerNow += $timeSinceLastUpdateMs;
+            }
         }
+        
+        // Video will play for another 6 seconds before pausing
+        $videoTimeAtScheduledPauseMs = $currentVideoTimeMsAtServerNow + 6000.0;
+        $scheduledPauseTime = $this->clock->now()->modify('+6 seconds');
+
+        $this->logger->info(sprintf(
+            "Scheduling pause. Current video time at server now: %.0f ms. Scheduled pause video time: %.0f ms. Scheduled pause server time: %s",
+            $currentVideoTimeMsAtServerNow,
+            $videoTimeAtScheduledPauseMs,
+            $scheduledPauseTime->format('Y-m-d H:i:s.u')
+        ));
 
         $newState = [
             ...$currentState,
             'playbackState' => 'paused',
-            'videoPlaybackTimeMs' => (int) round($currentVideoTimeMs), // Round to nearest millisecond and cast to int
-            'stateUpdateServerTime' => $this->clock->now(),
+            'videoPlaybackTimeMs' => (int) round($videoTimeAtScheduledPauseMs),
+            'stateUpdateServerTime' => $scheduledPauseTime,
         ];
-        $this->saveStateAndPublish($newState, 'pause', ['videoTimeMs' => (int) round($currentVideoTimeMs)]);
-        $this->logger->info("Stream paused at time: " . (int) round($currentVideoTimeMs) . "ms");
+        $this->saveStateAndPublish($newState, 'pause_scheduled', ['videoTimeMs' => (int) round($videoTimeAtScheduledPauseMs)]);
+        $this->logger->info("Stream pause scheduled for time: " . (int) round($videoTimeAtScheduledPauseMs) . "ms");
     }
 
     public function resumeStream(): void
     {
-        $this->logger->info("Attempting to resume stream");
+        $this->logger->info("Attempting to schedule resume stream (in 6 seconds)");
         $currentState = $this->getState();
         if ($currentState['playbackState'] !== 'paused') {
-            $this->logger->warning("Stream is not paused, cannot resume.");
+            $this->logger->warning("Stream is not paused, cannot schedule resume.");
             return;
         }
 
-        $videoTimeOnResumeMs = $currentState['videoPlaybackTimeMs'];
+        // videoPlaybackTimeMs already holds the time at which it was paused.
+        // This is the time from which it should resume.
+        $videoTimeOnResumeMs = (int) $currentState['videoPlaybackTimeMs'];
+        $scheduledResumeTime = $this->clock->now()->modify('+6 seconds');
+
+        $this->logger->info(sprintf(
+            "Scheduling resume. Video time on resume: %d ms. Scheduled resume server time: %s",
+            $videoTimeOnResumeMs,
+            $scheduledResumeTime->format('Y-m-d H:i:s.u')
+        ));
 
         $newState = [
             ...$currentState,
             'playbackState' => 'playing',
-            'stateUpdateServerTime' => $this->clock->now(),
+            // videoPlaybackTimeMs remains the time it was paused at
+            'videoPlaybackTimeMs' => $videoTimeOnResumeMs,
+            'stateUpdateServerTime' => $scheduledResumeTime,
         ];
-        $this->saveStateAndPublish($newState, 'play', ['videoTimeMs' => (int) $videoTimeOnResumeMs]);
-        $this->logger->info("Stream resumed from time: " . $videoTimeOnResumeMs . "ms");
+        $this->saveStateAndPublish($newState, 'play_scheduled', ['videoTimeMs' => $videoTimeOnResumeMs]);
+        $this->logger->info("Stream resume scheduled from time: " . $videoTimeOnResumeMs . "ms");
     }
 
     public function stopStream(): void
