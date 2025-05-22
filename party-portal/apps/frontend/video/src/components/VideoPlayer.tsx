@@ -255,11 +255,13 @@ const VideoPlayer: React.FC = () => {
     const serverWantsToPlay = streamState.playbackState === 'playing';
     let effectiveUserWantsToPlay = userWantsToPlay;
 
+    // Scenario 1: Server wants to play, user was previously playing but is now marked as not wanting to play
+    // (likely due to server-initiated pause that triggered onNativePause), AND we stored their intent.
     if (serverWantsToPlay && !userWantsToPlay && userHadPlayIntentBeforeServerPauseRef.current) {
         console.log("PlaybackControl: Server resumed play, and user had intent to play before server pause. Restoring user's play intent.");
         effectiveUserWantsToPlay = true;
-        setUserWantsToPlay(true); // Update the state to reflect this restoration
-        userHadPlayIntentBeforeServerPauseRef.current = false; // Reset the flag
+        setUserWantsToPlay(true); // This will re-trigger the effect, but that's okay.
+        userHadPlayIntentBeforeServerPauseRef.current = false; // Intent restored and acted upon.
     }
 
 
@@ -271,21 +273,28 @@ const VideoPlayer: React.FC = () => {
     if (videoShouldBePlayingAccordingToIntentAndServer && videoIsActuallyPaused) {
       console.log("PlaybackControl: DECISION: Attempting play.");
       videoElement.play().catch(e => console.warn("PlaybackControl: play() failed.", e.message));
+      // If we are playing because server wants to play and user's intent was restored, ensure flag is clear.
+      // This is already handled by the block above that sets effectiveUserWantsToPlay = true.
     } else if (!videoShouldBePlayingAccordingToIntentAndServer && !videoIsActuallyPaused) {
       console.log(`PlaybackControl: DECISION: Attempting pause. (Reason: effectiveUserWantsPlay: ${effectiveUserWantsToPlay}, serverWantsPlay: ${serverWantsToPlay})`);
-      // If this pause is due to server, and user wanted to play, store that intent.
+      // If this pause is due to server, and user *currently* wanted to play (before this decision), store that intent.
       if (!serverWantsToPlay && userWantsToPlay) {
         console.log("PlaybackControl: Server is pausing, but user wanted to play. Storing user's play intent.");
         userHadPlayIntentBeforeServerPauseRef.current = true;
-      } else {
-        // If user initiated pause, or server pause while user also wanted pause, clear the flag.
+      }
+      // Do NOT clear userHadPlayIntentBeforeServerPauseRef.current here if serverWantsPlay is true
+      // and effectiveUserWantsToPlay is false (user paused). The ref should only be cleared by user action or when intent is restored.
+      else if (serverWantsToPlay && !effectiveUserWantsToPlay) {
+        // User explicitly paused while server is playing. Clear any stored server-pause intent.
         userHadPlayIntentBeforeServerPauseRef.current = false;
       }
       videoElement.pause();
     } else {
-      // If no action is taken, but the server is playing and the user's intent was restored,
-      // ensure the flag is cleared.
-      if (serverWantsToPlay && effectiveUserWantsToPlay) {
+      // If no action is taken (e.g., already in desired state):
+      // If server is playing and user effectively wants to play, ensure the flag is cleared
+      // (it should have been cleared when intent was restored, but as a safeguard).
+      if (serverWantsToPlay && effectiveUserWantsToPlay && userHadPlayIntentBeforeServerPauseRef.current) {
+          console.log("PlaybackControl: No action, but clearing stale userHadPlayIntentBeforeServerPauseRef as server and user want play.");
           userHadPlayIntentBeforeServerPauseRef.current = false;
       }
       console.log("PlaybackControl: DECISION: No action needed.");
@@ -429,44 +438,131 @@ const VideoPlayer: React.FC = () => {
   // These are for Shaka UI interactions if it directly manipulates the video element's play/pause
   // or if you add your own custom controls that call videoElement.play()/pause()
   const onNativePlay = useCallback(() => {
-    console.log('Video Event: onPlay (native)');
-    setIsVideoActuallyPlaying(true);
-    // If user clicks play, their intent is clear.
-    setUserWantsToPlay(true);
-    userHadPlayIntentBeforeServerPauseRef.current = false; // Clear flag as user took action
-    console.log('onNativePlay: User wants to play.');
-  }, []); // Removed streamState dependency to simplify, user play is explicit
-
-  const onNativePause = useCallback(() => {
+      console.log('Video Event: onPlay (native)');
+      setIsVideoActuallyPlaying(true);
+      // If user clicks play, their intent is clear.
+      if (!userWantsToPlay) setUserWantsToPlay(true); // Set if not already true
+      userHadPlayIntentBeforeServerPauseRef.current = false; // Clear flag as user took action
+      console.log('onNativePlay: User wants to play.');
+    }, [userWantsToPlay]); // Added userWantsToPlay
+  
+    const onNativePause = useCallback(() => {
     console.log('Video Event: onPause (native)');
     setIsVideoActuallyPlaying(false);
-    // DO NOT automatically set userWantsToPlay to false here if the pause might be server-initiated.
-    // PlaybackControl will handle userWantsToPlay if the server forces a pause.
-    // If the user explicitly clicks a pause button that calls handleUserPause, that will set userWantsToPlay = false.
-    // For now, let's assume native pause means user initiated it unless PlaybackControl says otherwise.
-    // This part is tricky. If Shaka's pause button triggers this, it IS a user action.
-    // If PlaybackControl calls videoElement.pause(), this also triggers.
 
-    // Let's simplify: if PlaybackControl is what's causing the pause due to server state,
-    // it will manage userHadPlayIntentBeforeServerPauseRef.
-    // If this onNativePause is from a direct user click on Shaka's UI:
-    if (streamState?.playbackState === 'playing') { // If server is playing, this pause must be user-initiated
-        console.log('onNativePause: User paused while server is playing.');
+    const currentStreamState = streamStateRef.current; // Use a ref for freshest streamState
+
+    if (currentStreamState?.playbackState === 'playing') {
+      console.log('onNativePause: Pause event occurred while server state is "playing".');
+      // If userWantsToPlay is true, PlaybackControl will see the video is paused and attempt to resume,
+      // effectively correcting for a glitch.
+      // If userWantsToPlay was already false (e.g., user clicked a custom pause button that sets it,
+      // or PlaybackControl decided to pause due to user intent), PlaybackControl will respect that.
+      // We DO NOT change userWantsToPlay here based on this event in this scenario.
+
+      // If the server is 'playing', any prior server-induced pause that might have set
+      // userHadPlayIntentBeforeServerPauseRef is now void because the server itself wants to play.
+      // This flag should primarily be managed by PlaybackControl when it decides to pause
+      // due to server instruction while the user wanted to play.
+      // If the user explicitly paused (and userWantsToPlay became false), this flag should also be false.
+      userHadPlayIntentBeforeServerPauseRef.current = false;
+    }
+    // If the server is 'paused'
+    else if (currentStreamState?.playbackState === 'paused') {
+      // This onNativePause could be due to:
+      // 1. PlaybackControl just paused the video because the server state changed to 'paused'.
+      //    In this case, PlaybackControl would have set userHadPlayIntentBeforeServerPauseRef.current
+      //    if the user previously wanted to play. userWantsToPlay might still be true here.
+      // 2. User clicked pause on an already server-paused stream.
+
+      // If userWantsToPlay is true, it means the user's *last explicit action* was to play,
+      // or PlaybackControl hasn't yet updated userWantsToPlay to false after a server pause.
+      // We set userWantsToPlay to false to reflect the video is now paused.
+      if (userWantsToPlay) {
+        console.log('onNativePause: Video paused. Server is also paused. Setting userWantsToPlay to false.');
         setUserWantsToPlay(false);
-        userHadPlayIntentBeforeServerPauseRef.current = false; // User explicitly paused
-    } else {
-        // Server is also paused. userWantsToPlay might have already been set false by PlaybackControl.
-        // Or user is pausing when server is already paused.
-        console.log('onNativePause: Paused. Server state:', streamState?.playbackState);
-        // If userWantsToPlay is true here, it means they clicked pause.
-        if(userWantsToPlay) setUserWantsToPlay(false);
-        userHadPlayIntentBeforeServerPauseRef.current = false;
+      } else {
+        console.log('onNativePause: Video paused. Server is also paused. userWantsToPlay was already false.');
+      }
+      // DO NOT CLEAR userHadPlayIntentBeforeServerPauseRef.current here if server is paused.
+      // It might have been set by PlaybackControl if this pause is server-initiated
+      // and the user previously wanted to play. PlaybackControl will clear it when intent is restored.
+    }
+    // For 'stopped' or other server states (e.g. null)
+    else {
+      console.log('onNativePause: Paused. Server state:', currentStreamState?.playbackState);
+      if (userWantsToPlay) setUserWantsToPlay(false);
+      userHadPlayIntentBeforeServerPauseRef.current = false; // General reset for non-playing/non-paused server states
     }
 
-
-    if (videoElement) videoElement.playbackRate = 1.0;
-    isCatchingUpRate.current = false;
-  }, [videoElement, streamState, userWantsToPlay]); // Added userWantsToPlay
+    if (videoElement && videoElement.playbackRate !== 1.0) {
+      videoElement.playbackRate = 1.0;
+      isCatchingUpRate.current = false;
+    }
+  }, [videoElement, userWantsToPlay]); // streamStateRef is used for currentStreamState
+  
+    // Ref to hold the latest streamState for onNativePause/Play
+    const streamStateRef = useRef<StreamState | null>(null);
+    useEffect(() => {
+      streamStateRef.current = streamState;
+    }, [streamState]);
+  
+    // --- Playback Control Effect (Play/Pause Logic) ---
+    useEffect(() => {
+      // ... (the rest of PlaybackControl effect remains the same as your last provided version) ...
+      // Make sure it uses `streamState` directly, not `streamStateRef.current`
+      console.log(`PlaybackControl: Effect triggered. userWantsToPlay: ${userWantsToPlay}, userHadPlayIntentBeforeServerPause: ${userHadPlayIntentBeforeServerPauseRef.current}, isPlayerReady: ${isPlayerReady}, hasInitialServerSeekCompleted: ${hasInitialServerSeekCompleted}, videoElement: ${!!videoElement}, streamState: ${JSON.stringify(streamState?.playbackState)}, videoActuallyPlaying: ${!videoElement?.paused}`);
+  
+      if (!videoElement || !isPlayerReady || !streamState || !hasInitialServerSeekCompleted) {
+        console.log(`PlaybackControl: Guards failed. videoElement: ${!!videoElement}, isPlayerReady: ${isPlayerReady}, streamState: ${!!streamState}, hasInitialServerSeekCompleted: ${hasInitialServerSeekCompleted}`);
+        if (videoElement && videoElement.seeking) console.log("PlaybackControl: Guard failed due to videoElement.seeking");
+        return;
+      }
+      if (videoElement.seeking) {
+          console.log("PlaybackControl: Video is seeking, deferring play/pause action.");
+          return;
+      }
+  
+      const serverWantsToPlay = streamState.playbackState === 'playing';
+      let effectiveUserWantsToPlay = userWantsToPlay;
+  
+      // Scenario 1: Server wants to play, user was previously playing but is now marked as not wanting to play
+      // (likely due to server-initiated pause that triggered onNativePause), AND we stored their intent.
+      if (serverWantsToPlay && !userWantsToPlay && userHadPlayIntentBeforeServerPauseRef.current) {
+          console.log("PlaybackControl: Server resumed play, and user had intent to play before server pause. Restoring user's play intent.");
+          effectiveUserWantsToPlay = true;
+          setUserWantsToPlay(true); // This will re-trigger the effect, but that's okay.
+          userHadPlayIntentBeforeServerPauseRef.current = false; // Intent restored and acted upon.
+      }
+  
+  
+      const videoShouldBePlayingAccordingToIntentAndServer = effectiveUserWantsToPlay && serverWantsToPlay;
+      const videoIsActuallyPaused = videoElement.paused;
+  
+      console.log(`PlaybackControl: Conditions: serverWantsToPlay: ${serverWantsToPlay}, effectiveUserWantsToPlay: ${effectiveUserWantsToPlay}, videoShouldBePlayingIntent: ${videoShouldBePlayingAccordingToIntentAndServer}, videoIsActuallyPaused: ${videoIsActuallyPaused}`);
+  
+      if (videoShouldBePlayingAccordingToIntentAndServer && videoIsActuallyPaused) {
+        console.log("PlaybackControl: DECISION: Attempting play.");
+        videoElement.play().catch(e => console.warn("PlaybackControl: play() failed.", e.message));
+      } else if (!videoShouldBePlayingAccordingToIntentAndServer && !videoIsActuallyPaused) {
+        console.log(`PlaybackControl: DECISION: Attempting pause. (Reason: effectiveUserWantsPlay: ${effectiveUserWantsToPlay}, serverWantsPlay: ${serverWantsToPlay})`);
+        if (!serverWantsToPlay && userWantsToPlay) { // userWantsToPlay is the state *before* this effect might change it
+          console.log("PlaybackControl: Server is pausing, but user wanted to play. Storing user's play intent.");
+          userHadPlayIntentBeforeServerPauseRef.current = true;
+        }
+        else if (serverWantsToPlay && !effectiveUserWantsToPlay) { // User explicitly paused while server is playing
+          userHadPlayIntentBeforeServerPauseRef.current = false;
+        }
+        videoElement.pause();
+      } else {
+        if (serverWantsToPlay && effectiveUserWantsToPlay && userHadPlayIntentBeforeServerPauseRef.current) {
+            console.log("PlaybackControl: No action, but clearing stale userHadPlayIntentBeforeServerPauseRef as server and user want play.");
+            userHadPlayIntentBeforeServerPauseRef.current = false;
+        }
+        console.log("PlaybackControl: DECISION: No action needed.");
+      }
+    }, [videoElement, isPlayerReady, streamState, userWantsToPlay, hasInitialServerSeekCompleted]);
+  // ...existing code...
 
 
   // Fullscreen change listener
