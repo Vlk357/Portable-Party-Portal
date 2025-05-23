@@ -2,8 +2,6 @@
 
 namespace App\Service;
 
-use Symfony\Component\Mercure\HubInterface;
-use Symfony\Component\Mercure\Update;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Component\Clock\ClockInterface;
@@ -16,7 +14,7 @@ class StreamingStateService
     private const CACHE_KEY = 'streaming_state';
 
     public function __construct(
-        private readonly HubInterface $hub,
+        // private readonly HubInterface $hub, // Removed Mercure Hub
         private readonly CacheInterface $cache,
         private readonly ClockInterface $clock,
         private readonly string $movieDirectory,
@@ -180,58 +178,12 @@ class StreamingStateService
             return $state;
         });
 
-        // Prepare state for Mercure payload
-        $mercureStatePayload = [
-            'manifestUrl' => $state['manifestUrl'] ?? null,
-            'playbackState' => $state['playbackState'] ?? 'stopped',
-            'videoPlaybackTimeMs' => (int) ($state['videoPlaybackTimeMs'] ?? 0),
-            'stateUpdateServerTime' => isset($state['stateUpdateServerTime']) && $state['stateUpdateServerTime'] instanceof \DateTimeImmutable
-                ? (int) ((float) $state['stateUpdateServerTime']->format('U.u') * 1000) // Precise milliseconds
-                : ($state['stateUpdateServerTime'] ?? null) // Handle if already a millisecond timestamp (e.g. from older state) or null
-        ];
+        $this->logger->info('State saved to cache.', [
+            'action' => $action,
+            'newState' => $state
+        ]);
 
-        // Publish update to Mercure
-        try {
-            $update = new Update(
-                '/cinema/stream/updates', // Correct topic for the frontend
-                json_encode($mercureStatePayload) // Publish the new state object
-            );
-            $this->logger->info('Attempting to publish to Mercure hub', [
-                'topic' => '/cinema/stream/updates',
-                'action_for_logging' => $action, // Keep action for logging if desired
-                'payload_sent' => $mercureStatePayload
-            ]);
-            $this->hub->publish($update);
-            $this->logger->info('Successfully published to Mercure hub');
-        } catch (\Symfony\Component\Mercure\Exception\RuntimeException $e) {
-            // Specific Mercure runtime exceptions
-            $this->logger->error('Mercure runtime error: ' . $e->getMessage(), [
-                'exception' => $e,
-                'action' => $action,
-                'code' => $e->getCode(),
-            ]);
-        } catch (\Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface $e) {
-            // Network/connection related issues
-            $this->logger->error('Mercure transport error: ' . $e->getMessage(), [
-                'exception' => $e,
-                'action' => $action,
-            ]);
-        } catch (\Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface $e) {
-            // HTTP errors (4xx, 5xx)
-            $this->logger->error('Mercure HTTP error: ' . $e->getMessage(), [
-                'exception' => $e,
-                'action' => $action,
-                'statusCode' => $e->getResponse()->getStatusCode(),
-                'responseBody' => $e->getResponse()->getContent(false),
-            ]);
-        } catch (\Exception $e) {
-            // Generic fallback
-            $this->logger->error('Failed to publish to Mercure: ' . $e->getMessage(), [
-                'exception' => $e,
-                'exceptionClass' => get_class($e),
-                'action' => $action,
-            ]);
-        }
+        // Mercure publishing logic removed
     }
 
     private function getDefaultState(): array
