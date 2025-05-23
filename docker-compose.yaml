@@ -15,7 +15,7 @@ services:
     #   XDEBUG_CONFIG: "client_host=host.docker.internal client_port=${XDEBUG_CLIENT_PORT:-9003}"
 
   node: # Base Node.js image configuration
-    image: node:20-alpine # Or your preferred Node.js version
+    image: node:20-alpine
     volumes:
       - ./party-portal:/app # Mount the entire project
     working_dir: /app
@@ -153,13 +153,20 @@ services:
         APP_DIR: apps/frontend/shell
     volumes:
       - ./party-portal:/app
-    working_dir: /app/apps/frontend/shell
+    # working_dir: /app/apps/frontend/shell
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
     networks:
       - backend
     # command: sh -c "npm run dev -- --host --port 5176"
-    command: sh -c "npm install && npm run build && echo 'Shell frontend built. Static files ready.'"
+    command: sh -c "echo 'Ensuring dependencies for shell frontend...' && \
+      echo 'Running npm install --include=dev --legacy-peer-deps...' && \
+      npm install --include=dev --legacy-peer-deps && \
+      echo 'Listing ./node_modules/.bin to check for nx...' && \
+      ls -la ./node_modules/.bin && \
+      echo 'Building shell frontend with Nx...' && \
+      ./node_modules/.bin/nx build shell && \
+      echo 'Shell frontend built by Nx. Output in /app/dist/apps/frontend/shell'"
 
   cinema: # Cinema Service (Symfony) Configuration
     extends: php

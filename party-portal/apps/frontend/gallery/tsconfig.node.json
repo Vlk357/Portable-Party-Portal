@@ -21,7 +21,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    // "noEmit": true // REMOVE OR SET TO false
     "declaration": true, // Add this
     "emitDeclarationOnly": true, // Add this to only emit .d.ts files
     "outDir": "./dist-node" // Optional: specify an out directory for these .d.ts files

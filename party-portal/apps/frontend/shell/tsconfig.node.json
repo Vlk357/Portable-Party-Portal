@@ -1,4 +1,5 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "ES2022",
@@ -7,6 +8,7 @@
     "skipLibCheck": true,
     "composite": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -18,7 +20,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "declaration": true, // Add this
+    "emitDeclarationOnly": true, // Add this to only emit .d.ts files
+    "outDir": "./dist-node" // Optional: specify an out directory for these .d.ts files
   },
-  "include": ["vite.config.ts"],
+  "include": ["vite.config.ts"]
 }

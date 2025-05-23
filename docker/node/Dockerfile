@@ -7,7 +7,7 @@ WORKDIR /app
 # RUN npm install
 
 # Copy source
-COPY . .
+# COPY . .
 
 # Expose Vite dev server port
 # EXPOSE 5173
