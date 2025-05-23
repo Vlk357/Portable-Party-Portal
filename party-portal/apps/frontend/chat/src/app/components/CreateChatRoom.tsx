@@ -42,18 +42,12 @@ export function CreateChatRoom() {
   }, [contextUserId]);
 
   const availableUsers = useMemo(() => {
-    const excludedUsernames = ['admin', 'chat_service_user'];
     let usersToDisplay = allUsers;
 
     // Filter out the current user
     if (typeof currentUserId === 'number') {
       usersToDisplay = usersToDisplay.filter((user) => user.id !== currentUserId);
     }
-
-    // Filter out specified system users
-    usersToDisplay = usersToDisplay.filter(
-      (user) => !excludedUsernames.includes(user.username)
-    );
 
     // Sort users by username
     usersToDisplay.sort((a, b) => a.username.localeCompare(b.username));
