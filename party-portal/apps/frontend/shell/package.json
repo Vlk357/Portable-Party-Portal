@@ -1,0 +1,17 @@
+{
+  "name": "frontend-shell",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite-plugin-pwa": "^1.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

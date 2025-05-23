@@ -1,0 +1,39 @@
+{
+  "extends": "../../../tsconfig.base.json", // Assuming this exists and is appropriate
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler", // Or "node" if you prefer/need for your setup
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".", // Important for path resolution
+    "paths": { // Optional: if you have path aliases
+      "@/*": ["src/*"]
+    },
+    "typeRoots": [ // Explicitly add your app's types and node_modules/@types
+      "../../../node_modules/@types", // Monorepo node_modules
+      "./node_modules/@types",        // App-specific node_modules (if any)
+      "./src/app/types"               // For Shaka.d.ts
+    ]
+  },
+  "include": [
+    "src/**/*.ts", 
+    "src/**/*.tsx",
+    // If VideoPlayer.tsx is directly referenced via relative path and you want shell's tsconfig to check it:
+    // "../video/src/components/**/*.ts", 
+    // "../video/src/components/**/*.tsx"
+    // However, it's usually better if the 'video' app has its own tsconfig and is built/checked as a dependency.
+    // For now, let's assume 'shell' imports from 'video' and the build system handles resolving it.
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }] // Keep if you have this file
+}

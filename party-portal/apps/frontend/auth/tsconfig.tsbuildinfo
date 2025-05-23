@@ -1,0 +1,1 @@
+{"root":["./src/AuthForm.tsx","./src/index.ts","./src/main.tsx","./src/vite-env.d.ts","./src/types/ErrorResponse.ts","./src/types/LoginResponse.ts","../chat/src/utils/RedirectToLogin.tsx","../chat/src/utils/apiFetch.ts","../chat/src/utils/formatTimestamp.ts","../chat/src/utils/messageProcessor.ts"],"version":"5.7.3"}

@@ -1,0 +1,304 @@
+services:
+  php: # Base PHP image configuration
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - ./party-portal/apps/backend:/var/www/apps
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Common environment variables for all PHP services if needed
+    # environment:
+    #   XDEBUG_MODE: ${XDEBUG_MODE:-off}
+    #   XDEBUG_CONFIG: "client_host=host.docker.internal client_port=${XDEBUG_CLIENT_PORT:-9003}"
+
+  node: # Base Node.js image configuration
+    image: node:20-alpine
+    volumes:
+      - ./party-portal:/app # Mount the entire project
+    working_dir: /app
+    networks:
+      - backend
+
+  auth: # Auth Service (Symfony) Configuration
+    extends: php
+    volumes:
+      - ./party-portal/apps/backend/auth-service:/var/www/apps/auth-service
+      - ./party-portal/apps/backend/auth-service/config/jwt:/var/www/apps/auth-service/config/jwt:ro
+    working_dir: /var/www/apps/auth-service
+    environment:
+      APP_ENV: ${SYMFONY_ENV:-prod}
+      APP_SECRET: ${AUTH_APP_SECRET:?AUTH_APP_SECRET must be set in .env}
+      DATABASE_URL: "postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/${AUTH_DB_NAME}?serverVersion=17&charset=utf8"
+      AUTH_JWT_PASSPHRASE: ${AUTH_JWT_PASSPHRASE:?AUTH_JWT_PASSPHRASE must be set in .env}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER}
+      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD}
+      ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD}
+      CHAT_SERVICE_ID: ${CHAT_SERVICE_ID}
+      CHAT_SERVICE_SECRET: ${CHAT_SERVICE_SECRET}
+      # XDEBUG_MODE: ${XDEBUG_MODE:-off}
+      # XDEBUG_CONFIG: "client_host=host.docker.internal client_port=${XDEBUG_CLIENT_PORT:-9003}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    command: >
+      sh -c "
+        echo 'Auth Service: Current APP_ENV is $${APP_ENV}' && \
+        touch .env && \
+        rm -rf var/cache/* && \
+        composer install --no-dev --optimize-autoloader && \
+        php bin/console cache:clear --env=$${APP_ENV} --no-warmup && \
+        php bin/console cache:warmup --env=$${APP_ENV} && \
+        php bin/console doctrine:migrations:migrate --env=$${APP_ENV} --no-interaction --allow-no-migration && \
+        php bin/console app:init-database --env=$${APP_ENV} --no-interaction && \
+        php-fpm
+      "
+
+  # frontend-auth:
+  #   extends: node
+  #   build:
+  #     context: ./party-portal/apps/frontend/auth
+  #     dockerfile: ../../../../docker/node/Dockerfile
+  #   volumes:
+  #     - ./party-portal/apps/frontend/auth:/app/apps/frontend/auth # Mount specific app
+  #     - ./party-portal/node_modules:/app/node_modules # Shared node_modules
+  #     - ./party-portal/dist/apps/frontend/auth:/app/apps/frontend/auth/dist # Mount dist for Nginx
+  #   working_dir: /app/apps/frontend/auth
+  #   environment:
+  #     NODE_ENV: production
+  #     VITE_API_URL: /auth/api
+  #   # ports: # No need to expose port if served by Nginx
+  #   #   - "5173:5173"
+  #   networks:
+  #     - backend
+  #   command: sh -c "npm install && npm run build && echo 'Auth frontend built. Static files ready.'" # Install deps and build
+
+  chat: # Chat Service (NestJS) Configuration
+    build:
+      context: ./party-portal/apps/backend/chat-service
+      dockerfile: ../../../../docker/node/chat.Dockerfile
+    volumes:
+      - ./party-portal/apps/backend/chat-service:/app # This is fine for Node.js apps
+      - /app/node_modules # Keep node_modules in the container
+      # Mount the public key from the auth-service's expected location on the HOST
+      - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/app/config/jwt/public.pem:ro
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${CHAT_DB_USER}
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD}
+      POSTGRES_DB: ${CHAT_DB_NAME:-chat_db} # Added default
+      AUTH_SERVICE_URL: https://nginx/auth # This should point to auth-service, e.g. /auth-service/api
+      CHAT_SERVICE_API_USER: ${CHAT_SERVICE_API_USER}
+      CHAT_SERVICE_API_PASSWORD: ${CHAT_SERVICE_API_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: /app/config/jwt/public.pem # Path inside chat service container
+      GENERAL_CHAT_NAME: General
+      DELETED_MESSAGE_TEXT: "This message has been deleted"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy # Ensure postgres is healthy
+    command: sh -c "npm run build && npm run start:prod" # Build and start in production
+
+  # frontend-chat:
+  #   extends: node # Extend the base node service
+  #   build:
+  #     context: ./party-portal
+  #     dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+  #     args:
+  #       APP_DIR: apps/frontend/chat
+  #   volumes:
+  #     - ./party-portal:/app
+  #   working_dir: /app/apps/frontend/chat
+  #   environment:
+  #     NODE_ENV: production
+  #     VITE_CHAT_WEBSOCKET_URL: /chat
+  #     VITE_CHAT_API_URL: /chat/api
+  #   networks:
+  #     - backend
+  #   command: sh -c "npm install && npm run build && echo 'Chat frontend built. Static files ready.'"
+
+  # frontend-video:
+  #   extends: node
+  #   build:
+  #     context: ./party-portal
+  #     dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+  #     args:
+  #       APP_DIR: apps/frontend/video
+  #   volumes:
+  #     - ./party-portal:/app
+  #   working_dir: /app/apps/frontend/video
+  #   environment:
+  #     NODE_ENV: production
+  #   networks:
+  #     - backend
+  #   command: sh -c "npm install && npm run build && echo 'Video frontend built. Static files ready.'"
+
+  frontend-shell:
+    extends: node
+    build:
+      context: ./party-portal
+      dockerfile: ../docker/node/Dockerfile # CORRECTED PATH
+      args:
+        APP_DIR: apps/frontend/shell
+    volumes:
+      - ./party-portal:/app
+    # working_dir: /app/apps/frontend/shell
+    environment:
+      NODE_ENV: production
+    networks:
+      - backend
+    # command: sh -c "npm run dev -- --host --port 5176"
+    command: sh -c "echo 'Ensuring dependencies for shell frontend...' && \
+      echo 'Running npm install --include=dev --legacy-peer-deps...' && \
+      npm install --include=dev --legacy-peer-deps && \
+      echo 'Building shell frontend with Nx...' && \
+      ./node_modules/.bin/nx build shell && \
+      echo 'Shell frontend built by Nx. Output in /app/dist/apps/frontend/shell'"
+
+  cinema: # Cinema Service (Symfony) Configuration
+    extends: php
+    volumes:
+      - ./party-portal/apps/backend/cinema-service:/var/www/apps/cinema-service
+      - ${MOVIES_DIRECTORY}:/var/www/media:ro
+      - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/var/www/apps/cinema-service/config/jwt/public.pem:ro
+    working_dir: /var/www/apps/cinema-service
+    environment:
+      APP_ENV: ${SYMFONY_ENV:-prod} # Uses SYMFONY_ENV from root .env
+      APP_SECRET: ${CINEMA_APP_SECRET:?CINEMA_APP_SECRET must be set in .env}
+      JWT_PUBLIC_KEY_PATH: /var/www/apps/cinema-service/config/jwt/public.pem
+      CACHE_DSN: cache.adapter.filesystem
+      MOVIE_DIRECTORY: /var/www/media
+    depends_on:
+      auth:
+        condition: service_started
+    command: >
+      sh -c "
+        echo 'Cinema Service: Checking readability of movie directory /var/www/media...' && \
+        if [ -r /var/www/media ] && [ -x /var/www/media ]; then \
+          echo 'Cinema Service: Movie directory /var/www/media is readable and executable (listable).' && \
+          ls -ld /var/www/media; \
+        else \
+          echo 'Cinema Service: FATAL ERROR - Movie directory /var/www/media is NOT READABLE or EXECUTABLE. Check host directory permissions for ${MOVIES_DIRECTORY}. Exiting.' >&2 && \
+          exit 1; \
+        fi && \
+        touch .env && \
+        composer install --no-dev --optimize-autoloader && \
+        php-fpm
+      "
+
+  nginx: # Reverse Proxy Configuration
+    image: nginx:stable-alpine
+    ports:
+      - "8080:80" # HTTP exposed on host 8080
+      - "8443:443" # HTTPS exposed on host 8443
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ${MOVIES_DIRECTORY}:/var/www/media_movies:ro # Renamed to avoid conflict with gallery if any
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/media_gallery_uploads:ro # Renamed
+      - ./party-portal/dist/apps/frontend:/usr/share/nginx/html:ro
+      - ./logo/favicon.ico:/favicon.ico:ro
+    depends_on:
+      # Nginx should start after backend services are at least started
+      # Frontend services are not listed as depends_on because they will build and exit.
+      # Nginx relies on the host volumes being populated with their 'dist' contents.
+      - auth
+      - chat
+      - cinema
+      - gallery
+    networks:
+      - backend
+
+  postgres: # Database Service Configuration
+    image: postgres:17-alpine
+    environment:
+      # Use root credentials from .env for initial setup/management
+      POSTGRES_DB: postgres # Default DB name, often overridden by init scripts
+      POSTGRES_USER: ${POSTGRES_ROOT_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+
+      AUTH_DB_USER: ${AUTH_DB_USER}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
+
+      CHAT_DB_USER: ${CHAT_DB_USER}
+      CHAT_DB_PASSWORD: ${CHAT_DB_PASSWORD}
+      CHAT_DB_NAME: ${CHAT_DB_NAME:-chat_db}
+
+      GALLERY_DB_USER: ${GALLERY_DB_USER}
+      GALLERY_DB_PASSWORD: ${GALLERY_DB_PASSWORD}
+      GALLERY_DB_NAME: ${GALLERY_DB_NAME:-gallery_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist data
+      # Mount init scripts to create databases, users, schemas etc.
+      - ./databases:/docker-entrypoint-initdb.d
+      # - ./databases/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./databases/auth-service/migrations:/docker-entrypoint-initdb.d/migrations
+      # - ./databases/auth-service/functions:/docker-entrypoint-initdb.d/functions
+      # - ./databases/auth-service/seeds:/docker-entrypoint-initdb.d/seeds
+    ports:
+      - "5433:5432" # Map host port 5433 to container port 5432 for external access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ROOT_USER}"] # Check root user readiness
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  gallery: # Gallery Service (Symfony)
+    extends: php
+    volumes:
+      - ./party-portal/apps/backend/gallery-service:/var/www/apps/gallery-service
+      - ${HOST_GALLERY_UPLOADS_DIRECTORY}:/var/www/apps/gallery-service/public/media/gallery_files
+      - ./party-portal/apps/backend/auth-service/config/jwt/public.pem:/var/www/apps/gallery-service/config/jwt/public.pem:ro
+    working_dir: /var/www/apps/gallery-service
+    environment:
+      APP_ENV: ${SYMFONY_ENV:-prod}
+      APP_SECRET: ${GALLERY_APP_SECRET:?GALLERY_APP_SECRET must be set in .env}
+      DATABASE_URL: "postgresql://${GALLERY_DB_USER}:${GALLERY_DB_PASSWORD}@postgres:5432/${GALLERY_DB_NAME}?serverVersion=17&charset=utf8"
+      JWT_PUBLIC_KEY_PATH: /var/www/apps/gallery-service/config/jwt/public.pem
+      APP_GALLERY_STORAGE_PATH: "%kernel.project_dir%/public/media/gallery_files"
+      APP_GALLERY_BASE_URL: /media/gallery_files # Nginx path
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    networks:
+      - backend
+    command: >
+      sh -c "
+        echo 'Gallery Service: Checking writability of /var/www/apps/gallery-service/public/media/gallery_files...' && \
+        mkdir -p /var/www/apps/gallery-service/public/media/gallery_files && \
+        if touch /var/www/apps/gallery-service/public/media/gallery_files/.writable_test && rm /var/www/apps/gallery-service/public/media/gallery_files/.writable_test; then \
+          echo 'Gallery Service: Upload directory is fundamentally writable (touch test passed).' && \
+          echo 'Gallery Service: Attempting to set permissions to allow www-data to write...' && \
+          chmod -R ugo+rwx /var/www/apps/gallery-service/public/media/gallery_files || echo 'Gallery Service: chmod failed but continuing as touch test passed.' ; \
+        else \
+          echo 'Gallery Service: FATAL ERROR - Upload directory /var/www/apps/gallery-service/public/media/gallery_files is NOT WRITABLE. Check host directory permissions for ${HOST_GALLERY_UPLOADS_DIRECTORY}. Exiting.' >&2 && \
+          exit 1; \
+        fi && \
+        touch .env && \
+        composer install --no-dev --optimize-autoloader && \
+        php bin/console doctrine:migrations:migrate --env=$${APP_ENV} --no-interaction --allow-no-migration && \
+        php-fpm
+      "
+
+networks:
+  backend: # Define the shared network
+    driver: bridge
+
+volumes:
+  postgres_data: # Define the persistent volume for postgres

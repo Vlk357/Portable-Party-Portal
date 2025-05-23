@@ -1,0 +1,48 @@
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
+parameters:
+    # Directory where uploaded gallery files will be stored (relative to project root)
+    # This path is INSIDE the container.
+    gallery_uploads_directory: '%kernel.project_dir%/public/media/gallery_files'
+    # Base URL path for accessing uploaded files
+    gallery_base_url: '/media/gallery_files' # Matches the public path
+
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        public: false
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    # Custom action controller for file upload
+    App\Controller\CreateGalleryItemAction:
+        tags: ['controller.service_arguments']
+        arguments:
+            $galleryUploadsDirectory: '%gallery_uploads_directory%'
+            $galleryBaseUrl: '%gallery_base_url%' # <-- Add this line
+            # EntityManagerInterface, ValidatorInterface, SerializerInterface, LoggerInterface
+            # will be autowired by default due to _defaults.autowire: true
+
+    App\Security\JwtUserProvider: ~
+
+    # Custom Normalizer for GalleryItem
+    App\Serializer\GalleryItemNormalizer:
+        decorates: 'serializer.normalizer.object'
+        arguments:
+            $decorated: '@App\Serializer\GalleryItemNormalizer.inner'
+            $galleryBaseUrl: '%gallery_base_url%' # <--- USE THE PARAMETER HERE
+            # LoggerInterface $logger will be autowired
+        tags:
+            - { name: serializer.normalizer, priority: 100 }

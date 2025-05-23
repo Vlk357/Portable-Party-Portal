@@ -1,0 +1,10 @@
+controllers:
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+    prefix: /cinema
+
+kernel:
+    resource: ../src/Kernel.php
+    type: attribute

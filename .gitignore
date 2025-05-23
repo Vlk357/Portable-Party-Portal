@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+vendor
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.dist
+!.env.example
+
+# Build
+dist
+build
+
+# IDE
+.vscode
+.idea
+
+# Misc
+.DS_Store
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Folder with random files
+misc
+
+var/
+
+thoughts.txt
+
+chalk
+venv
+
+# SSL Certificates and Keys for local development
+/docker/nginx/ssl/server.key
+/docker/nginx/ssl/server.crt
+/docker/nginx/ssl/*.pem 
+# If you generate other types or use a local CA tool that puts files there:
+/docker/nginx/ssl/*
+
+# You might also want to ignore the directory itself if it only contains generated certs
+# and you have a script or clear instructions to regenerate them.
+# /docker/nginx/ssl/
+
+.nx

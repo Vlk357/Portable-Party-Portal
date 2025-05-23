@@ -1,0 +1,23 @@
+{
+    "name": "Auth Service Development",
+    "dockerComposeFile": ["../docker-compose.yaml"],
+    "service": "auth",
+    "workspaceFolder": "/var/www/apps/auth",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "bmewburn.vscode-intelephense-client",
+                "xdebug.php-debug",
+                "recca0120.vscode-phpunit",
+                "mikestead.dotenv"
+            ],
+            "settings": {
+                "php.validate.enable": true,
+                "php.suggest.basic": false,
+                "intelephense.environment.phpVersion": "8.4"
+            }
+        }
+    },
+    "remoteUser": "dev",
+    "postCreateCommand": "composer install"
+}

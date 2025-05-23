@@ -1,0 +1,1 @@
+{"root":["./src/index.ts","./src/main.tsx","./src/app/CinemaFeatureRoutes.tsx","./src/app/nx-welcome.tsx","./src/components/VideoPlayer.tsx","./src/types/ScreenOrientation.d.ts","./src/types/Shaka.d.ts","./src/types/index.d.ts"],"version":"5.7.3"}

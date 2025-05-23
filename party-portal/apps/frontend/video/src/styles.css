@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* You can add any other global styles or custom component styles below */
+body {
+  margin: 0; /* Example: ensure no default body margin */
+  /* Add other base styles if needed */
+}

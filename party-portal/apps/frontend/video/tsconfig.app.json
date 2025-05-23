@@ -1,0 +1,50 @@
+{
+  "extends": "../../../tsconfig.base.json", // CHANGE THIS to point to the monorepo root base
+  "compilerOptions": {
+    "outDir": "../../../../dist/out-tsc",
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": false,          // Ensure this is present if Vite handles emit
+    "composite": true,      // ADD or ensure this is true if it's an Nx app
+    "declaration": true,    // ADD or ensure this is true
+    "declarationMap": true, // Optional: good for debugging types
+    // REMOVE "shaka-player" from here if it was added based on previous advice,
+    // as we are now providing types via Shaka.d.ts
+    "types": [
+      "node",
+      "jest",
+      "vite/client"
+    ]
+  },
+  // Ensure this includes .d.ts files or is broad enough
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ], // Explicitly add src/**/*.d.ts
+  "exclude": [
+    "node_modules",
+    "vite.config.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
+}
