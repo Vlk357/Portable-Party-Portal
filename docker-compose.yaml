@@ -192,29 +192,6 @@ services:
         php-fpm
       "
 
-  mercure: # Mercure Hub Service
-    image: dunglas/mercure:latest # Use official Mercure image
-    environment:
-      # The secret key used by publishers (Symfony services) to authorize publishing.
-      # MUST match MERCURE_JWT_SECRET in cinema/auth services.
-      MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET}
-      # The secret key used to sign subscription JWTs (if needed, not used for anonymous).
-      MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET} # Can be the same or different
-      # Allow anonymous subscriptions (needed for public /stream/status topic)
-      MERCURE_EXTRA_DIRECTIVES: |
-        anonymous_subscriptions
-      # Address the hub listens on *inside* the container network
-      SERVER_NAME: ':80'
-      # Allow requests from the Nginx proxy (adjust if your Nginx container has a different name/IP)
-      CORS_ALLOWED_ORIGINS: '*' # Be more specific in production! (e.g., /localhost:5174)
-    # ports: # No need to expose ports directly if accessed via Nginx
-    #   - "9090:80" # Example: Expose directly on host 9090 for debugging
-    volumes:
-      - ./docker/mercure/config/Caddyfile.dev:/etc/caddy/Caddyfile.dev:ro
-    networks:
-      - backend
-    command: caddy run --config /etc/caddy/Caddyfile.dev --adapter caddyfile
-
   nginx: # Reverse Proxy Configuration
     image: nginx:stable-alpine
     ports:
@@ -234,7 +211,6 @@ services:
       - auth
       - chat
       - cinema
-      - mercure
       - gallery
     networks:
       - backend
