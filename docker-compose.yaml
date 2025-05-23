@@ -278,9 +278,9 @@ services:
         echo 'Gallery Service: Checking writability of /var/www/apps/gallery-service/public/media/gallery_files...' && \
         mkdir -p /var/www/apps/gallery-service/public/media/gallery_files && \
         if touch /var/www/apps/gallery-service/public/media/gallery_files/.writable_test && rm /var/www/apps/gallery-service/public/media/gallery_files/.writable_test; then \
-          echo 'Gallery Service: Upload directory is writable.' && \
-          chown -R www-data:www-data /var/www/apps/gallery-service/public/media/gallery_files && \
-          chmod -R 775 /var/www/apps/gallery-service/public/media/gallery_files; \
+          echo 'Gallery Service: Upload directory is fundamentally writable (touch test passed).' && \
+          echo 'Gallery Service: Attempting to set permissions to allow www-data to write...' && \
+          chmod -R ugo+rwx /var/www/apps/gallery-service/public/media/gallery_files || echo 'Gallery Service: chmod failed but continuing as touch test passed.' ; \
         else \
           echo 'Gallery Service: FATAL ERROR - Upload directory /var/www/apps/gallery-service/public/media/gallery_files is NOT WRITABLE. Check host directory permissions for ${HOST_GALLERY_UPLOADS_DIRECTORY}. Exiting.' >&2 && \
           exit 1; \

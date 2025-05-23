@@ -6,25 +6,34 @@ Welcome to Party Portal! This project is a monorepo containing various interconn
 
 - [Party Portal - Monorepo Application Suite](#party-portal---monorepo-application-suite)
   - [Table of Contents](#table-of-contents)
-  - [Prerequisites](#prerequisites)
+  - [About](#about)
   - [Project Structure Overview](#project-structure-overview)
-  - [Environment Setup](#environment-setup)
-  - [SSL Certificate for Local HTTPS (Self-Signed)](#ssl-certificate-for-local-https-self-signed)
-  - [JWT Signing Keys for Authentication Service](#jwt-signing-keys-for-authentication-service)
-  - [Running the Application](#running-the-application)
-  - [Accessing Services](#accessing-services)
-  - [Stopping the Application](#stopping-the-application)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Environment Setup](#environment-setup)
+    - [SSL Certificate for Local HTTPS (Self-Signed)](#ssl-certificate-for-local-https-self-signed)
+    - [JWT Signing Keys for Authentication Service](#jwt-signing-keys-for-authentication-service)
+    - [Running the Application](#running-the-application)
+    - [Accessing Services](#accessing-services)
+    - [Stopping the Application](#stopping-the-application)
   - [Development Notes](#development-notes)
     - [Frontend Development](#frontend-development)
   - [Logs and Output](#logs-and-output)
   - [Troubleshooting](#troubleshooting)
+  - [FAQ](#faq)
 
-## Prerequisites
+## About
 
-- **Docker:** Ensure Docker is installed and running. ([Install Docker](https://docs.docker.com/get-docker/))
-- **Docker Compose:** In Windows included with Docker Desktop. For Linux, you might need to install it separately. ([Install Docker Compose](https://docs.docker.com/compose/install/))
-- **Git:** For cloning the repository.
-- **Openssl:** For generating ssl certificate
+Party Portal is designed as a self-contained, offline-first entertainment hub, perfect for group journeys, remote locations, or any situation where internet access is limited or unavailable. It brings together essential entertainment and communication tools into a single, portable package that can be easily run on a local network.
+
+**Key Features:**
+
+- **Chat:** A real-time messaging service for group communication.
+- **Cinema:** Stream your own video library to connected devices.
+- **Gallery:** Share and view photos and videos from your adventures.
+- **Authentication:** Secure access to the portal's features.
+
+The entire suite is built with mobility in mind, leveraging Docker to ensure it's easy to set up and run on a laptop or a small server, making your shared media and communication tools readily available wherever your group goes.
 
 ## Project Structure Overview
 
@@ -37,7 +46,16 @@ This project is a monorepo located under the `party-portal/` directory.
 - `docker-compose.yaml`: Defines all the services and their orchestration.
 - `.env.example`: Template for environment variables.
 
-## Environment Setup
+## Getting Started
+
+### Prerequisites
+
+- **Docker:** Ensure Docker is installed and running. ([Install Docker](https://docs.docker.com/get-docker/))
+- **Docker Compose:** In Windows included with Docker Desktop. For Linux, you might need to install it separately. ([Install Docker Compose](https://docs.docker.com/compose/install/))
+- **Git:** For cloning the repository.
+- **Openssl:** For generating ssl certificate
+
+### Environment Setup
 
 1. **Clone the repository (if you haven't already):**
 
@@ -63,7 +81,7 @@ This project is a monorepo located under the `party-portal/` directory.
 
    Open `.env` and fill in/change the necessary values (= `!!! CHANGE ME !!!`), especially secrets and any host paths like `MOVIES_DIRECTORY` and `HOST_GALLERY_UPLOADS_DIRECTORY`. Ensure these host directories exist on your machine.
 
-## SSL Certificate for Local HTTPS (Self-Signed)
+### SSL Certificate for Local HTTPS (Self-Signed)
 
 For encrypting traffic on your local network (e.g., between your device and the server running this project), you can use a self-signed SSL certificate. This is suitable for "local production" or private LAN setups.
 
@@ -128,34 +146,7 @@ For encrypting traffic on your local network (e.g., between your device and the 
    cd ../../..
    ```
 
-**For a Fully Trusted Certificate (and PWA support):**
-
-If you needed a certificate trusted by all browsers without warnings (e.g., for a public-facing site or full PWA support even on a LAN without manual CA installs), you would typically need:
-
-1. A registered public domain name.
-2. A certificate from a trusted Certificate Authority (CA) like Let's Encrypt (free) or a commercial CA.
-   This process is outside the scope of this local setup guide.
-
-**HTTP-Only Setup (Not Recommended):**
-
-This project is configured to run over HTTPS by default. This is crucial for:
-
-- **Security:** Encrypting traffic, even on a local network.
-- **WebSockets:** Secure WebSockets (`wss://`) are used for the chat service.
-
-Running this application suite over HTTP-only would involve:
-
-1. **Modifying Nginx Configuration:**
-   - Removing the `listen 80` server block that redirects to HTTPS.
-   - Changing the `listen 443 ssl http2;` directive in the main server block to `listen 80;`.
-   - Removing all `ssl_*` directives (e.g., `ssl_certificate`, `ssl_protocols`, etc.).
-2. **Frontend Adjustments:**
-   - Frontend applications would need to be configured to make API calls to `http://<your-server-ip>:80/...` instead of `https://...:8443/...`.
-   - The chat application would need to connect to `ws://<your-server-ip>:80/socket.io/` instead of `wss://...`.
-
-Due to these complexities and the loss of critical functionality and security, an HTTP-only setup is **not recommended or directly supported** by the provided configurations. The self-signed certificate method described earlier provides encryption for local network use, albeit with browser warnings.
-
-## JWT Signing Keys for Authentication Service
+### JWT Signing Keys for Authentication Service
 
 The Authentication Service (`auth-service`) uses a pair of RSA keys (private and public) to sign and verify JSON Web Tokens (JWTs). These are essential for secure user authentication.
 
@@ -217,7 +208,7 @@ The `auth-service` expects these keys to be located at:
 - **Public Key:** The `public.pem` file can be safely included in your repository as it's used by other services (or the auth service itself) to verify token signatures.
 - **Passphrase:** Keep the passphrase for `private.pem` secure. It's best managed as an environment variable. Without it the auth service will not be able to sign in users and create valid tokens for them.
 
-## Running the Application
+### Running the Application
 
 Once the `.env` file is configured and SSL certificates are in place:
 
@@ -236,7 +227,7 @@ For subsequent use (and starting without the need for Internet connection) use:
 docker-compose up -d
 ```
 
-## Accessing Services
+### Accessing Services
 
 - **Main Shell Application (and PWA entry point):**
 
@@ -253,7 +244,7 @@ docker-compose up -d
 
 - **HTTP to HTTPS Redirect:** Accessing `http://<YOUR_SERVER_LAN_IP>:8080` or `http://localhost:8080` will redirect to HTTPS on port 8443.
 
-## Stopping the Application
+### Stopping the Application
 
 To stop all running services:
 
@@ -300,4 +291,30 @@ Nginx access and error logs are also written to `/var/log/nginx/` inside the `ng
 ## Troubleshooting
 
 - **Port Conflicts:** If `8080` or `8443` (or `5433` for Postgres) are in use on your host, change the port mappings in `docker-compose.yaml` (e.g., `"8081:80"`).
-- **Service Fails to Start:** Check logs (`docker-compose logs -f <service_name>`) for errors. Common issues include incorrect environment variables, missing files/directories for volume mounts, or database connection problems.
+- **Service Fails to Start:** Check logs (`docker-compose logs -f <service_name>`) for errors. Common issues include incorrect environment variables, missing files/directories for volume mounts, permission issues (with said volume mounts).
+
+## FAQ
+
+**Can I use Fully Trusted Certificate?**
+
+Yes, if you needed a certificate trusted by all browsers without warnings (e.g., for a public-facing site or full PWA support even on a LAN without manual CA installs), you would typically need:
+
+1. A registered public domain name.
+2. A certificate from a trusted Certificate Authority (CA) like Let's Encrypt (free) or a commercial CA.
+   This process is outside the scope of this local setup guide.
+
+**Can I use HTTP-Only Setup?**
+
+While theoretically possible, it is definetely **not recommended.** This project is configured to run over HTTPS by default. This is crucial for security (Encrypting traffic). You wouldn't want someone to read your private chat, would you?
+
+Running this application suite over HTTP-only would involve:
+
+1. **Modifying Nginx Configuration:**
+   - Removing the `listen 80` server block that redirects to HTTPS.
+   - Changing the `listen 443 ssl http2;` directive in the main server block to `listen 80;`.
+   - Removing all `ssl_*` directives (e.g., `ssl_certificate`, `ssl_protocols`, etc.).
+2. **Frontend Adjustments:**
+   - Frontend applications would need to be configured to make API calls to `http://<your-server-ip>:80/...` instead of `https://...:8443/...`.
+   - The chat application would need to connect to `ws://<your-server-ip>:80/socket.io/` instead of `wss://...`.
+
+Due to these complexities and the loss of security, an HTTP-only setup is **not recommended or directly supported** by the provided configurations. The self-signed certificate method described earlier provides encryption for local network use, albeit with browser warnings.

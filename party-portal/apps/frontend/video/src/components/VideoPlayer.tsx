@@ -88,7 +88,6 @@ const VideoPlayer: React.FC = () => {
   const [rafTrigger, setRafTrigger] = useState(0);
 
   const isCatchingUpRate = useRef(false);
-  const lastUserInteractionTime = useRef(0);
   const lastUserSeekTime = useRef(0);
   const pollingIntervalRef = useRef<number | null>(null);
   const lastKnownServerStateTimeMs = useRef(0);
@@ -496,8 +495,6 @@ const VideoPlayer: React.FC = () => {
       return;
     }
 
-    const USER_SEEK_CORRECTION_GRACE_MS = 300;
-
     const serverVideoTimeMs = streamState.videoPlaybackTimeMs;
     const serverTimeAtUpdateMs = streamState.stateUpdateServerTime;
     let targetTimeSeconds: number;
@@ -637,16 +634,6 @@ const VideoPlayer: React.FC = () => {
     lastSeekEventTime,
     rafTrigger,
   ]);
-
-  const handleUserPlay = () => {
-    console.log('User Action: Play clicked');
-    setUserWantsToPlay(true);
-  };
-
-  const handleUserPause = () => {
-    console.log('User Action: Pause clicked');
-    setUserWantsToPlay(false);
-  };
 
   const onNativePlay = useCallback(() => {
     console.log('Video Event: onPlay (native)');
