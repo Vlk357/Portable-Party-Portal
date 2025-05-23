@@ -152,7 +152,6 @@ Running this application suite over HTTP-only would involve:
 2. **Frontend Adjustments:**
    - Frontend applications would need to be configured to make API calls to `http://<your-server-ip>:80/...` instead of `https://...:8443/...`.
    - The chat application would need to connect to `ws://<your-server-ip>:80/socket.io/` instead of `wss://...`.
-3. **Mercure:** The Mercure hub and its clients would also need to be configured for HTTP.
 
 Due to these complexities and the loss of critical functionality and security, an HTTP-only setup is **not recommended or directly supported** by the provided configurations. The self-signed certificate method described earlier provides encryption for local network use, albeit with browser warnings.
 
@@ -251,7 +250,6 @@ docker-compose up -d
   - Chat WebSocket/API: `https://<YOUR_SERVER_LAN_IP>:8443/chat` and `wss://<YOUR_SERVER_LAN_IP>:8443/chat` (via `/socket.io/` or `/chat` paths)
   - Cinema API: `https://<YOUR_SERVER_LAN_IP>:8443/cinema/`
   - Gallery API: `https://<YOUR_SERVER_LAN_IP>:8443/gallery/api/`
-  - Mercure Hub: `https://<YOUR_SERVER_LAN_IP>:8443/.well-known/mercure`
 
 - **HTTP to HTTPS Redirect:** Accessing `http://<YOUR_SERVER_LAN_IP>:8080` or `http://localhost:8080` will redirect to HTTPS on port 8443.
 

@@ -14,7 +14,6 @@ class StreamingStateService
     private const CACHE_KEY = 'streaming_state';
 
     public function __construct(
-        // private readonly HubInterface $hub, // Removed Mercure Hub
         private readonly CacheInterface $cache,
         private readonly ClockInterface $clock,
         private readonly string $movieDirectory,
@@ -182,8 +181,6 @@ class StreamingStateService
             'action' => $action,
             'newState' => $state
         ]);
-
-        // Mercure publishing logic removed
     }
 
     private function getDefaultState(): array

@@ -13,7 +13,6 @@
         "symfony/finder": "7.2.*",
         "symfony/flex": "^2",
         "symfony/framework-bundle": "7.2.*",
-        "symfony/mercure-bundle": "^0.3",
         "symfony/runtime": "7.2.*",
         "symfony/yaml": "7.2.*",
         "symfony/security-bundle": "7.2.*",
