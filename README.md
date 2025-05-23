@@ -15,6 +15,8 @@ Welcome to Party Portal! This project is a monorepo containing various interconn
     - [JWT Signing Keys for Authentication Service](#jwt-signing-keys-for-authentication-service)
     - [Running the Application](#running-the-application)
     - [Accessing Services](#accessing-services)
+    - [Creating users](#creating-users)
+    - [Streaming a movie](#streaming-a-movie)
     - [Stopping the Application](#stopping-the-application)
   - [Development Notes](#development-notes)
     - [Frontend Development](#frontend-development)
@@ -235,6 +237,8 @@ docker-compose up -d
   - `https://localhost:8443`
     (Assuming you are accessing from the same machine via `localhost`).
 
+This is what you should be using to access the whole app.
+
 - **Other services (APIs, etc.)** are proxied through Nginx at the above domain. Specific paths:
 
   - Auth API: `https://<YOUR_SERVER_LAN_IP>:8443/auth/api/`
@@ -243,6 +247,28 @@ docker-compose up -d
   - Gallery API: `https://<YOUR_SERVER_LAN_IP>:8443/gallery/api/`
 
 - **HTTP to HTTPS Redirect:** Accessing `http://<YOUR_SERVER_LAN_IP>:8080` or `http://localhost:8080` will redirect to HTTPS on port 8443.
+
+### Creating users
+
+UI for user creation has not been implemented, but the repository contains a [python script](create_users_and_messages.py) in the root, which can be used to create users at the api. There is also a [usernames file](usernames_passwords.json) with some prepared users. You can change them to whatever you need with how many users you like. Then you run:
+
+```bash
+export AUTH_ADMIN_USERNAME="admin" && export AUTH_ADMIN_PASSWORD=<<ADMIN_PASSWORD>>
+python3 create_users_and_messages.py --user-file "usernames_passwords.json"
+```
+
+Where
+
+- "admin" is the name of the admin user (set in `.env`)
+- <<ADMIN_PASSWORD>> is the password of the admin user (set in `.env`)
+
+You may need to install the the `requests` package using pip
+
+### Streaming a movie
+
+For starting a stream in cinema you can use an admin panel built outside the shell application. It can be accessed by `https://<<YOUR_SERVER_LAN_IP>>:8443/cinema/admin/panel`. The panel is accessible only to a logged in admin user.
+
+The cinema allows to play basically any video format. Tested on HLS and MP4. Thanks to nginx supporting byte ranges there is no issue with streaming video files not optimized for sending over network.
 
 ### Stopping the Application
 
