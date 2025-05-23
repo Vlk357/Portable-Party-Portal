@@ -69,11 +69,6 @@ RUN composer install --no-scripts --no-interaction && \
 # Copy the rest of the application
 COPY --chown=dev:www-data party-portal/apps/backend/auth-service .
 
-# Create the gallery uploads directory and set permissions
-RUN mkdir -p /var/www/apps/gallery/public/media/gallery_files && \
-    chown -R www-data:www-data /var/www/apps/gallery/public/media && \
-    chmod -R 775 /var/www/apps/gallery/public/media
-
 # Set development PHP configuration
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 

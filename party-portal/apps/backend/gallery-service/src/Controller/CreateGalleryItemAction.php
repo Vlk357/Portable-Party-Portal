@@ -34,6 +34,12 @@ class CreateGalleryItemAction extends AbstractController
     {
         $this->logger->info('CreateGalleryItemAction invoked.');
 
+        // Check if the upload directory is writable
+        if (!is_writable($this->galleryUploadsDirectory)) {
+            $this->logger->error('Upload directory is not writable.', ['directory' => $this->galleryUploadsDirectory]);
+            throw new \RuntimeException('Server configuration error: Upload directory is not writable.');
+        }
+
         $uploadedFile = $request->files->get('file');
         $user = $this->getUser();
 

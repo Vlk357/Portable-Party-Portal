@@ -179,6 +179,14 @@ services:
         condition: service_started
     command: >
       sh -c "
+        echo 'Cinema Service: Checking readability of movie directory /var/www/media...' && \
+        if [ -r /var/www/media ] && [ -x /var/www/media ]; then \
+          echo 'Cinema Service: Movie directory /var/www/media is readable and executable (listable).' && \
+          ls -ld /var/www/media; \
+        else \
+          echo 'Cinema Service: FATAL ERROR - Movie directory /var/www/media is NOT READABLE or EXECUTABLE. Check host directory permissions for ${MOVIES_DIRECTORY}. Exiting.' >&2 && \
+          exit 1; \
+        fi && \
         touch .env && \
         composer install --no-dev --optimize-autoloader && \
         php-fpm
@@ -256,11 +264,8 @@ services:
       APP_SECRET: ${GALLERY_APP_SECRET:?GALLERY_APP_SECRET must be set in .env}
       DATABASE_URL: "postgresql://${GALLERY_DB_USER}:${GALLERY_DB_PASSWORD}@postgres:5432/${GALLERY_DB_NAME}?serverVersion=17&charset=utf8"
       JWT_PUBLIC_KEY_PATH: /var/www/apps/gallery-service/config/jwt/public.pem
-      # to %kernel.project_dir%/config/jwt/public.pem (which is mounted above)
-      APP_GALLERY_STORAGE_PATH: '%kernel.project_dir%/public/media/gallery_files'
+      APP_GALLERY_STORAGE_PATH: "%kernel.project_dir%/public/media/gallery_files"
       APP_GALLERY_BASE_URL: /media/gallery_files # Nginx path
-      # XDEBUG_MODE: ${XDEBUG_MODE:-off}
-      # XDEBUG_CONFIG: "client_host=host.docker.internal client_port=${XDEBUG_CLIENT_PORT:-9003}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -270,6 +275,16 @@ services:
       - backend
     command: >
       sh -c "
+        echo 'Gallery Service: Checking writability of /var/www/apps/gallery-service/public/media/gallery_files...' && \
+        mkdir -p /var/www/apps/gallery-service/public/media/gallery_files && \
+        if touch /var/www/apps/gallery-service/public/media/gallery_files/.writable_test && rm /var/www/apps/gallery-service/public/media/gallery_files/.writable_test; then \
+          echo 'Gallery Service: Upload directory is writable.' && \
+          chown -R www-data:www-data /var/www/apps/gallery-service/public/media/gallery_files && \
+          chmod -R 775 /var/www/apps/gallery-service/public/media/gallery_files; \
+        else \
+          echo 'Gallery Service: FATAL ERROR - Upload directory /var/www/apps/gallery-service/public/media/gallery_files is NOT WRITABLE. Check host directory permissions for ${HOST_GALLERY_UPLOADS_DIRECTORY}. Exiting.' >&2 && \
+          exit 1; \
+        fi && \
         touch .env && \
         composer install --no-dev --optimize-autoloader && \
         php bin/console doctrine:migrations:migrate --env=$${APP_ENV} --no-interaction --allow-no-migration && \
