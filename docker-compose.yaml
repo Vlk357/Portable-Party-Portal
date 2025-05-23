@@ -162,8 +162,6 @@ services:
     command: sh -c "echo 'Ensuring dependencies for shell frontend...' && \
       echo 'Running npm install --include=dev --legacy-peer-deps...' && \
       npm install --include=dev --legacy-peer-deps && \
-      echo 'Listing ./node_modules/.bin to check for nx...' && \
-      ls -la ./node_modules/.bin && \
       echo 'Building shell frontend with Nx...' && \
       ./node_modules/.bin/nx build shell && \
       echo 'Shell frontend built by Nx. Output in /app/dist/apps/frontend/shell'"
