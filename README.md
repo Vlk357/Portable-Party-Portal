@@ -262,8 +262,6 @@ Where
 - "admin" is the name of the admin user (set in `.env`)
 - <<ADMIN_PASSWORD>> is the password of the admin user (set in `.env`)
 
-You may need to install the the `requests` package using pip
-
 ### Streaming a movie
 
 For starting a stream in cinema you can use an admin panel built outside the shell application. It can be accessed by `https://<<YOUR_SERVER_LAN_IP>>:8443/cinema/admin/panel`. The panel is accessible only to a logged in admin user.
