@@ -1,27 +1,23 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "../../../tsconfig.base.json", // CHANGE THIS to point to the monorepo root base
   "compilerOptions": {
-    "outDir": "../../../dist/out-tsc",
-    "types": [
-      "node",
-      "@nx/react/typings/cssmodule.d.ts",
-      "@nx/react/typings/image.d.ts",
-      "vite/client"
-    ]
+    "outDir": "../../../../dist/out-tsc", // Standard Nx outDir
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"], // DOM libs are crucial here
+    "module": "ESNext",
+    "moduleResolution": "bundler", // Or "node"
+    "jsx": "react-jsx", // JSX config for app code
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true, // Good for bundlers like Vite
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": false, // Vite handles emitting JS files
+    "composite": true, // Often set by Nx
+    "declaration": true // CHANGE THIS TO TRUE
   },
-  "exclude": [
-    "src/**/*.spec.ts",
-    "src/**/*.test.ts",
-    "src/**/*.spec.tsx",
-    "src/**/*.test.tsx",
-    "src/**/*.spec.js",
-    "src/**/*.test.js",
-    "src/**/*.spec.jsx",
-    "src/**/*.test.jsx",
-    "vite.config.ts",
-    "vite.config.mts",
-    "vitest.config.ts",
-    "vitest.config.mts"
-  ],
-  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "vite.config.ts", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
 }

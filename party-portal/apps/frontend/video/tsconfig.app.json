@@ -18,7 +18,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noEmit": true,          // Ensure this is present if Vite handles emit
+    "noEmit": false,          // Ensure this is present if Vite handles emit
     "composite": true,      // ADD or ensure this is true if it's an Nx app
     "declaration": true,    // ADD or ensure this is true
     "declarationMap": true, // Optional: good for debugging types

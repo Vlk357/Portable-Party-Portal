@@ -14,7 +14,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noEmit": true, // Vite handles emitting JS files
+    "noEmit": false, // Vite handles emitting JS files
     "composite": true, // Often set by Nx
     "declaration": true // CHANGE THIS TO TRUE
   },
