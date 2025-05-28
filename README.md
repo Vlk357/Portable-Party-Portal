@@ -1,10 +1,12 @@
-# Party Portal - Monorepo Application Suite
+# Portable Party Portal - Monorepo Application Suite
+
+<img src="logo/logo_1_1.png" alt="logo of Portable Party Portal" width="200" height="200">
 
 Welcome to Party Portal! This project is a monorepo containing various interconnected web applications, including authentication, chat, video streaming, and a gallery, all orchestrated with Docker.
 
 ## Table of Contents
 
-- [Party Portal - Monorepo Application Suite](#party-portal---monorepo-application-suite)
+- [Portable Party Portal - Monorepo Application Suite](#portable-party-portal---monorepo-application-suite)
   - [Table of Contents](#table-of-contents)
   - [About](#about)
   - [Project Structure Overview](#project-structure-overview)
@@ -22,6 +24,14 @@ Welcome to Party Portal! This project is a monorepo containing various interconn
     - [Frontend Development](#frontend-development)
   - [Logs and Output](#logs-and-output)
   - [Troubleshooting](#troubleshooting)
+    - [Port Conflicts](#port-conflicts)
+    - [Permission error](#permission-error)
+    - [Service Fails to Start](#service-fails-to-start)
+      - [502 Bad Gateway](#502-bad-gateway)
+      - [500 Internal Server Error](#500-internal-server-error)
+      - [Gallery](#gallery)
+      - [Auth service](#auth-service)
+    - [Version of your XYZ](#version-of-your-xyz)
   - [FAQ](#faq)
 
 ## About
@@ -36,6 +46,8 @@ Party Portal is designed as a self-contained, offline-first entertainment hub, p
 - **Authentication:** Secure access to the portal's features.
 
 The entire suite is built with mobility in mind, leveraging Docker to ensure it's easy to set up and run on a laptop or a small server, making your shared media and communication tools readily available wherever your group goes.
+
+Setup your portal before the journey and then enjoy the experience with your fellas without the need for the Internet.
 
 ## Project Structure Overview
 
@@ -180,7 +192,7 @@ The `auth-service` expects these keys to be located at:
    - `-pkeyopt rsa_keygen_bits:4096`: Specifies a key length of 4096 bits (strong).
 
 3. **Extract the Public Key from the Private Key:**
-   This command reads the private key (you'll need to enter its passphrase) and extracts the corresponding public key.
+   This command reads the private key (you'll need to enter its `AUTH_JWT_PASSPHRASE`) and extracts the corresponding public key.
 
    ```bash
    openssl rsa -pubout -in private.pem -out public.pem
@@ -314,8 +326,67 @@ Nginx access and error logs are also written to `/var/log/nginx/` inside the `ng
 
 ## Troubleshooting
 
-- **Port Conflicts:** If `8080` or `8443` (or `5433` for Postgres) are in use on your host, change the port mappings in `docker-compose.yaml` (e.g., `"8081:80"`).
-- **Service Fails to Start:** Check logs (`docker-compose logs -f <service_name>`) for errors. Common issues include incorrect environment variables, missing files/directories for volume mounts, permission issues (with said volume mounts).
+### Port Conflicts
+
+ If `8080` or `8443` (or `5433` for Postgres) are in use on your host, change the port mappings in `docker-compose.yaml` (e.g., `"8081:80"`).
+
+### Permission error
+
+If you see anything like this
+
+![docker permission error](img/docker_sudo_fail.png)
+
+It's probably because the user (group) running the docker command does not have sufficient rights. Try to run again with `sudo`.
+
+### Service Fails to Start
+
+There are many reasons why some service might fail to start. Here are a few I have come across while testing and what they probably mean.
+
+#### 502 Bad Gateway
+
+![502 bad gateway](img/502_bad_gateway.png)
+
+If you are seeing a 502 bad gateway, it probably means some service is down. It may be that it hasn't started yet, but also it could have crashed. If the problem doesn't dissapear in a few minutes, I recommend to [check the logs](#logs-and-output).
+
+#### 500 Internal Server Error
+
+This is certainly an error nobody wants to see, but many times its not actually bad. When the docker is just starting up, even after it tells "all services are running", they still have plenty of starting up to do. Many of them still need to install packages and other stuff, so give it a few minutes and try again. This is kind of expected and might just go away by itself.
+
+#### Gallery
+
+If you load into the gallery and see this error
+
+<img src="img/502_gallery.jpg" alt="502 bad gateway in a red field" width="300" height="300">
+
+then it's probably a permission thing about the folder where you mounted the gallery upload. If you check log, you should see, that the service failed after it couldn't write into the folder.
+
+The problem should be quite easily fixable by:
+
+```bash
+chown $(whoami):$(whoami) your_folder
+```
+
+and just restarting the server. If that doesn't work, delete the folder and create it yourself. That could do the trick.
+
+#### Auth service
+
+![unexpected token in a red field on login form](img/auth_service_down.png)
+
+This probably means the auth-service is down. Check the logs. There is no apparent reason.
+
+### Version of your XYZ
+
+Different versions of different tools lead to different results. Docker should solve most of those, but during testing I have encountered an issue, because of version of docker-compose. So before giving up all hope, try to match me as closely as possible, cause "it works on my machine" :D
+
+```bash
+$ docker --version
+Docker version 26.1.3, build 26.1.3-0ubuntu1~24.04.1
+$ docker-compose --version
+Docker Compose version v2.28.1
+
+# OS: Ubuntu 24.04.2 LTS x86_64
+# Kernel: 6.8.0-60-generic
+```
 
 ## FAQ
 
